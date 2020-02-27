@@ -2346,9 +2346,15 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tcp_set_ca_state(sk, TCP_CA_Open);
 	tcp_clear_retrans(tp);
 	inet_csk_delack_init(sk);
+	/* Initialize rcv_mss to TCP_MIN_MSS to avoid division by 0
+	 * issue in __tcp_select_window()
+	 */
+	icsk->icsk_ack.rcv_mss = TCP_MIN_MSS;
 	tcp_init_send_head(sk);
 	memset(&tp->rx_opt, 0, sizeof(tp->rx_opt));
 	__sk_dst_reset(sk);
+	dst_release(sk->sk_rx_dst);
+	sk->sk_rx_dst = NULL;
 
 	WARN_ON(inet->inet_num && !icsk->icsk_bind_hash);
 
@@ -3639,11 +3645,8 @@ restart:
 			spin_unlock_bh(lock);
 
 			lock_sock(sk);
-			// TODO:
-			// Check for SOCK_DEAD again, it could have changed.
-			// Add a write barrier, see tcp_reset().
 			local_bh_disable();
-
+			bh_lock_sock(sk);
 			if (!sock_flag(sk, SOCK_DEAD)) {
 				smp_wmb();  /* be consistent with tcp_reset */
 				sk->sk_err = ETIMEDOUT;
@@ -3651,8 +3654,9 @@ restart:
 				tcp_done(sk);
 			}
 
-			release_sock(sk);
+			bh_unlock_sock(sk);
 			local_bh_enable();
+			release_sock(sk);
 			sock_put(sk);
 
 			goto restart;

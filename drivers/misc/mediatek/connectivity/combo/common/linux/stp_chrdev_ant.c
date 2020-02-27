@@ -21,8 +21,8 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define ANT_DRIVER_NAME "mtk_stp_ANT_chrdev"
 #define ANT_DEV_MAJOR 197	/* never used number */
 static PINT8 ANT_BUILT_IN_PATCH_FILE_NAME;
-static PINT8 ANT_BUILT_IN_PATCH_FILE_NAME_E1 = "/system/etc/firmware/ANT_RAM_CODE_E1.BIN";
-static PINT8 ANT_BUILT_IN_PATCH_FILE_NAME_E2 = "/system/etc/firmware/ANT_RAM_CODE_E2.BIN";
+static PINT8 ANT_BUILT_IN_PATCH_FILE_NAME_E1 = "/vendor/etc/firmware/ANT_RAM_CODE_E1.BIN";
+static PINT8 ANT_BUILT_IN_PATCH_FILE_NAME_E2 = "/vendor/etc/firmware/ANT_RAM_CODE_E2.BIN";
 
 #define PFX                         "[MTK-ANT] "
 #define ANT_LOG_DBG                  3
@@ -57,10 +57,6 @@ do { if (gDbgLevel >= ANT_LOG_WARN)	\
 #define ANT_ERR_FUNC(fmt, arg...)	\
 do { if (gDbgLevel >= ANT_LOG_ERR)	\
 		pr_err(PFX "%s: "   fmt, __func__ , ##arg);	\
-} while (0)
-#define ANT_TRC_FUNC(f)	\
-do { if (gDbgLevel >= ANT_LOG_DBG)	\
-		pr_info(PFX "<%s> <%d>\n", __func__, __LINE__);	\
 } while (0)
 
 #define VERSION "1.0"

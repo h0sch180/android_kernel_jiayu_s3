@@ -89,7 +89,7 @@ CONSYS_EMI_ADDR_INFO mtk_wcn_emi_addr_info = {
 	.paged_trace_off = CONSYS_EMI_PAGED_TRACE_OFFSET,
 	.paged_dump_off = CONSYS_EMI_PAGED_DUMP_OFFSET,
 	.full_dump_off = CONSYS_EMI_FULL_DUMP_OFFSET,
-	.p_emi_ctrl_state_offset = &mtk_wcn_emi_state_off,
+	.p_ecso = &mtk_wcn_emi_state_off,
 };
 
 /*******************************************************************************
@@ -805,7 +805,7 @@ wmt_plat_gps_lna_ctrl (
     }
     return 0;
 #else
-    WMT_PLAT_WARN_FUNC("host gps lna pin not defined!!!\n")
+    WMT_PLAT_WARN_FUNC("host gps lna pin not defined!!!\n");
     return 0;
 #endif
 }
@@ -838,7 +838,7 @@ wmt_plat_gps_lna_ctrl (
     }
     return 0;
 #else
-    WMT_PLAT_WARN_FUNC("host gps lna pin not defined!!!\n")
+    WMT_PLAT_WARN_FUNC("host gps lna pin not defined!!!\n");
     return 0;
 #endif
 }

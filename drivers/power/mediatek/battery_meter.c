@@ -2657,9 +2657,10 @@ kal_int32 battery_meter_get_charging_current_imm(void)
 
 kal_int32 battery_meter_get_charging_current(void)
 {
+
 #ifdef DISABLE_CHARGING_CURRENT_MEASURE
 	return 0;
-#elif !defined (EXTERNAL_SWCHR_SUPPORT)
+#elif 1//!defined (EXTERNAL_SWCHR_SUPPORT)
 	kal_int32 ADC_BAT_SENSE_tmp[20] =
 	    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	kal_int32 ADC_BAT_SENSE_sum = 0;

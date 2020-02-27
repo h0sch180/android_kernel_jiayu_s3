@@ -24,43 +24,49 @@
 #include "btm_core.h"
 
 #define PFX_STP_DBG                      "[STPDbg]"
-#define STP_DBG_LOG_LOUD                 4
-#define STP_DBG_LOG_DBG                  3
-#define STP_DBG_LOG_INFO                 2
-#define STP_DBG_LOG_WARN                 1
-#define STP_DBG_LOG_ERR                  0
+#define STP_DBG_LOG_LOUD	4
+#define STP_DBG_LOG_DBG	3
+#define STP_DBG_LOG_INFO	2
+#define STP_DBG_LOG_WARN	1
+#define STP_DBG_LOG_ERR	0
 
 UINT32 gStpDbgDbgLevel = STP_DBG_LOG_INFO;
 UINT32 gStpDbgLogOut = 0;
 UINT32 gStpDbgDumpType = STP_DBG_PKT;
 #define STP_DBG_LOUD_FUNC(fmt, arg...)	\
 do {	\
-	pr_debug(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_LOUD) \
+		pr_warn(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
 } while (0)
 
 #define STP_DBG_DBG_FUNC(fmt, arg...)	\
 do {	\
-	pr_debug(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_DBG) \
+		pr_warn(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
 } while (0)
 
 #define STP_DBG_INFO_FUNC(fmt, arg...)	\
 do {	\
-	pr_warn(PFX_STP_DBG fmt, ##arg);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_INFO) \
+		pr_warn(PFX_STP_DBG fmt, ##arg);	\
 } while (0)
 
 #define STP_DBG_WARN_FUNC(fmt, arg...)	\
 do {	\
-	pr_err(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_WARN) \
+		pr_err(PFX_STP_DBG "%s: "  fmt, __func__ , ##arg);	\
 } while (0)
 
 #define STP_DBG_ERR_FUNC(fmt, arg...)	\
 do {	\
-	pr_err(PFX_STP_DBG "%s: "   fmt, __func__ , ##arg);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_ERR) \
+		pr_err(PFX_STP_DBG "%s: "   fmt, __func__ , ##arg);	\
 } while (0)
 
 #define STP_DBG_TRC_FUNC(f)	\
 do {	\
-	pr_debug(PFX_STP_DBG "<%s> <%d>\n", __func__, __LINE__);	\
+	if (gStpDbgDbgLevel >= STP_DBG_LOG_LOUD) \
+		pr_warn(PFX_STP_DBG "<%s> <%d>\n", __func__, __LINE__);	\
 } while (0)
 
 
@@ -789,13 +795,13 @@ INT32 wcn_compressor_in(P_WCN_COMPRESSOR_T cprs, PUINT8 buf, INT32 len, INT32 fi
 		if (len > cprs->L1_buf_sz) {
 			STP_DBG_ERR_FUNC("len=%d, too long err!\n", len);
 		} else {
-			STP_DBG_INFO_FUNC("L1 Flushed, and Put %d bytes to L1 buf\n", len);
+			STP_DBG_DBG_FUNC("L1 Flushed, and Put %d bytes to L1 buf\n", len);
 			osal_memcpy(&cprs->L1_buf[cprs->L1_pos], buf, len);
 			cprs->L1_pos += len;
 		}
 	} else {
 		/* put to L1 buffer */
-		STP_DBG_INFO_FUNC("Put %d bytes to L1 buf\n", len);
+		STP_DBG_DBG_FUNC("Put %d bytes to L1 buf\n", len);
 
 		osal_memcpy(&cprs->L1_buf[cprs->L1_pos], buf, len);
 		cprs->L1_pos += len;
@@ -904,18 +910,84 @@ INT32 wcn_compressor_reset(P_WCN_COMPRESSOR_T cprs, UINT8 enable, WCN_COMPRESS_A
 	return 0;
 }
 
+INT32 wcn_core_dump_nl(P_WCN_CORE_DUMP_T dmp, PUINT8 buf, INT32 len)
+{
+	INT32 ret = 0;
+
+	if ((!dmp) || (!buf)) {
+		STP_DBG_ERR_FUNC("invalid pointer!\n");
+		return -1;
+	}
+
+	ret = osal_lock_sleepable_lock(&dmp->dmp_lock);
+	if (ret) {
+		STP_DBG_ERR_FUNC("--->lock dmp->dmp_lock failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	switch (dmp->sm) {
+	case CORE_DUMP_INIT:
+		osal_timer_start(&dmp->dmp_timer, STP_CORE_DUMP_TIMEOUT);
+		STP_DBG_WARN_FUNC("COMBO_CONSYS coredump start, please wait up to 1 minutes.\n");
+		/* check end srting */
+		ret = wcn_core_dump_check_end(buf, len);
+		if (ret == 1) {
+			STP_DBG_INFO_FUNC("core dump end!\n");
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
+		} else {
+			dmp->sm = CORE_DUMP_DOING;
+		}
+		break;
+
+	case CORE_DUMP_DOING:
+		/* check end srting */
+		ret = wcn_core_dump_check_end(buf, len);
+		if (ret == 1) {
+			STP_DBG_INFO_FUNC("core dump end!\n");
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
+		} else {
+			dmp->sm = CORE_DUMP_DOING;
+		}
+		break;
+
+	case CORE_DUMP_DONE:
+		osal_timer_stop(&dmp->dmp_timer);
+		dmp->sm = CORE_DUMP_INIT;
+		break;
+
+	case CORE_DUMP_TIMEOUT:
+		ret = 32;
+		break;
+	default:
+		break;
+	}
+
+	osal_unlock_sleepable_lock(&dmp->dmp_lock);
+
+	return ret;
+}
 
 static VOID stp_dbg_dump_data(PUINT8 pBuf, PINT8 title, INT32 len)
 {
 	INT32 k = 0;
+	char str[240] = {""};
+	INT32 strp = 0;
+	INT32 strlen = 0;
 	pr_warn(" %s-len:%d\n", title, len);
 	/* pr_warn("    ", title, len); */
 	for (k = 0; k < len; k++) {
-		if (k % 16 == 0 && k != 0)
-			pr_warn("\n    ");
-		pr_warn("0x%02x ", pBuf[k]);
+		if (strp < 200) {
+			strlen = osal_sprintf(&str[strp], "0x%02x ", pBuf[k]);
+			strp += strlen;
+		} else {
+			pr_warn("More than 200 of the data is too much\n");
+			break;
+		}
 	}
-	pr_warn("--end\n");
+	osal_sprintf(&str[strp], "--end\n");
+	pr_warn("%s", str);
 }
 
 
@@ -1310,17 +1382,25 @@ static INT32 stp_dbg_nl_reset(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
-INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
+INT32 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd, INT32 len)
 {
 	struct sk_buff *skb = NULL;
 	PVOID msg_head = NULL;
 	INT32 rc = -1;
 	INT32 i;
+	INT32 ret = 0;
 
 	if (num_bind_process == 0) {
 		/* no listening process */
 		STP_DBG_ERR_FUNC("%s(): the process is not invoked\n", __func__);
 		return 0;
+	}
+
+	ret = wcn_core_dump_nl(g_core_dump, aucMsg, len);
+	if (ret < 0)
+		return ret;
+	if (ret == 32) {
+		return ret;
 	}
 
 	for (i = 0; i < num_bind_process; i++) {
@@ -1331,15 +1411,16 @@ INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
 			    genlmsg_put(skb, 0, stp_dbg_seqnum++, &stp_dbg_gnl_family, 0, cmd);
 			if (msg_head == NULL) {
 				nlmsg_free(skb);
-				STP_DBG_ERR_FUNC("%s(): genlmsg_put fail...\n", __func__);
+				STP_DBG_DBG_FUNC("%s(): genlmsg_put fail...\n", __func__);
 				return -1;
 			}
 
-			rc = nla_put_string(skb, STP_DBG_ATTR_MSG, aucMsg);
+			/* rc = nla_put_string(skb, STP_DBG_ATTR_MSG, aucMsg); */
+			rc = nla_put(skb, STP_DBG_ATTR_MSG, len, aucMsg);
 			if (rc != 0) {
 				nlmsg_free(skb);
-				STP_DBG_ERR_FUNC("%s(): nla_put_string fail...\n", __func__);
-				return -1;
+				STP_DBG_DBG_FUNC("%s(): nla_put_string fail...: %d\n", __func__, rc);
+				return rc;
 			}
 
 			/* finalize the message */
@@ -1348,8 +1429,8 @@ INT8 stp_dbg_nl_send(PINT8 aucMsg, UINT8 cmd)
 			/* sending message */
 			rc = genlmsg_unicast(&init_net, skb, bind_pid[i]);
 			if (rc != 0) {
-				STP_DBG_ERR_FUNC("%s(): genlmsg_unicast fail...\n", __func__);
-				return -1;
+				STP_DBG_DBG_FUNC("%s(): genlmsg_unicast fail...: %d\n", __func__, rc);
+				return rc;
 			}
 		} else {
 			STP_DBG_ERR_FUNC("%s(): genlmsg_new fail...\n", __func__);

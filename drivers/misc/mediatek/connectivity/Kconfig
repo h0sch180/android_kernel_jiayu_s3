@@ -107,6 +107,16 @@ config MTK_COMBO_COMM_NPWR
 	help
 	  Enable NPWR support of new power on swquence
 
+config MTK_COMBO_COMM_APO
+	depends on MTK_COMBO_COMM
+	bool "Enable always power on support"
+	default y
+	help
+	  Enable chip ""always power on" feature
+          reduce time consumption of BT/WIFI/FM/GPS turn on precedure
+          BT/FM/WIFI/GPS turn on will cost more than 2s if this flag is not set to true
+          BT/FM/WIFI turn on will cost 1s if this flag is set to true
+
 config MTK_COMBO_BT
 	tristate "MediaTek Combo Chip BT driver"
 	depends on MTK_COMBO
@@ -130,3 +140,45 @@ config MTK_COMBO_GPS
 	depends on MTK_COMBO
 	help
 	  MTK GPS /dev/stpgps driver
+
+config MTK_COMBO_WIFI
+	tristate "MediaTek combo chip Wi-Fi support"
+	depends on MTK_COMBO
+	depends on !mt592x
+	select WIRELESS_EXT
+	select WEXT_PRIV
+
+config MTK_WAPI_SUPPORT
+	bool "MTK_WAPI_SUPPORT"
+	help
+	  if it is set to TRUE: Support WAPI (WLAN Authentication and
+	  Privacy Infrastructure)
+
+config MTK_PASSPOINT_R1_SUPPORT
+	bool "MTK_PASSPOINT_R1_SUPPORT"
+	help
+	  Support Passpoint R1 (Hotspot 2.0 R1)
+
+config MTK_PASSPOINT_R2_SUPPORT
+	bool "MTK_PASSPOINT_R2_SUPPORT"
+	help
+	   Support Passpoint R2
+
+config MTK_WIFI_MCC_SUPPORT
+	bool "MTK_WIFI_MCC_SUPPORT"
+	default y
+	help
+	   if it is set to TRUE, wlan will support Multi-Channel Concurrency,
+	   otherwise, only support Single Channel Concurrency
+
+config MTK_DHCPV6C_WIFI
+	bool "MTK_DHCPV6C_WIFI"
+	help
+	  no: disable this feature
+
+config MTK_CONN_LTE_IDC_SUPPORT
+	bool "MediaTek CONN LTE IDC support"
+	select MTK_CONN_MD
+	default y
+	help
+	  This option enables CONN LTE IDC support

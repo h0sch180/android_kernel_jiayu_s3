@@ -11,6 +11,10 @@
 * You should have received a copy of the GNU General Public License along with this program.
 * If not, see <http://www.gnu.org/licenses/>.
 */
+#if CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#define CFG_GPS_WAKELOCK_SUPPORT 1
+#endif
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -27,6 +31,9 @@
 #endif
 #include "stp_exp.h"
 #include "wmt_exp.h"
+#if defined(CONFIG_ARCH_MT6580)
+#include <mach/mt_clkbuf_ctl.h>
+#endif
 
 MODULE_LICENSE("GPL");
 
@@ -56,7 +63,7 @@ static unsigned int gDbgLevel = GPS_LOG_INFO;
 do { if (gDbgLevel >= GPS_LOG_DBG)	\
 		pr_debug(PFX "[D]%s: "  fmt, __func__ , ##arg);	\
 } while (0)
-#define GPS_INFO_FUNC(fmt, arg...)	\
+#define GPS_DBG_FUNC(fmt, arg...)	\
 do { if (gDbgLevel >= GPS_LOG_INFO)	\
 		pr_info(PFX "[I]%s: "  fmt, __func__ , ##arg);	\
 } while (0)
@@ -82,6 +89,9 @@ static struct cdev GPS_cdev;
 #define STP_GPS_BUFFER_SIZE 2048
 #else
 #define STP_GPS_BUFFER_SIZE MTKSTP_BUFFER_SIZE
+#endif
+#ifdef CFG_GPS_WAKELOCK_SUPPORT
+static struct wakeup_source gps_wake_lock;
 #endif
 
 static unsigned char i_buf[STP_GPS_BUFFER_SIZE];	/* input buffer of read() */
@@ -206,9 +216,9 @@ ssize_t GPS_read(struct file *filp, char __user *buf, size_t count, loff_t *f_po
 		/* if we are signaled */
 		if (val) {
 			if (-ERESTARTSYS == val) 
-				GPS_INFO_FUNC("signaled by -ERESTARTSYS(%ld)\n ", val);
+				GPS_DBG_FUNC("signaled by -ERESTARTSYS(%ld)\n ", val);
 			else 
-				GPS_INFO_FUNC("signaled by %ld\n ", val);
+				GPS_DBG_FUNC("signaled by %ld\n ", val);
 			
 			break;
 		}
@@ -257,7 +267,7 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case 0:		/* enable/disable STP */
-		GPS_INFO_FUNC("disable STP control from GPS dev\n");
+		GPS_DBG_FUNC("disable STP control from GPS dev\n");
 		retval = -EINVAL;
 #if 1
 #else
@@ -267,7 +277,7 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case 1:		/* send raw data */
-		GPS_INFO_FUNC("disable raw data from GPS dev\n");
+		GPS_DBG_FUNC("disable raw data from GPS dev\n");
 		retval = -EINVAL;
 		break;
 
@@ -275,7 +285,7 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		/*get combo hw version */
 		hw_ver_sym = mtk_wcn_wmt_hwver_get();
 
-		GPS_INFO_FUNC("get hw version = %d, sizeof(hw_ver_sym) = %zd\n", hw_ver_sym, sizeof(hw_ver_sym));
+		GPS_DBG_FUNC("get hw version = %d, sizeof(hw_ver_sym) = %zd\n", hw_ver_sym, sizeof(hw_ver_sym));
 		if (copy_to_user((int __user *)arg, &hw_ver_sym, sizeof(hw_ver_sym))) 
 			retval = -EFAULT;
 		
@@ -285,18 +295,18 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 		retval = rtc_GPS_low_power_detected();
 
-		GPS_INFO_FUNC("low power flag (%d)\n", retval);
+		GPS_DBG_FUNC("low power flag (%d)\n", retval);
 		break;
 	case COMBO_IOC_CO_CLOCK_FLAG:
 		retval = mtk_wcn_wmt_co_clock_flag_get();
-		GPS_INFO_FUNC("GPS co_clock_flag (%d)\n", retval);
+		GPS_DBG_FUNC("GPS co_clock_flag (%d)\n", retval);
 		break;
 	case COMBO_IOC_D1_EFUSE_GET:
 #if defined(CONFIG_ARCH_MT6735)
 		do {
 			char *addr = ioremap(0x10206198, 0x4);
 			retval = *(volatile unsigned int *)addr;
-			GPS_INFO_FUNC("D1 efuse (0x%x)\n", retval);
+			GPS_DBG_FUNC("D1 efuse (0x%x)\n", retval);
 			iounmap(addr);
 		} while (0);
 #else
@@ -305,7 +315,7 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	default:
 		retval = -EFAULT;
-		GPS_INFO_FUNC("unknown cmd (%d)\n", cmd);
+		GPS_DBG_FUNC("unknown cmd (%d)\n", cmd);
 		break;
 	}
 
@@ -316,7 +326,7 @@ long GPS_unlocked_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 long GPS_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	long ret;
-	GPS_INFO_FUNC("(%d)\n", cmd);
+	GPS_DBG_FUNC("(%d)\n", cmd);
 	ret = GPS_unlocked_ioctl(filp, cmd, arg);
 	return ret;
 }
@@ -330,20 +340,20 @@ static void gps_cdev_rst_cb(ENUM_WMTDRV_TYPE_T src,
 	 */
 	ENUM_WMTRSTMSG_TYPE_T rst_msg;
 
-	GPS_INFO_FUNC("sizeof(ENUM_WMTRSTMSG_TYPE_T) = %zd\n", sizeof(ENUM_WMTRSTMSG_TYPE_T));
+	GPS_DBG_FUNC("sizeof(ENUM_WMTRSTMSG_TYPE_T) = %zd\n", sizeof(ENUM_WMTRSTMSG_TYPE_T));
 	if (sz <= sizeof(ENUM_WMTRSTMSG_TYPE_T)) {
 		memcpy((char *)&rst_msg, (char *)buf, sz);
-		GPS_INFO_FUNC("src = %d, dst = %d, type = %d, buf = 0x%x sz = %d, max = %d\n", src, dst, type, rst_msg,
+		GPS_DBG_FUNC("src = %d, dst = %d, type = %d, buf = 0x%x sz = %d, max = %d\n", src, dst, type, rst_msg,
 			      sz, WMTRSTMSG_RESET_MAX);
 		if ((src == WMTDRV_TYPE_WMT) && (dst == WMTDRV_TYPE_GPS) && (type == WMTMSG_TYPE_RESET)) {
 			if (rst_msg == WMTRSTMSG_RESET_START) {
-				GPS_INFO_FUNC("gps restart start!\n");
+				GPS_DBG_FUNC("gps restart start!\n");
 
 				/*reset_start message handling */
 				retflag = 1;
 
 			} else if ((rst_msg == WMTRSTMSG_RESET_END) || (rst_msg == WMTRSTMSG_RESET_END_FAIL)) {
-				GPS_INFO_FUNC("gps restart end!\n");
+				GPS_DBG_FUNC("gps restart end!\n");
 
 				/*reset_end message handling */
 				retflag = 0;
@@ -369,7 +379,7 @@ static int GPS_open(struct inode *inode, struct file *file)
 		return -ENODEV;
 	} else {
 		mtk_wcn_wmt_msgcb_reg(WMTDRV_TYPE_GPS, gps_cdev_rst_cb);
-		GPS_INFO_FUNC("WMT turn on GPS OK!\n");
+		GPS_DBG_FUNC("WMT turn on GPS OK!\n");
 	}
 #endif
 
@@ -379,7 +389,7 @@ static int GPS_open(struct inode *inode, struct file *file)
 			GPS_WARN_FUNC("WMT turn on GPS fail!\n");
 			return -ENODEV;
 		}
-		GPS_INFO_FUNC("WMT turn on GPS OK!\n");
+		GPS_DBG_FUNC("WMT turn on GPS OK!\n");
 #endif
 		mtk_wcn_stp_register_event_cb(GPS_TASK_INDX, GPS_event_cb);
 	} else {
@@ -388,7 +398,14 @@ static int GPS_open(struct inode *inode, struct file *file)
 		/*return error code */
 		return -ENODEV;
 	}
-
+#if defined(CONFIG_ARCH_MT6580)
+    // hack for gps
+    clk_buf_ctrl(CLK_BUF_AUDIO, 1);
+#endif
+#ifdef CFG_GPS_WAKELOCK_SUPPORT
+	wake_lock(&gps_wake_lock);
+	GPS_DBG_FUNC("GPS: wake_lock(%d)\n", wake_lock_active(&gps_wake_lock));
+#endif
 	/* init_MUTEX(&wr_mtx); */
 	sema_init(&wr_mtx, 1);
 	/* init_MUTEX(&rd_mtx); */
@@ -412,8 +429,16 @@ static int GPS_close(struct inode *inode, struct file *file)
 		GPS_WARN_FUNC("WMT turn off GPS fail!\n");
 		return -EIO;	/* mostly, native programer does not care this return vlaue, but we still return error code. */
 	} else {
-		GPS_INFO_FUNC("WMT turn off GPS OK!\n");
+		GPS_DBG_FUNC("WMT turn off GPS OK!\n");
 	}
+#if defined(CONFIG_ARCH_MT6580)
+        // hack for gps
+    clk_buf_ctrl(CLK_BUF_AUDIO, 0);
+#endif
+#ifdef CFG_GPS_WAKELOCK_SUPPORT
+	wake_unlock(&gps_wake_lock);
+	GPS_DBG_FUNC("GPS: wake_unlock(%d)\n", wake_lock_active(&gps_wake_lock));
+#endif
 
 	return 0;
 }
@@ -447,7 +472,7 @@ static int GPS_init(void)
 	/*static allocate chrdev */
 	alloc_ret = register_chrdev_region(dev, 1, GPS_DRIVER_NAME);
 	if (alloc_ret) {
-		pr_info("fail to register chrdev\n");
+		pr_err("fail to register chrdev\n");
 		return alloc_ret;
 	}
 
@@ -468,6 +493,9 @@ static int GPS_init(void)
 #endif
 
 	pr_alert(KERN_ALERT "%s driver(major %d) installed.\n", GPS_DRIVER_NAME, GPS_major);
+#ifdef CFG_GPS_WAKELOCK_SUPPORT
+	wake_lock_init(&gps_wake_lock, WAKE_LOCK_SUSPEND, "gpswakelock");
+#endif
 
 	return 0;
 
@@ -506,6 +534,9 @@ static void GPS_exit(void)
 	unregister_chrdev_region(dev, GPS_devs);
 
 	pr_alert(KERN_ALERT "%s driver removed.\n", GPS_DRIVER_NAME);
+#ifdef CFG_GPS_WAKELOCK_SUPPORT
+	wake_lock_destroy(&gps_wake_lock);
+#endif
 }
 
 #ifdef MTK_WCN_REMOVE_KERNEL_MODULE

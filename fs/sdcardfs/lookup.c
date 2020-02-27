@@ -114,10 +114,6 @@ struct inode *sdcardfs_iget(struct super_block *sb, struct inode *lower_inode, u
 	/* if found a cached inode, then just return it (after iput) */
 	if (!(inode->i_state & I_NEW)) {
 		iput(lower_inode);
-		/* There can only be one alias, as we don't permit hard links
-		 * This ensures we do not keep stale dentries that would later
-		 * cause confusion. */
-		d_prune_aliases(inode);
 		return inode;
 	}
 
@@ -203,7 +199,8 @@ static struct dentry *__sdcardfs_interpose(struct dentry *dentry,
 
 	ret_dentry = d_splice_alias(inode, dentry);
 	dentry = ret_dentry ?: dentry;
-	update_derived_permission_lock(dentry);
+	if (!IS_ERR(dentry))
+		update_derived_permission_lock(dentry);
 out:
 	return ret_dentry;
 }

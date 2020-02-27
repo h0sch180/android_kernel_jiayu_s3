@@ -397,8 +397,7 @@ void ion_mm_heap_add_freelist(struct ion_buffer *buffer)
     ion_mm_heap_free_bufferInfo(buffer);
 }
 
-int ion_mm_heap_pool_total(struct ion_heap *heap)
-{
+int ion_mm_heap_pool_total(struct ion_heap *heap) {
 	struct ion_system_heap *sys_heap;
 	int total = 0;
 	int i;
@@ -408,7 +407,7 @@ int ion_mm_heap_pool_total(struct ion_heap *heap)
 	for (i = 0; i < num_orders; i++) {
 		struct ion_page_pool *pool = sys_heap->pools[i];
 		total += (pool->high_count + pool->low_count) * (1 << pool->order);
-		pool = sys_heap->cached_pools[i];
+                pool = sys_heap->cached_pools[i];
 		total += (pool->high_count + pool->low_count) * (1 << pool->order);
 	}
 
@@ -448,7 +447,6 @@ static int ion_mm_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 		ION_PRINT_LOG_OR_SEQ(s, "%d order %u lowmem pages in pool = %lu total\n",
 			   pool->low_count, pool->order,
 			   (1 << pool->order) * PAGE_SIZE * pool->low_count);
-
 		pool = sys_heap->cached_pools[i];
 		ION_PRINT_LOG_OR_SEQ(s, "%d order %u highmem pages in cached_pool = %lu total\n",
 			   pool->high_count, pool->order,

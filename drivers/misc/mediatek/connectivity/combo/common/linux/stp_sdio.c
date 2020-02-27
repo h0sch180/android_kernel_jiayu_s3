@@ -27,6 +27,7 @@
 #define STP_SDIO_OWNBACKDBG 1	/* depends on STP_SDIO_DBG_SUPPORT */
 #define STP_SDIO_NEW_IRQ_HANDLER 1
 
+
 /*******************************************************************************
 *                    E X T E R N A L   R E F E R E N C E S
 ********************************************************************************
@@ -39,12 +40,14 @@
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/completion.h>
+#include <linux/time.h>
 
 #include "osal.h"
 #include "stp_exp.h"
 #include "hif_sdio.h"
 #include "stp_sdio.h"
 #include "wmt_lib.h"
+#include "wmt_exp.h"
 
 /*******************************************************************************
 *                              C O N S T A N T S
@@ -114,7 +117,8 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData);
 static INT32 stp_sdio_host_info_deinit(PPUINT8 ppTxBuf, PPUINT8 ppRxBuf);
 static INT32 stp_sdio_host_info_init(PPUINT8 ppTxBuf, PPUINT8 ppRxBuf);
 static INT32 stp_sdio_host_info_op(INT32 opId);
-static INT32 stp_sdio_rc_reg_readl_retry (MTK_WCN_HIF_SDIO_CLTCTX clt_ctx, UINT32 offset, UINT32 retry_limit, INT32 *p_ret);
+static INT32 stp_sdio_rw_retry(ENUM_STP_SDIO_HIF_TYPE_T type, UINT32 retry_limit,
+		MTK_WCN_HIF_SDIO_CLTCTX clt_ctx, UINT32 offset, PUINT32 pData, UINT32 len);
 /*******************************************************************************
 *                           P R I V A T E   D A T A
 ********************************************************************************
@@ -167,6 +171,8 @@ UINT32 g_stp_sdio_host_count;
 static struct proc_dir_entry *gStpSdioRxDbgEntry = NULL;
 static INT32 stp_sdio_rxdbg_cnt;
 static struct stp_sdio_rxdbg stp_sdio_rxdbg_buffer[STP_SDIO_RXDBG_COUNT];
+static struct timeval old = {0};
+#define TX_NO_ACK_TIMEOUT_ASSERT 5 /* tx no ack timeout assert, unit:second*/
 
 #if USE_NEW_PROC_FS_FLAG
 ssize_t stp_sdio_rxdbg_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos);
@@ -428,7 +434,8 @@ static SDIO_PS_OP stp_sdio_get_own_state(VOID)
 	MTK_WCN_HIF_SDIO_CLTCTX clt_ctx;
 
 	clt_ctx = gp_info->sdio_cltctx;
-    i_ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+	i_ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &chlcpr_value,
+			0);
     if (i_ret) {
 		ret = OWN_SET;
 		STPSDIO_ERR_FUNC("read CHLPCR fail(%d), return\n", ret);
@@ -460,6 +467,7 @@ static INT32 stp_sdio_do_own_clr(INT32 wait)
 	UINT32 time_out;
 	INT32 retry;
 	UINT32 chlcpr_value = 0x0;
+	UINT32 write_value = 0x0;
 	UINT32 delay_us = 500;
 	MTK_WCN_HIF_SDIO_CLTCTX clt_ctx;
 
@@ -477,23 +485,28 @@ static INT32 stp_sdio_do_own_clr(INT32 wait)
 /* need to wait for the ownback completion */
 /* [COHEC_00006052] SW work-around solution:
    using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
-   while (retry-- > 0) {
+	while (retry-- > 0) {
 #if COHEC_00006052
-	    ret = mtk_wcn_hif_sdio_writeb(clt_ctx, (UINT32)(CHLPCR+0x1), (UINT8)(C_FW_OWN_REQ_CLR>>8));
+		write_value = (C_FW_OWN_REQ_CLR>>8);
+		ret = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx,
+				(UINT32)(CHLPCR+0x1), &write_value, 0);
 #else
-	    ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_OWN_REQ_CLR);
+		write_value = C_FW_OWN_REQ_CLR;
+		ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&write_value, 0);
 #endif /* COHEC_00006052 */
-	    if (ret) {
-	        STPSDIO_ERR_FUNC("request firmware own back fail(%d)\n", ret);
-	        osal_dbg_assert_aee("<HIF_SDIO> sdio_write ERROR","write CHLPCR by SDIO report error");
+		if (ret) {
+			STPSDIO_ERR_FUNC("request firmware own back fail(%d)\n", ret);
+			osal_dbg_assert_aee("<HIF_SDIO> sdio_write ERROR", "write CHLPCR by SDIO report error");
 			if (0 == retry)
-	        goto out;
-	    } else
-                break;
-   	};
-	retry = 40;
+				goto out;
+		} else
+			break;
+	}
+	retry = 1200;/*wait for 1200*500 = 600 000 us*/
 	do {
-		ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+		ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&chlcpr_value, 0);
 		if (ret) {
 			/* 4 <1.1> get CHISR Rx error handling */
             STPSDIO_ERR_FUNC("get CHLPCR information rx error!(%d)\n", ret);
@@ -510,6 +523,24 @@ static INT32 stp_sdio_do_own_clr(INT32 wait)
 			    ("firmware ownback is no polled, wait for (%d us) and retry\n",
 			     delay_us);
 			udelay(delay_us);
+		}
+		if (0 == (retry - 1)%40)
+			STPSDIO_ERR_FUNC("own back failed in %d us, something might goes wrong\n", 40*delay_us);
+
+		if (0 == (retry - 1)%200) {
+#if COHEC_00006052
+			write_value = (C_FW_OWN_REQ_CLR>>8);
+			ret = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx,
+					(UINT32)(CHLPCR+0x1), &write_value, 0);
+#else
+			write_value = C_FW_OWN_REQ_CLR;
+			ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+					&write_value, 0);
+#endif /* COHEC_00006052 */
+			if (ret)
+				STPSDIO_ERR_FUNC("request firmware own back fail(%d)\n", ret);
+			STPSDIO_ERR_FUNC("own back failed in %d us, write again\n", 200*delay_us);
+			mtk_wcn_stp_read_fw_cpupcr();
 		}
 	}
 	while (retry-- > 0);
@@ -547,6 +578,7 @@ static INT32 stp_sdio_do_own_set(VOID)
 #define SET_OWN_RETRY 10
 	INT32 ret = -1;
 	UINT32 chlcpr_value = 0x0;
+	UINT32 write_value = 0x0;
 	UINT32 retry = SET_OWN_RETRY;
 	UINT32 delay_us = 500;
 	UINT32 tx_fifo_clear_cnt = 0;
@@ -601,7 +633,9 @@ static INT32 stp_sdio_do_own_set(VOID)
 	}
 	/* <1> request firmware-own back */
 	STPSDIO_INFO_FUNC("set firmware own! (sleeping)\n");
-	ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_OWN_REQ_SET);
+	write_value = C_FW_OWN_REQ_SET;
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+			&write_value, 0);
 	if (ret) {
 		STPSDIO_ERR_FUNC("set firmware own! (sleeping) fail\n");
 		goto out;
@@ -609,7 +643,8 @@ static INT32 stp_sdio_do_own_set(VOID)
 	/* <2> wait own_back bit is set. */
 	retry = 10;
 	do {
-		ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+		ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&chlcpr_value, 0);
 		if (ret) {
 			/* 4 <1.1> get CHISR Rx error handling */
 			STPSDIO_ERR_FUNC("get CHISR information rx error!(%d)\n", ret);
@@ -730,6 +765,7 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 	UINT32 iRet = 0;
 	UINT32 chisr = 0;
 	UINT32 chlcpr_value = 0;
+	UINT32 write_value = 0;
 	UINT32 tx_comp = 0;
 	MTK_WCN_HIF_SDIO_CLTCTX clt_ctx;
 	UINT32 while_loop_counter = 0;
@@ -746,6 +782,7 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 	while (!osal_thread_should_stop(&pInfo->tx_rx_thread)) {
 		while_loop_counter++;
 
+		osal_ftrace_print("%s|loop_count:%d\n", __func__, while_loop_counter);
 		/* <0> get CHLPCR information */
 		if (OWN_SET == stp_sdio_get_own_state()) {
 			STPSDIO_DBG_FUNC("OWN on fw side!\n");
@@ -783,6 +820,7 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
             STPSDIO_DBG_FUNC("clr firmware own! (wakeup) ok\n");
             pInfo->wakeup_flag = 0;
             osal_raise_signal(&pInfo->isr_check_complete);
+			osal_ftrace_print("%s|wakeup done\n", __func__);
         }
 		
 		if ((0 != pInfo->irq_pending) && (1 == pInfo->awake_flag)) {
@@ -804,7 +842,8 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
                 STPSDIO_ERR_FUNC("get CHISR information rx error, ret:%d\n", iRet);
 				if (-5 == iRet)
 				{
-					chisr = stp_sdio_rc_reg_readl_retry(clt_ctx, CSR, 100, &iRet);
+					iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_MAX_RETRY_NUM, clt_ctx, CSR,
+							&chisr, 0);
 					pInfo->irq_pending = 0;
 				}
 				
@@ -819,30 +858,25 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 			}
 
 			if (0x0 == chisr) {
-            	gStpSdioDbgLvl = STPSDIO_LOG_DBG;
 				STPSDIO_ERR_FUNC("******CHISR == 0*****\n");
 
-				mtk_wcn_hif_sdio_readl(clt_ctx, CCIR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CCIR, &val, 0);
 				STPSDIO_ERR_FUNC("******CCIR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &val, 0);
 				STPSDIO_ERR_FUNC("******CHLPCR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CSDIOCSR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CSDIOCSR, &val, 0);
 				STPSDIO_ERR_FUNC("******CSDIOCSR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CHCR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHCR, &val, 0);
 				STPSDIO_ERR_FUNC("******CHCR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CHISR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHISR, &val, 0);
 				STPSDIO_ERR_FUNC("******CHISR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CHIER, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHIER, &val, 0);
 				STPSDIO_ERR_FUNC("******CHIER == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CTFSR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CTFSR, &val, 0);
 				STPSDIO_ERR_FUNC("******CTFSR == 0x%x*****\n", val);
-				mtk_wcn_hif_sdio_readl(clt_ctx, CRPLR, &val);
+				stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CRPLR, &val, 0);
 				STPSDIO_ERR_FUNC("******CRPLR == 0x%x*****\n", val);
             }
-			else
-			{
-				gStpSdioDbgLvl = STPSDIO_LOG_INFO;
-			}
 
 			if (chisr & FW_OWN_BACK_INT) {
 				STPSDIO_HINT_FUNC("FW_OWN_BACK_INT\n");
@@ -910,35 +944,48 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 		/*Enable IRQ */
 		/*Disable Common interrupt output in CHLPCR */
 		STPSDIO_DBG_FUNC("enable COM IRQ\n");
+		osal_ftrace_print("%s|enable COM IRQ\n", __func__);
 /* need to wait for the ownback completion */
 /* [COHEC_00006052] SW work-around solution:
    using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 #if COHEC_00006052
-		iRet = mtk_wcn_hif_sdio_writeb(clt_ctx, CHLPCR, C_FW_INT_EN_SET);
+		write_value = C_FW_INT_EN_SET;
+		iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&write_value, 0);
 #else
-		iRet = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_INT_EN_SET);
+		write_value = C_FW_INT_EN_SET;
+		iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&write_value, 0);
 #endif				/* COHEC_00006052 */
 		if (iRet) {
 			STPSDIO_ERR_FUNC("enable IRQ fail. iRet:%d\n", iRet);
+			osal_ftrace_print("%s|enable COM IRQ fail, iRet:%d\n", __func__, iRet);
 		} else {
 			STPSDIO_HINT_FUNC("enable COM IRQ\n");
-			iRet = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+			iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+					&chlcpr_value, 0);
 			if (iRet) {
 				STPSDIO_ERR_FUNC("read CHLPCR fail. iRet:%d\n", iRet);
 			} else {
 				if (chlcpr_value & C_FW_INT_EN_SET) {
 					STPSDIO_HINT_FUNC("enable COM IRQ okay (0x%x)\n",
 							  chlcpr_value);
+					osal_ftrace_print("%s|enable COM IRQ done\n", __func__);
 
 					/* INTR_STATUS CHECK */
 					/*
-					   iRet = mtk_wcn_hif_sdio_writel(clt_ctx, CHCR, 0x00000002); // W1C
+					write_value = 0x00000002;
+					iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHCR,
+						&write_value, 0); // W1C
 
-					   iRet = mtk_wcn_hif_sdio_readl(clt_ctx, CHISR, &chisr);
-					   STPSDIO_INFO_FUNC("Query CHISR(0x%08x)\n", chisr);
+					iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHISR,
+						&chisr, 0);
+					STPSDIO_INFO_FUNC("Query CHISR(0x%08x)\n", chisr);
 
-					   iRet = mtk_wcn_hif_sdio_writel(clt_ctx, CHCR, 0x00000000); // W1C
-					 */
+					write_value = 0x00000000;
+					iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHCR,
+						&write_value, 0); // W1C
+					*/
 				}
 #if 0
 				else {
@@ -961,17 +1008,21 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 /* [COHEC_00006052] SW work-around solution:
    using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 			while_loop_counter = 0;
+			osal_ftrace_print("%s|S|set firmware own\n", __func__);
 #if COHEC_00006052
-			iRet =
-			    mtk_wcn_hif_sdio_writeb(clt_ctx, (UINT32) (CHLPCR + 0x01),
-						    (UINT8) (C_FW_OWN_REQ_SET >> 8));
+			write_value = (C_FW_OWN_REQ_SET >> 8);
+			iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx,
+					(UINT32)(CHLPCR + 0x01), &write_value, 0);
 #else
-			iRet = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_OWN_REQ_SET);
+			write_value = C_FW_OWN_REQ_SET;
+			iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+					&write_value, 0);
 #endif				/* COHEC_00006052 */
 			if (iRet) {
 				STPSDIO_ERR_FUNC("set firmware own! (sleeping) fail\n");
 			} else {
-				iRet = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+				iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+						&chlcpr_value, 0);
 				if (iRet) {
 					STPSDIO_ERR_FUNC
 					    ("get firmware own! (sleeping) fail iRet:%d\n", iRet);
@@ -980,6 +1031,7 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 						while_loop_counter = 0;
 						STPSDIO_DBG_FUNC
 						    ("set firmware own! (sleeping) ok\n");
+						osal_ftrace_print("%s|set firmware own okay\n", __func__);
 						pInfo->awake_flag = 0;
 						pInfo->sleep_flag = 0;
 						mtk_wcn_hif_sdio_en_deep_sleep(clt_ctx);
@@ -988,29 +1040,28 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 					} else {
 						STPSDIO_ERR_FUNC
 						    ("set firmware own! (sleeping) fail, set CLR BACK\n");
+						osal_ftrace_print("%s|set firmware own fail, set CLR BACK\n", __func__);
 						/* if set firmware own not successful (possibly pending interrupts), */
 						/* indicate an own clear event */
 /* [COHEC_00006052] SW work-around solution:
    using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 #if COHEC_00006052
-						iRet =
-						    mtk_wcn_hif_sdio_writeb(clt_ctx,
-									    (UINT32) (CHLPCR +
-										      0x01),
-									    (UINT8)
-									    (C_FW_OWN_REQ_CLR >>
-									     8));
+						write_value = (C_FW_OWN_REQ_CLR >> 8);
+						iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx,
+								(UINT32)(CHLPCR + 0x01), &write_value, 0);
 #else
-						iRet =
-						    mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR,
-									    C_FW_OWN_REQ_CLR);
+						write_value = C_FW_OWN_REQ_CLR;
+						iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx,
+								CHLPCR, &write_value, 0);
 #endif				/* COHEC_00006052 */
 					}
 				}
 			}
+			osal_ftrace_print("%s|E|set firmware own\n", __func__);
 		} else {
 #if 0
-			iRet = mtk_wcn_hif_sdio_readl(clt_ctx, CHISR, &chisr);
+			iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHISR, &chisr,
+					0);
 			if (iRet) {
 				/* 4       <1.1> get CHISR Rx error handling */
 				/* TODO: error handling! */
@@ -1023,10 +1074,12 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 			while_loop_counter = 0;
 			pInfo->dump_flag = 1;
 
-			STPSDIO_ERR_FUNC
-			    ("sleeping check result. stp_is_ready(%d) irq_pending(%d) tx_packet_num(%d) rx_pkt_len(%d)\n",
-			     mtk_wcn_stp_is_ready(), pInfo->irq_pending,
-			     pInfo->firmware_info.tx_packet_num, pInfo->rx_pkt_len);
+			STPSDIO_ERR_FUNC("stp_is_ready(%d) irq_pending(%d) tx_packet_num(%d) rx_pkt_len(%d)\n",
+				mtk_wcn_stp_is_ready(), pInfo->irq_pending,
+				pInfo->firmware_info.tx_packet_num, pInfo->rx_pkt_len);
+			osal_ftrace_print("%s|stp_is_ready(%d)irq_pending(%d)tx_packet_num(%d)rx_pkt_len(%d)\n",
+					__func__, mtk_wcn_stp_is_ready(), pInfo->irq_pending,
+					pInfo->firmware_info.tx_packet_num, pInfo->rx_pkt_len);
 			/*make fake irq flag to dump CHISR information */
 			pInfo->irq_pending = 1;
 
@@ -1037,7 +1090,8 @@ static VOID stp_sdio_tx_rx_handling(PVOID pData)
 				osal_raise_signal(&pInfo->isr_check_complete);
 				if (STP_SDIO_TX_PKT_MAX_CNT == pInfo->firmware_info.tx_packet_num)
 				{
-					STPSDIO_ERR_FUNC("STP tx window full, proberbly STP-SDIO cannot handle tx request. tx_packet_num:%d\n", pInfo->firmware_info.tx_packet_num);
+					STPSDIO_ERR_FUNC("tx window full, cannot handle tx request. tx_packet_num:%d\n",
+						pInfo->firmware_info.tx_packet_num);
 					osal_sleep_ms(200);
 				}
 			}
@@ -1095,6 +1149,8 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 	UINT32 idx;
 
 	STPSDIO_LOUD_FUNC("enter\n");
+	osal_ftrace_print("%s|S|L|%d\n", __func__, size);
+
 	if (written_size) {
 		*written_size = 0;
 	}
@@ -1270,6 +1326,7 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 		}
 
 	/* <2> schedule for Tx worker tasklet */
+	osal_ftrace_print("%s|E|signal stp_sdio_tx_rx\n", __func__);
 #if STP_SDIO_OWN_THREAD
 	/* tasklet_schedule(&gp_info->tx_rx_job); */
 	STPSDIO_DBG_FUNC("osal_trigger_event gp_info->tx_rx_event\n");
@@ -1277,6 +1334,8 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 #else
 	schedule_work(&gp_info->tx_work);
 #endif
+	osal_ftrace_print("%s|E|L|%d\n", __func__, size);
+
 	return 0;
 }
 
@@ -1289,6 +1348,7 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 	UINT32 room;
 
 	STPSDIO_LOUD_FUNC("enter\n");
+	osal_ftrace_print("%s|S|L|%d\n", __func__, size);
 
 	/* 4 <1> enqueue the stp Tx packet */
 	*written_size = 0;
@@ -1532,6 +1592,7 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 		}
 	}
 	/* <2> schedule for Tx worker tasklet */
+	osal_ftrace_print("%s|E|signal stp_sdio_tx_rx\n", __func__);
 #if STP_SDIO_OWN_THREAD
 	/* tasklet_schedule(&gp_info->tx_rx_job); */
 	STPSDIO_DBG_FUNC("osal_trigger_event gp_info->tx_rx_event\n");
@@ -1539,6 +1600,7 @@ INT32 stp_sdio_tx(const PUINT8 data, const UINT32 size, PUINT32 written_size)
 #else
 	schedule_work(&gp_info->tx_work);
 #endif
+	osal_ftrace_print("%s|E|L|%d\n", __func__, size);
 
 	return 0;
 }
@@ -1687,6 +1749,7 @@ static VOID stp_sdio_tx_wkr(
 	INT32 ret;
 	UINT32 idx;
 	MTK_WCN_STP_SDIO_PKT_BUF *pb;
+	struct timeval now;
 
 	p_info = container_of(work, MTK_WCN_STP_SDIO_HIF_INFO, tx_work);
 	ret = HIF_SDIO_ERR_SUCCESS;
@@ -1792,9 +1855,8 @@ static VOID stp_sdio_tx_wkr(
 			     p_info->firmware_info.tx_packet_num);
 
 			/* port write the packet to CTDR */
-			ret =
-			    mtk_wcn_hif_sdio_write_buf(p_info->sdio_cltctx, CTDR, (PUINT32) buf_tx,
-						       bus_txlen);
+			ret = stp_sdio_rw_retry(HIF_TYPE_WRITE_BUF, STP_SDIO_RETRY_LIMIT, p_info->sdio_cltctx,
+					CTDR, (PUINT32) buf_tx, bus_txlen);
 			STPSDIO_DBG_FUNC("write to CTDR done\n");
 
 #if STP_SDIO_DBG_SUPPORT && STP_SDIO_TXDBG
@@ -1840,6 +1902,7 @@ static VOID stp_sdio_tx_wkr(
 				wake_up_interruptible(&pb->fullwait_q);
 			}
 			spin_unlock_irqrestore(&pb->rd_cnt_lock, pb->rd_irq_flag);
+			do_gettimeofday(&old);
 		} else {
 			/* tx FIFO free space < packet size, wait next time */
 #if STP_SDIO_DBG_SUPPORT && STP_SDIO_TXPERFDBG
@@ -1848,10 +1911,22 @@ static VOID stp_sdio_tx_wkr(
 			++stp_sdio_txperf_fifo_lmt_cnt;
 #endif
 
-			STPSDIO_DBG_FUNC
-			    ("tx_fifo_size(%d), four_byte_align_len(%d), tx_packet_num(%d)\n",
-			     p_info->firmware_info.tx_fifo_size, four_byte_align_len,
-			     p_info->firmware_info.tx_packet_num);
+			do_gettimeofday(&now);
+			if ((now.tv_sec - old.tv_sec) > TX_NO_ACK_TIMEOUT_ASSERT) {
+				STPSDIO_INFO_FUNC("tx_fifo_size(%d), four_byte_align_len(%d), tx_packet_num(%d)\n",
+						p_info->firmware_info.tx_fifo_size, four_byte_align_len,
+						p_info->firmware_info.tx_packet_num);
+				STPSDIO_INFO_FUNC("No ack trigger assert, tx %d seconds later\n",
+						TX_NO_ACK_TIMEOUT_ASSERT);
+				p_info->firmware_info.tx_fifo_size = STP_SDIO_TX_FIFO_SIZE;
+				if (MTK_WCN_BOOL_FALSE != pb->full_flag) {
+					pb->full_flag = MTK_WCN_BOOL_FALSE;
+					wake_up_interruptible(&pb->fullwait_q);
+				}
+				ret = mtk_wcn_wmt_assert_timeout(WMTDRV_TYPE_STP, 33, 0);
+				if (!ret)
+					STPSDIO_INFO_FUNC("trigger assert fail\n");
+			}
 			break;
 		}
 
@@ -1873,6 +1948,7 @@ static VOID stp_sdio_tx_wkr(
 	INT32 ret;
 	UINT32 idx;
 	MTK_WCN_STP_SDIO_PKT_BUF *pb;
+	struct timeval now;
 
 	p_info = container_of(work, MTK_WCN_STP_SDIO_HIF_INFO, tx_work);
 	ret = HIF_SDIO_ERR_SUCCESS;
@@ -1916,6 +1992,7 @@ static VOID stp_sdio_tx_wkr(
 					 four_byte_align_len, STP_SDIO_TX_FIFO_SIZE);
 		}
 
+		osal_ftrace_print("%s|S|bus_txlen(%d)\n", __func__, four_byte_align_len);
 		/* George: check if
 		 * 1. tx FIFO free space is enough using 4-byte aligned length
 		 * 2. tx max pkt count is not reached
@@ -1954,9 +2031,8 @@ static VOID stp_sdio_tx_wkr(
 			     p_info->firmware_info.tx_packet_num);
 
 			/* port write the packet to CTDR */
-			ret =
-			    mtk_wcn_hif_sdio_write_buf(p_info->sdio_cltctx, CTDR, (PUINT32) buf_tx,
-						       bus_txlen);
+			ret = stp_sdio_rw_retry(HIF_TYPE_WRITE_BUF, STP_SDIO_RETRY_LIMIT, p_info->sdio_cltctx,
+					CTDR, (PUINT32) buf_tx, bus_txlen);
 			STPSDIO_DBG_FUNC("write to CTDR done\n");
 
 #if STP_SDIO_DBG_SUPPORT && STP_SDIO_TXDBG
@@ -2005,6 +2081,7 @@ static VOID stp_sdio_tx_wkr(
 			}
 			spin_unlock_irqrestore(&p_info->pkt_buf.rd_idx_lock,
 					       p_info->pkt_buf.rd_irq_flag);
+			do_gettimeofday(&old);
 		} else {
 #if STP_SDIO_DBG_SUPPORT && STP_SDIO_TXPERFDBG
 			stp_sdio_txperf_fifo_left += p_info->firmware_info.tx_fifo_size;
@@ -2012,16 +2089,32 @@ static VOID stp_sdio_tx_wkr(
 			++stp_sdio_txperf_fifo_lmt_cnt;
 #endif
 			/* (tx FIFO free space < packet size) or (the number of tx packets >= 7) */
-			STPSDIO_DBG_FUNC
-			    ("tx_fifo_size(%d), four_byte_align_len(%d), tx_packet_num(%d)\n",
-			     p_info->firmware_info.tx_fifo_size, four_byte_align_len,
-			     p_info->firmware_info.tx_packet_num);
+			do_gettimeofday(&now);
+			if ((now.tv_sec - old.tv_sec) > TX_NO_ACK_TIMEOUT_ASSERT) {
+				STPSDIO_INFO_FUNC("tx_fifo_size(%d), four_byte_align_len(%d), tx_packet_num(%d)\n",
+						p_info->firmware_info.tx_fifo_size, four_byte_align_len,
+						p_info->firmware_info.tx_packet_num);
+				STPSDIO_INFO_FUNC("No ack trigger assert, tx %d seconds later\n",
+						TX_NO_ACK_TIMEOUT_ASSERT);
+				osal_ftrace_print("%s|tx_fifo_size:%d, four_byte_align_len:%d, tx_packet_num(%d)\n",
+						__func__, p_info->firmware_info.tx_fifo_size, four_byte_align_len,
+						p_info->firmware_info.tx_packet_num);
+				p_info->firmware_info.tx_fifo_size = STP_SDIO_TX_FIFO_SIZE;
+				if (MTK_WCN_BOOL_FALSE != pb->full_flag) {
+					pb->full_flag = MTK_WCN_BOOL_FALSE;
+					wake_up_interruptible(&pb->fullwait_q);
+				}
+				ret = mtk_wcn_wmt_assert_timeout(WMTDRV_TYPE_STP, 33, 0);
+				if (!ret)
+					STPSDIO_INFO_FUNC("trigger assert fail\n");
+			}
 			break;
 		}
 
 		stp_sdio_check_tx_sanity(p_info, 2);
 	} while (1);
 
+	osal_ftrace_print("%s|E|\n", __func__);
 	STPSDIO_LOUD_FUNC("end\n");
 }
 #endif				/* end of stp_sdio_tx_wkr and STP_SDIO_NEW_TXRING */
@@ -2072,8 +2165,9 @@ static VOID stp_sdio_rx_wkr(struct work_struct *work)
 		bus_rxlen += (STP_SDIO_BLK_SIZE - 1);
 		bus_rxlen &= ~((UINT32) STP_SDIO_BLK_SIZE - 1);
 	}
-	ret = mtk_wcn_hif_sdio_read_buf(p_info->sdio_cltctx,
-					CRDR, (PUINT32) & p_info->pkt_buf.rx_buf[0], bus_rxlen);
+
+	ret = stp_sdio_rw_retry(HIF_TYPE_READ_BUF, STP_SDIO_RETRY_LIMIT, p_info->sdio_cltctx, CRDR,
+			(PUINT32)(&(p_info->pkt_buf.rx_buf[0])), bus_rxlen);
 	if (ret) {
 		/* TODO: error handling! */
 		STPSDIO_ERR_FUNC("read CRDR len(%d) rx error!(%d)\n", bus_rxlen, ret);
@@ -2118,7 +2212,9 @@ static VOID stp_sdio_rx_wkr(struct work_struct *work)
 	if (STP_SDIO_HDR_SIZE < bus_rxlen) {
 		bus_rxlen -= STP_SDIO_HDR_SIZE;
 		/* transmit data to stp core driver */
+		osal_ftrace_print("%s|B|parser|L|%d\n", __func__, bus_rxlen);
         ret = mtk_wcn_stp_parser_data(bufp, bus_rxlen);
+		osal_ftrace_print("%s|A|parser|L|%d\n", __func__, bus_rxlen);
 #if STP_SDIO_DBG_SUPPORT && (STP_SDIO_TXDBG || STP_SDIO_TXPERFDBG)
 		if (ret && (0 == p_info->tx_dbg_dump_flag)) {
 			p_info->tx_dbg_dump_flag = 1;
@@ -2141,6 +2237,7 @@ static INT32 stp_sdio_irq(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx)
 
 	INT32 iRet = 0;
 	UINT32 chlcpr_value = 0;
+	UINT32 write_value = 0;
 	MTK_WCN_STP_SDIO_HIF_INFO *p_info = gp_info;
 
 	STPSDIO_HINT_FUNC("disable IRQ\n");
@@ -2148,14 +2245,19 @@ static INT32 stp_sdio_irq(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx)
 /* [COHEC_00006052] SW work-around solution:
 using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 #if COHEC_00006052
-	iRet = mtk_wcn_hif_sdio_writeb(clt_ctx, CHLPCR, C_FW_INT_EN_CLR);
+	write_value = C_FW_INT_EN_CLR;
+	iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+			&write_value, 0);
 #else
-	iRet = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_INT_EN_CLR);
+	write_value = C_FW_INT_EN_CLR;
+	iRet = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+			&write_value, 0);
 #endif				/* COHEC_00006052 */
 	if (iRet) {
 		STPSDIO_ERR_FUNC("disalbe IRQ fail\n");
 	} else {
-		iRet = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+		iRet = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+				&chlcpr_value, 0);
 		if (iRet) {
 			STPSDIO_ERR_FUNC("read CHLPCR fail. iRet(%d)\n", iRet);
 		} else {
@@ -2166,6 +2268,7 @@ using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 				/*inform stp_sdio thread to to rx/tx job */
 				STPSDIO_DBG_FUNC("signal stp_tx_rx\n");
 				osal_trigger_event(&gp_info->tx_rx_event);
+				osal_ftrace_print("%s|stp_tx_rx\n", __func__);
 			} else {
 				STPSDIO_ERR_FUNC
 				    ("**********disable COM IRQ fail, don't signal stp-sdio thread******\n");
@@ -2236,7 +2339,8 @@ retry:
 		if (-5 == ret)
 		{
 			STPSDIO_ERR_FUNC("get CHISR DAT CRC error, retry.\n");
-			chisr = stp_sdio_rc_reg_readl_retry(clt_ctx, CSR, 100);
+			ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_MAX_RETRY_NUM, clt_ctx, CSR, &chisr,
+					0);
 		}
 		else
 	        goto retry;
@@ -2352,9 +2456,12 @@ stp_sdio_ownback_poll(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx, UINT32 retry, UINT3
 	UINT32 chlpcr = 0;
 
 	do {
-		/*ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHISR, &chisr_value); */
+		/*
+		ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHISR, &chisr_value,
+				0);
+		*/
 		/* 20111020: change to poll CHLPCR instead of read-cleared CHISR */
-		ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlpcr);
+		ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &chlpcr, 0);
 		if (ret) {
 			/* 4 <1.1> get CHISR Rx error handling */
 			STPSDIO_ERR_FUNC("get CHLPCR information rx error!(%d)\n", ret);
@@ -2393,6 +2500,7 @@ stp_sdio_probe(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx,
 {
 	INT32 ret = HIF_SDIO_ERR_SUCCESS;
 	UINT32 i = 0, chlcpr_value = 0;
+	UINT32 write_value = 0;
 
 	STPSDIO_DBG_FUNC("sdio_cltctx: 0x%08x\n", clt_ctx);
 
@@ -2464,13 +2572,8 @@ stp_sdio_probe(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx,
 		     "stp_sdio_tx_rx", osal_sizeof(g_stp_sdio_host_info.tx_rx_thread.threadName));
 	ret = osal_thread_create(&g_stp_sdio_host_info.tx_rx_thread);
 	if (ret < 0) {
-		STPSDIO_ERR_FUNC("osal_thread_create fail...\n");
-		goto out;
-	}
-	ret = osal_thread_run(&g_stp_sdio_host_info.tx_rx_thread);
-	if (ret < 0) {
-		STPSDIO_ERR_FUNC("osal_thread_run fail...\n");
-		goto out;
+		STPSDIO_ERR_FUNC("osal_thread_create fail...: %p\n", g_stp_sdio_host_info.tx_rx_thread.pThread);
+		return ret;
 	}
 #else
 	/* init tx_tasklet and rx work_queue */
@@ -2487,11 +2590,13 @@ stp_sdio_probe(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx,
 /* [COHEC_00006052] SW work-around solution:
 using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 #if COHEC_00006052
-	ret =
-	    mtk_wcn_hif_sdio_writeb(clt_ctx, (UINT32) (CHLPCR + 0x1),
-				    (UINT8) (C_FW_OWN_REQ_CLR >> 8));
+	write_value = (C_FW_OWN_REQ_CLR >> 8);
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx, (UINT32)(CHLPCR + 0x1),
+			&write_value, 0);
 #else
-	ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_OWN_REQ_CLR);
+	write_value = C_FW_OWN_REQ_CLR;
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR,
+			&write_value, 0);
 #endif				/* COHEC_00006052 */
 	if (ret) {
 		STPSDIO_ERR_FUNC("request FW-Own back fail!(%d)\n", ret);
@@ -2510,10 +2615,14 @@ using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 	/* 4 <4.0> enable irq flag in HIF-SDIO */
 	mtk_wcn_hif_sdio_enable_irq(clt_ctx, MTK_WCN_BOOL_TRUE);
 	/* 4 <4> enabling all host interrupt except abnormal ones */
-	/* ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHIER, (CHISR_EN_15_7|CHISR_EN_3_0));  */ /* enable CHISR interrupt output */
-	ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHIER, (FIRMWARE_INT | TX_FIFO_OVERFLOW |
-						       FW_INT_IND_INDICATOR | TX_COMPLETE_COUNT |
-						       TX_UNDER_THOLD | TX_EMPTY | RX_DONE));
+#if 0
+	write_value = (CHISR_EN_15_7 | CHISR_EN_3_0); /* enable CHISR interrupt output */
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHIER, &write_value, 0);
+#endif
+	write_value = (FIRMWARE_INT | TX_FIFO_OVERFLOW | FW_INT_IND_INDICATOR | TX_COMPLETE_COUNT
+			| TX_UNDER_THOLD | TX_EMPTY | RX_DONE);
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHIER,
+			&write_value, 0);
 	if (ret) {
 		STPSDIO_ERR_FUNC("set interrupt output fail!(%d)\n", ret);
 		goto out;
@@ -2522,15 +2631,20 @@ using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 /* [COHEC_00006052] SW work-around solution:
 using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 #if COHEC_00006052
-	ret = mtk_wcn_hif_sdio_writeb(clt_ctx, CHLPCR, C_FW_INT_EN_SET);	/* enable interrupt */
+	write_value = C_FW_INT_EN_SET;
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEB, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &write_value,
+			0);	/* enable interrupt */
 #else
-	ret = mtk_wcn_hif_sdio_writel(clt_ctx, CHLPCR, C_FW_INT_EN_SET);	/* enable interrupt */
+	write_value = C_FW_INT_EN_SET;
+	ret = stp_sdio_rw_retry(HIF_TYPE_WRITEL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &write_value,
+			0);	/* enable interrupt */
 #endif				/* COHEC_00006052 */
 	if (ret) {
 		STPSDIO_ERR_FUNC("enable interrupt fail!(%d)\n", ret);
 		goto out;
 	}
-	ret = mtk_wcn_hif_sdio_readl(clt_ctx, CHLPCR, &chlcpr_value);
+	ret = stp_sdio_rw_retry(HIF_TYPE_READL, STP_SDIO_RETRY_LIMIT, clt_ctx, CHLPCR, &chlcpr_value,
+			0);
 	if (ret) {
 		STPSDIO_ERR_FUNC("Read CHLPCR fail!(%d)\n", ret);
 		goto out;
@@ -2541,6 +2655,14 @@ using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 	}
 
 	STPSDIO_DBG_FUNC("enable interrupt done\n");
+
+#if STP_SDIO_OWN_THREAD
+	ret = osal_thread_run(&g_stp_sdio_host_info.tx_rx_thread);
+	if (ret < 0) {
+		STPSDIO_ERR_FUNC("osal_thread_run fail...\n");
+		goto out;
+	}
+#endif
 
 	/* 4 <5> register mtk_wcn_stp_if_tx() to stp driver */
 	mtk_wcn_stp_register_if_tx(STP_SDIO_IF_TX, (MTK_WCN_STP_IF_TX)stp_sdio_tx);
@@ -2559,7 +2681,11 @@ using CMD52 write instead of CMD53 write for CCIR, CHLPCR, CSDIOCSR */
 	/* 4 <6> error handling */
 	/* TODO: error handling */
 	if (ret) {
-		--g_stp_sdio_host_count;
+#if STP_SDIO_OWN_THREAD
+		osal_thread_destroy(&g_stp_sdio_host_info.tx_rx_thread);
+#endif
+		if (g_stp_sdio_host_count > 0)
+			--g_stp_sdio_host_count;
 	}
 	return ret;
 }
@@ -2588,7 +2714,8 @@ static INT32 stp_sdio_remove(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx)
 		STPSDIO_ERR_FUNC("sdio_cltctx(%d) not found\n", clt_ctx);
 		return -1;
 	}
-    --g_stp_sdio_host_count;
+	if (g_stp_sdio_host_count > 0)
+		--g_stp_sdio_host_count;
 	/* 4 <0> disable irq flag in HIF-SDIO */
 	mtk_wcn_hif_sdio_enable_irq(clt_ctx, MTK_WCN_BOOL_FALSE);
 	/* 4 <1> unregister if_tx() function */
@@ -2618,43 +2745,74 @@ static INT32 stp_sdio_remove(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx)
 	STPSDIO_LOUD_FUNC("end\n");
 	return 0;
 }
-static INT32 stp_sdio_rc_reg_readl_retry (MTK_WCN_HIF_SDIO_CLTCTX clt_ctx, UINT32 offset, UINT32 retry_limit, INT32 *p_ret)
+
+static INT32 stp_sdio_rw_retry(ENUM_STP_SDIO_HIF_TYPE_T type, UINT32 retry_limit,
+		MTK_WCN_HIF_SDIO_CLTCTX clt_ctx, UINT32 offset, PUINT32 pData, UINT32 len)
 {
 	INT32 ret = -1;
-	INT32 value = 0;
-	#define MAX_RETRY_NUM 100
-	
+	INT32 retry_flag = 0;
+
 	UINT32 card_id = CLTCTX_CID(clt_ctx);
 	if (card_id != 0x6630)
 	{
-		STPSDIO_INFO_FUNC("card_id is :0x%x, does not support CSR (Common Snapshot Register)\n", card_id);
-		if (p_ret)
-			*p_ret = 0;
-		return value;
+		STPSDIO_LOUD_FUNC("card_id is :0x%x, does not support CSR (Common Snapshot Register)\n",
+				card_id);
+		retry_limit = 1;
 	}
-	STPSDIO_INFO_FUNC("clt_ctx:0x%x, offset:0x%x, retry_limit:%d\n", clt_ctx, offset, retry_limit);
+	STPSDIO_LOUD_FUNC("clt_ctx:0x%x, offset:0x%x, retry_limit:%d\n", clt_ctx, offset, retry_limit);
 
 	retry_limit = retry_limit == 0 ? 1 : retry_limit;
-	retry_limit = retry_limit > MAX_RETRY_NUM ? MAX_RETRY_NUM : retry_limit;
-	
+	retry_limit = retry_limit > STP_SDIO_MAX_RETRY_NUM ? STP_SDIO_MAX_RETRY_NUM : retry_limit;
+
 	while (retry_limit > 0)
 	{
-		ret = mtk_wcn_hif_sdio_readl(clt_ctx, offset, &value);
-		if (ret != 0)
-		{
-			STPSDIO_ERR_FUNC("read Common Snapshot Register failed, ret:%d\n", ret);
-		}else
-		{
-			STPSDIO_DBG_FUNC("CSR:0x%x\n", value);
+		switch (type) {
+		case HIF_TYPE_READB:
+			if (retry_flag)
+				ret = mtk_wcn_hif_sdio_readb(clt_ctx, CSR, pData);
+			else
+				ret = mtk_wcn_hif_sdio_readb(clt_ctx, offset, pData);
+			break;
+		case HIF_TYPE_READL:
+			if (retry_flag)
+				ret = mtk_wcn_hif_sdio_readl(clt_ctx, CSR, pData);
+			else
+				ret = mtk_wcn_hif_sdio_readl(clt_ctx, offset, pData);
+			break;
+		case HIF_TYPE_READ_BUF:
+			retry_limit = 1;
+			ret = mtk_wcn_hif_sdio_read_buf(clt_ctx, offset, pData, len);
+			break;
+		case HIF_TYPE_WRITEB:
+			ret = mtk_wcn_hif_sdio_writeb(clt_ctx, offset, (UINT8)(*pData));
+			break;
+		case HIF_TYPE_WRITEL:
+			ret = mtk_wcn_hif_sdio_writel(clt_ctx, offset, *pData);
+			break;
+		case HIF_TYPE_WRITE_BUF:
+			retry_limit = 1;
+			ret = mtk_wcn_hif_sdio_write_buf(clt_ctx, offset, pData, len);
+			break;
+		default:
+			STPSDIO_ERR_FUNC("unknown hif sdio type!\n");
+			goto exit;
+		}
+
+		if (ret != 0) {
+			STPSDIO_ERR_FUNC("sdio read or write failed, ret:%d\n", ret);
+			/* sdio CRC error read CSR */
+			if (ret == -EIO)
+				retry_flag = 1;
+		} else {
+			STPSDIO_LOUD_FUNC("CR:0x:%x value:0x%x\n", offset, *pData);
 			break;
 		}
 		retry_limit--;
 	}
-	if (p_ret)
-		*p_ret = ret;
-	return value;
-}
 
+exit:
+	return ret;
+}
 
 #if STP_SDIO_DBG_SUPPORT && STP_SDIO_RXDBG
 
@@ -2868,60 +3026,57 @@ static VOID stp_sdio_txdbg_dump(VOID)
 		idx = (stp_sdio_txdbg_cnt - 1 - i) & STP_SDIO_TXDBG_COUNT_MASK;
 		len = stp_sdio_txdbg_buffer[idx].bus_txlen;
 		if (0 == len) {
-			pr_warn(KERN_INFO DFT_TAG "idx(%x) 0 == len dump skip\n", idx);
+			STPSDIO_INFO_FUNC("idx(%x) 0 == len dump skip\n", idx);
 			continue;
 		}
 
 		len = len > STP_SDIO_TXDBG_MAX_SIZE ? STP_SDIO_TXDBG_MAX_SIZE : len;
-		pr_warn(KERN_INFO DFT_TAG
-			"stp_sdio_txdbg_buffer idx(%x) bus_txlen(0x%x, %d) ts(%d)\n", idx, len, len,
+		STPSDIO_INFO_FUNC(
+				"stp_sdio_txdbg_buffer idx(%x) bus_txlen(0x%x, %d) ts(%d)\n", idx, len, len,
 			stp_sdio_txdbg_buffer[idx].ts);
 		for (j = 0; j < STP_SDIO_TX_ENTRY_SIZE && j < len; j += 16) {
 			pbuf = &stp_sdio_txdbg_buffer[idx].tx_pkt_buf[j];
-			pr_warn(KERN_INFO DFT_TAG
+			STPSDIO_INFO_FUNC(
 				"[0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x   0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x]\n",
 				pbuf[0], pbuf[1], pbuf[2], pbuf[3], pbuf[4], pbuf[5], pbuf[6],
 				pbuf[7], pbuf[8], pbuf[9], pbuf[10], pbuf[11], pbuf[12], pbuf[13],
 				pbuf[14], pbuf[15]);
 			msleep(10);
 		}
-		pr_warn(KERN_INFO DFT_TAG "stp_sdio_txdbg_buffer dump ok\n");
+		STPSDIO_INFO_FUNC("stp_sdio_txdbg_buffer dump ok\n");
 	}
 
 	for (i = 0; i < STP_SDIO_TXDBG_COUNT; ++i) {
 		idx = (stp_sdio_txdbg_cnt - 1 - i) & STP_SDIO_TXDBG_COUNT_MASK;
 		len = stp_sdio_txdbg_buffer[idx].bus_txlen;
-		pr_warn(KERN_INFO DFT_TAG
+		STPSDIO_INFO_FUNC(
 			"stp_sdio_txdbg_buffer idx(%x) bus_txlen(0x%x, %d) ts(%d)\n", idx, len, len,
 			stp_sdio_txdbg_buffer[idx].ts);
 	}
-
-	pr_warn(KERN_INFO DFT_TAG
-		"Dump tx info: pkt_num(%d) fifo(%d) pkt_list.rd(0x%x, %ld) pkt_list.wr(0x%x, %ld)\n",
-		gp_info->firmware_info.tx_packet_num, gp_info->firmware_info.tx_fifo_size,
-		gp_info->tx_pkt_list.pkt_rd_cnt,
-		STP_SDIO_GET_PKT_AR_IDX(gp_info->tx_pkt_list.pkt_rd_cnt),
-		gp_info->tx_pkt_list.pkt_wr_cnt,
-		STP_SDIO_GET_PKT_AR_IDX(gp_info->tx_pkt_list.pkt_wr_cnt)
-	    );
+	STPSDIO_INFO_FUNC(
+			"Dump tx info: pkt_num(%d) fifo(%d) pkt_list.rd(0x%x, %ld) pkt_list.wr(0x%x, %ld)\n",
+			gp_info->firmware_info.tx_packet_num, gp_info->firmware_info.tx_fifo_size,
+			gp_info->tx_pkt_list.pkt_rd_cnt,
+			STP_SDIO_GET_PKT_AR_IDX(gp_info->tx_pkt_list.pkt_rd_cnt),
+			gp_info->tx_pkt_list.pkt_wr_cnt,
+			STP_SDIO_GET_PKT_AR_IDX(gp_info->tx_pkt_list.pkt_wr_cnt));
 
 	for (i = 0; i < STP_SDIO_TX_PKT_LIST_SIZE; ++i) {
 		idx = STP_SDIO_GET_PKT_AR_IDX(gp_info->tx_pkt_list.pkt_wr_cnt - 1 - i);
-		pr_warn(KERN_INFO DFT_TAG
-			"tx_pkt_list idx(0x%x, %d) size(0x%x, %d), in_ts(%d), out_ts(%d)\n",
-			(gp_info->tx_pkt_list.pkt_wr_cnt - 1 - i), idx,
-			gp_info->tx_pkt_list.pkt_size_list[idx],
-			gp_info->tx_pkt_list.pkt_size_list[idx], gp_info->tx_pkt_list.in_ts[idx],
-			gp_info->tx_pkt_list.out_ts[idx]
-		    );
+		STPSDIO_INFO_FUNC(
+				"tx_pkt_list idx(0x%x, %d) size(0x%x, %d), in_ts(%d), out_ts(%d)\n",
+				(gp_info->tx_pkt_list.pkt_wr_cnt - 1 - i), idx,
+				gp_info->tx_pkt_list.pkt_size_list[idx],
+				gp_info->tx_pkt_list.pkt_size_list[idx], gp_info->tx_pkt_list.in_ts[idx],
+				gp_info->tx_pkt_list.out_ts[idx]);
 	}
 
 #if STP_SDIO_NEW_TXRING
-	pr_warn(KERN_INFO DFT_TAG "\n\ndump pkt_buf.tx_buf: rd(%d) wr(%d) full(%d)\n",
-		gp_info->pkt_buf.rd_cnt, gp_info->pkt_buf.wr_cnt, gp_info->pkt_buf.full_flag);
+	STPSDIO_INFO_FUNC("\n\ndump pkt_buf.tx_buf: rd(%d) wr(%d) full(%d)\n",
+			gp_info->pkt_buf.rd_cnt, gp_info->pkt_buf.wr_cnt, gp_info->pkt_buf.full_flag);
 #else
-	pr_warn(KERN_INFO DFT_TAG "\n\ndump pkt_buf.tx_buf: rdi(%d) wri(%d) full(%d)\n",
-		gp_info->pkt_buf.rd_idx, gp_info->pkt_buf.wr_idx, gp_info->pkt_buf.full_flag);
+	STPSDIO_INFO_FUNC("\n\ndump pkt_buf.tx_buf: rdi(%d) wri(%d) full(%d)\n",
+			gp_info->pkt_buf.rd_idx, gp_info->pkt_buf.wr_idx, gp_info->pkt_buf.full_flag);
 #endif
 
 	for (i = 0; i < STP_SDIO_TX_BUF_CNT; ++i) {
@@ -2939,9 +3094,10 @@ static VOID stp_sdio_txdbg_dump(VOID)
 #endif
 
 #endif
-        printk(KERN_INFO DFT_TAG"pkt_buf.tx_buf idx(%x) ts(%d) len(%d)\n", idx, gp_info->pkt_buf.tx_buf_ts[idx], len);
-        if (0 == len) {
-            printk(KERN_ERR DFT_TAG"idx(%x) 0 == len dump skip\n", idx);
+		STPSDIO_INFO_FUNC("pkt_buf.tx_buf idx(%x) ts(%d) len(%d)\n",
+				idx, gp_info->pkt_buf.tx_buf_ts[idx], len);
+		if (0 == len) {
+			STPSDIO_INFO_FUNC("idx(%x) 0 == len dump skip\n", idx);
 			continue;
         }
 		len = len > STP_SDIO_TXDBG_MAX_SIZE ? STP_SDIO_TXDBG_MAX_SIZE : len;
@@ -2951,14 +3107,14 @@ static VOID stp_sdio_txdbg_dump(VOID)
 #else
 			pbuf = &gp_info->pkt_buf.tx_buf[idx][j];
 #endif
-			pr_warn(KERN_ERR DFT_TAG
-				"[0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x   0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x]\n",
-				pbuf[0], pbuf[1], pbuf[2], pbuf[3], pbuf[4], pbuf[5], pbuf[6],
-				pbuf[7], pbuf[8], pbuf[9], pbuf[10], pbuf[11], pbuf[12], pbuf[13],
-				pbuf[14], pbuf[15]);
+			STPSDIO_INFO_FUNC(
+					"[0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x   0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x]\n",
+					pbuf[0], pbuf[1], pbuf[2], pbuf[3], pbuf[4], pbuf[5], pbuf[6],
+					pbuf[7], pbuf[8], pbuf[9], pbuf[10], pbuf[11], pbuf[12], pbuf[13],
+					pbuf[14], pbuf[15]);
 			msleep(10);
 		}
-		pr_warn(KERN_ERR DFT_TAG "pkt_buf.tx_buf dump ok\n");
+		STPSDIO_INFO_FUNC("pkt_buf.tx_buf dump ok\n");
 	}
 #endif				/* end of STP_SDIO_TXDBG */
 }

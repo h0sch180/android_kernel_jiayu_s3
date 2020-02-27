@@ -226,13 +226,13 @@ static int ptrace_hbp_fill_attr_ctrl(unsigned int note_type,
 				     struct arch_hw_breakpoint_ctrl ctrl,
 				     struct perf_event_attr *attr)
 {
-	int err, len, type, disabled = !ctrl.enabled;
+	int err, len, type, offset, disabled = !ctrl.enabled;
 
 	attr->disabled = disabled;
 	if (disabled)
 		return 0;
 
-	err = arch_bp_generic_fields(ctrl, &len, &type);
+	err = arch_bp_generic_fields(ctrl, &len, &type, &offset);
 	if (err)
 		return err;
 
@@ -251,6 +251,7 @@ static int ptrace_hbp_fill_attr_ctrl(unsigned int note_type,
 
 	attr->bp_len	= len;
 	attr->bp_type	= type;
+	attr->bp_addr	+= offset;
 
 	return 0;
 }
@@ -303,7 +304,7 @@ static int ptrace_hbp_get_addr(unsigned int note_type,
 	if (IS_ERR(bp))
 		return PTR_ERR(bp);
 
-	*addr = bp ? bp->attr.bp_addr : 0;
+	*addr = bp ? counter_arch_bp(bp)->address : 0;
 	return 0;
 }
 
@@ -449,6 +450,8 @@ static int hw_break_set(struct task_struct *target,
 	/* (address, ctrl) registers */
 	limit = regset->n * regset->size;
 	while (count && offset < limit) {
+		if (count < PTRACE_HBP_ADDR_SZ)
+			return -EINVAL;
 		ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &addr,
 					 offset, offset + PTRACE_HBP_ADDR_SZ);
 		if (ret)
@@ -458,6 +461,8 @@ static int hw_break_set(struct task_struct *target,
 			return ret;
 		offset += PTRACE_HBP_ADDR_SZ;
 
+		if (!count)
+			break;
 		ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &ctrl,
 					 offset, offset + PTRACE_HBP_CTRL_SZ);
 		if (ret)
@@ -494,7 +499,7 @@ static int gpr_set(struct task_struct *target, const struct user_regset *regset,
 		   const void *kbuf, const void __user *ubuf)
 {
 	int ret;
-	struct user_pt_regs newregs;
+	struct user_pt_regs newregs = task_pt_regs(target)->user_regs;
 
 	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &newregs, 0, -1);
 	if (ret)
@@ -524,7 +529,8 @@ static int fpr_set(struct task_struct *target, const struct user_regset *regset,
 		   const void *kbuf, const void __user *ubuf)
 {
 	int ret;
-	struct user_fpsimd_state newstate;
+	struct user_fpsimd_state newstate =
+		target->thread.fpsimd_state.user_fpsimd;
 
 	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &newstate, 0, -1);
 	if (ret)
@@ -548,7 +554,7 @@ static int tls_set(struct task_struct *target, const struct user_regset *regset,
 		   const void *kbuf, const void __user *ubuf)
 {
 	int ret;
-	unsigned long tls;
+	unsigned long tls = target->thread.tp_value;
 
 	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &tls, 0, -1);
 	if (ret)
@@ -649,35 +655,36 @@ static int compat_gpr_get(struct task_struct *target,
 
 	for (i = 0; i < num_regs; ++i) {
 		unsigned int idx = start + i;
-		void *reg;
+		compat_ulong_t reg;
 
 		switch (idx) {
 		case 15:
-			reg = (void *)&task_pt_regs(target)->pc;
+			reg = task_pt_regs(target)->pc;
 			break;
 		case 16:
-			reg = (void *)&task_pt_regs(target)->pstate;
+			reg = task_pt_regs(target)->pstate;
 			break;
 		case 17:
-			reg = (void *)&task_pt_regs(target)->orig_x0;
+			reg = task_pt_regs(target)->orig_x0;
 			break;
 		default:
-			reg = (void *)&task_pt_regs(target)->regs[idx];
+			reg = task_pt_regs(target)->regs[idx];
 		}
 
 		if (!ubuf && kbuf) {
 			if (i == 0 && NULL != target && target->pid == current->pid)
 				printk(KERN_WARNING "coredump(%d) copy registers to kbuf\n", current->pid);
-			memcpy(kbuf, reg, sizeof(compat_ulong_t));
-			kbuf += sizeof(compat_ulong_t);
+			memcpy(kbuf, &reg, sizeof(reg));
+			kbuf += sizeof(reg);
 		}
 		else {
-			ret = copy_to_user(ubuf, reg, sizeof(compat_ulong_t));
-
-			if (ret)
+			ret = copy_to_user(ubuf, &reg, sizeof(reg));
+			if (ret) {
+				ret = -EFAULT;
 				break;
-			else
-				ubuf += sizeof(compat_ulong_t);
+			}
+
+			ubuf += sizeof(reg);
 		}
 	}
 
@@ -706,28 +713,37 @@ static int compat_gpr_set(struct task_struct *target,
 
 	for (i = 0; i < num_regs; ++i) {
 		unsigned int idx = start + i;
-		void *reg;
+		compat_ulong_t reg;
+
+		if (kbuf) {
+			memcpy(&reg, kbuf, sizeof(reg));
+			kbuf += sizeof(reg);
+		} else {
+			ret = copy_from_user(&reg, ubuf, sizeof(reg));
+			if (ret) {
+				ret = -EFAULT;
+				break;
+			}
+
+			ubuf += sizeof(reg);
+		}
+
+		ubuf += sizeof(reg);
 
 		switch (idx) {
 		case 15:
-			reg = (void *)&newregs.pc;
+			newregs.pc = reg;
 			break;
 		case 16:
-			reg = (void *)&newregs.pstate;
+			newregs.pstate = reg;
 			break;
 		case 17:
-			reg = (void *)&newregs.orig_x0;
+			newregs.orig_x0 = reg;
 			break;
 		default:
-			reg = (void *)&newregs.regs[idx];
+			newregs.regs[idx] = reg;
 		}
 
-		ret = copy_from_user(reg, ubuf, sizeof(compat_ulong_t));
-
-		if (ret)
-			goto out;
-		else
-			ubuf += sizeof(compat_ulong_t);
 	}
 
 	if (valid_user_regs(&newregs.user_regs))
@@ -735,7 +751,6 @@ static int compat_gpr_set(struct task_struct *target,
 	else
 		ret = -EINVAL;
 
-out:
 	return ret;
 }
 

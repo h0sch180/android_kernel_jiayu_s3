@@ -167,6 +167,14 @@ static struct cdev WIFI_cdev;
 volatile INT32 retflag = 0;
 static struct semaphore wr_mtx;
 
+#define WMT_CHECK_DO_CHIP_RESET() \
+do { \
+	if (g_IsNeedDoChipReset) { \
+		g_IsNeedDoChipReset = 0; \
+		WIFI_ERR_FUNC("Do core dump and chip reset in %s line %d\n", __func__, __LINE__); \
+		mtk_wcn_wmt_assert(WMTDRV_TYPE_WIFI, 40); \
+	} \
+} while (0)
 
 /*******************************************************************
  *  WHOLE CHIP RESET PROCEDURE:
@@ -332,7 +340,7 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
     struct net_device *netdev = NULL;
     PARAM_CUSTOM_P2P_SET_STRUC_T p2pmode;
     INT32 wait_cnt = 0;
-    int copy_size = 0;
+	int copy_size = 0;
 
     down(&wr_mtx);
     if (count <= 0) {
@@ -340,10 +348,9 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
         goto done;
     }
 
-    copy_size = min(sizeof(local) - 1, count);
-    if (0 == copy_from_user(local, buf, copy_size)) {
-
-        WIFI_INFO_FUNC("WIFI_write %s\n", local);
+	copy_size = min(sizeof(local) - 1, count);
+	if (0 == copy_from_user(local, buf, copy_size)) {
+		WIFI_INFO_FUNC("WIFI_write %s\n", local);
 
         if (local[0] == '0') {
             if (powered == 0) {
@@ -375,6 +382,8 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
 
             if (MTK_WCN_BOOL_FALSE == mtk_wcn_wmt_func_off(WMTDRV_TYPE_WIFI)) {
                 WIFI_ERR_FUNC("WMT turn off WIFI fail!\n");
+				WMT_CHECK_DO_CHIP_RESET();
+				powered = 0;
             }
             else {
                 WIFI_INFO_FUNC("WMT turn off WIFI OK!\n");
@@ -396,6 +405,8 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
 
             if (MTK_WCN_BOOL_FALSE == mtk_wcn_wmt_func_on(WMTDRV_TYPE_WIFI)) {
                 WIFI_ERR_FUNC("WMT turn on WIFI fail!\n");
+				WMT_CHECK_DO_CHIP_RESET();
+				powered = 1;
             }
             else {
                 powered = 1;
@@ -479,10 +490,13 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
             }
         }
         else if (local[0] == 'S' || local[0] == 'P' || local[0] == 'A') {
+
             if (powered == 0) {
                 /* If WIFI is off, turn on WIFI first */
                 if (MTK_WCN_BOOL_FALSE == mtk_wcn_wmt_func_on(WMTDRV_TYPE_WIFI)) {
                     WIFI_ERR_FUNC("WMT turn on WIFI fail!\n");
+					WMT_CHECK_DO_CHIP_RESET();
+					powered = 1;
                     goto done;
                 }
                 else {
@@ -588,11 +602,11 @@ ssize_t WIFI_write(struct file *filp, const char __user *buf, size_t count, loff
         }
     }
 done:
-    if (netdev != NULL){
-        dev_put(netdev);
-    }
-    up(&wr_mtx);
-    return (retval);
+	if (netdev != NULL)
+		dev_put(netdev);
+
+	up(&wr_mtx);
+	return retval;
 }
 
 
@@ -602,7 +616,7 @@ struct file_operations WIFI_fops = {
     .write = WIFI_write,
 };
 
-#if WMT_CREATE_NODE_DYNAMIC 
+#if WMT_CREATE_NODE_DYNAMIC
 struct class * wmtwifi_class = NULL;
 #endif
 

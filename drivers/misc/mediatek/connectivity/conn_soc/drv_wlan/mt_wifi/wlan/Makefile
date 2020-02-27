@@ -7,6 +7,7 @@ ccflags-y += -DCFG_SUPPORT_AGPS_ASSIST=1
 
 ccflags-y += -DCFG_SUPPORT_TSF_USING_BOOTTIME=1
 ccflags-y += -DCFG_P2P_LEGACY_COEX_REVISE=1
+ccflags-y += -DARP_MONITER_ENABLE=1
 ifeq ($(CONFIG_MTK_WAPI_SUPPORT), y)
     ccflags-y += -DCFG_SUPPORT_WAPI=1
 else
@@ -65,10 +66,22 @@ else
 endif
 
 MTK_SRAM_SIZE_OPTION=0
+ifeq ($(CONFIG_ARCH_MT6755), y)
+    MTK_SRAM_SIZE_OPTION=2
+endif
 ifeq ($(CONFIG_ARCH_MT6735), y)
     MTK_SRAM_SIZE_OPTION=1
 endif
 ifeq ($(CONFIG_ARCH_MT6735M), y)
+    MTK_SRAM_SIZE_OPTION=1
+endif
+ifeq ($(CONFIG_ARCH_MT6753), y)
+    MTK_SRAM_SIZE_OPTION=1
+endif
+ifeq ($(CONFIG_ARCH_MT6580), y)
+    MTK_SRAM_SIZE_OPTION=1
+endif
+ifeq ($(CONFIG_ARCH_MT8163), y)
     MTK_SRAM_SIZE_OPTION=1
 endif
 ccflags-y += -DCFG_SRAM_SIZE_OPTION=$(MTK_SRAM_SIZE_OPTION)
@@ -112,7 +125,8 @@ DMA_DIR     := ../../../../../../platform/$(call lc,$(MTK_PLATFORM))/kernel/driv
 COMMON_OBJS :=	$(COMMON_DIR)dump.o \
 	       		$(COMMON_DIR)wlan_lib.o \
 	       		$(COMMON_DIR)wlan_oid.o \
-	       		$(COMMON_DIR)wlan_bow.o
+	       		$(COMMON_DIR)wlan_bow.o \
+				$(COMMON_DIR)debug.o
 
 NIC_OBJS := $(NIC_DIR)nic.o \
 			$(NIC_DIR)nic_tx.o \
@@ -129,7 +143,9 @@ OS_OBJS :=	$(OS_DIR)gl_init.o \
 			$(OS_DIR)gl_wext_priv.o \
 			$(OS_DIR)gl_rst.o \
 			$(OS_DIR)gl_cfg80211.o \
-			$(OS_DIR)platform.o
+			$(OS_DIR)gl_vendor.o \
+			$(OS_DIR)platform.o \
+			$(OS_DIR)gl_proc.o
 
 MGMT_OBJS := $(MGMT_DIR)ais_fsm.o \
 			 $(MGMT_DIR)aaa_fsm.o \

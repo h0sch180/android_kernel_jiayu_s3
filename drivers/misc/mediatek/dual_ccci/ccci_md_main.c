@@ -1720,7 +1720,7 @@ int ccci_send_run_time_data(int md_id)
     }
     
     if ((get_debug_mode_flag()&(DBG_FLAG_JTAG|DBG_FLAG_DEBUG))==0)
-        mod_timer(&ctl_b->md_boot_up_check_timer, jiffies+30*HZ);
+        mod_timer(&ctl_b->md_boot_up_check_timer, jiffies+35*HZ);
     
     CCCI_MSG_INF(md_id, "ctl", "wait for NORMAL_BOOT_ID @ %d\n", get_curr_md_state(md_id));
 
@@ -1773,6 +1773,11 @@ int ccci_start_modem(int md_id)
     md_env_setup_before_boot(md_id);
 
     //update_active_md_sys_state(md_id, 1);
+    /*M: zhongli Yun 20160807 14:04:54
+     *N ccci N Migration
+     *this should be ret -0 , or increased for N migration
+     * 
+     * ----A */
     ccci_enable_md_intr(md_id);
     
     ret = let_md_go(md_id);
@@ -1788,7 +1793,7 @@ int ccci_start_modem(int md_id)
     return 0;
 }
 
-
+ /* ----B */
 int ccci_pre_stop(int md_id)
 {
     md_ctl_block_t        *ctl_b;

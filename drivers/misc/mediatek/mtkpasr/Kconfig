@@ -1,6 +1,6 @@
 config MTKPASR
 	bool "MTK proprietary PASR mechanism"
-	depends on SYSFS && ZSMALLOC && ARM && HIGHMEM
+	depends on SYSFS && ZSMALLOC && ARM && HIGHMEM && BUILDTHESHIT
 	select LZO_COMPRESS
 	select LZO_DECOMPRESS
 	default n

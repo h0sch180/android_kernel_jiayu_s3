@@ -1,5 +1,5 @@
 /*
-** $Id: //Department/DaVinci/BRANCHES/MT6620_WIFI_DRIVER_V2_3/nic/cmd_buf.c#1 $
+** Id: //Department/DaVinci/BRANCHES/MT6620_WIFI_DRIVER_V2_3/nic/cmd_buf.c#1
 */
 
 /*! \file   "cmd_buf.c"
@@ -17,10 +17,8 @@
        here.
 */
 
-
-
 /*
-** $Log: cmd_buf.c $
+** Log: cmd_buf.c
 **
 ** 09 17 2012 cm.chang
 ** [BORA00002149] [MT6630 Wi-Fi] Initial software development
@@ -118,11 +116,15 @@ VOID cmdBufInitialize(IN P_ADAPTER_T prAdapter)
 
 	for (i = 0; i < CFG_TX_MAX_CMD_PKT_NUM; i++) {
 		prCmdInfo = &prAdapter->arHifCmdDesc[i];
+#if CFG_DBG_MGT_BUF
+		prCmdInfo->fgIsUsed = FALSE;
+		prCmdInfo->rLastAllocTime = kalGetTimeTick();
+		prCmdInfo->rLastFreeTime = kalGetTimeTick();
+#endif
 		QUEUE_INSERT_TAIL(&prAdapter->rFreeCmdList, &prCmdInfo->rQueEntry);
 	}
 
 }				/* end of cmdBufInitialize() */
-
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -142,7 +144,6 @@ P_CMD_INFO_T cmdBufAllocateCmdInfo(IN P_ADAPTER_T prAdapter, IN UINT_32 u4Length
 
 	DEBUGFUNC("cmdBufAllocateCmdInfo");
 
-
 	ASSERT(prAdapter);
 
 	KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
@@ -151,36 +152,42 @@ P_CMD_INFO_T cmdBufAllocateCmdInfo(IN P_ADAPTER_T prAdapter, IN UINT_32 u4Length
 
 	if (prCmdInfo) {
 		/* Setup initial value in CMD_INFO_T */
-		/* Start address of allocated memory */
-		prCmdInfo->pucInfoBuffer = cnmMemAlloc(prAdapter, RAM_TYPE_BUF, u4Length);
+		prCmdInfo->u2InfoBufLen = 0;
+		prCmdInfo->fgIsOid = FALSE;
+		prCmdInfo->fgDriverDomainMCR = FALSE;
 
-		if (prCmdInfo->pucInfoBuffer == NULL) {
-			KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
-			QUEUE_INSERT_TAIL(&prAdapter->rFreeCmdList, &prCmdInfo->rQueEntry);
-			KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
+		if (u4Length) {
+			/* Start address of allocated memory */
+			prCmdInfo->pucInfoBuffer = cnmMemAlloc(prAdapter, RAM_TYPE_BUF, u4Length);
 
-			prCmdInfo = NULL;
+			if (prCmdInfo->pucInfoBuffer == NULL) {
+				KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
+				QUEUE_INSERT_TAIL(&prAdapter->rFreeCmdList, &prCmdInfo->rQueEntry);
+				KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
+
+				prCmdInfo = NULL;
+			} else {
+#if CFG_DBG_MGT_BUF
+				prCmdInfo->fgIsUsed = TRUE;
+				prCmdInfo->rLastAllocTime = kalGetTimeTick();
+#endif
+			}
 		} else {
-			prCmdInfo->u2InfoBufLen = 0;
-			prCmdInfo->fgIsOid = FALSE;
-			prCmdInfo->fgDriverDomainMCR = FALSE;
+			prCmdInfo->pucInfoBuffer = NULL;
 		}
 	}
 
 	if (prCmdInfo) {
-		DBGLOG(MEM, INFO,
-		       ("CMD[0x%p] allocated! LEN[%04u], Rest[%u]\n", prCmdInfo, u4Length,
-			prAdapter->rFreeCmdList.u4NumElem));
+		DBGLOG(MEM, LOUD, "CMD[0x%p] allocated! LEN[%04u], Rest[%u]\n",
+				   prCmdInfo, u4Length, prAdapter->rFreeCmdList.u4NumElem);
 	} else {
-		DBGLOG(MEM, INFO,
-		       ("CMD allocation failed! LEN[%04u], Rest[%u]\n", u4Length,
-			prAdapter->rFreeCmdList.u4NumElem));
+		DBGLOG(MEM, ERROR, "CMD allocation failed! LEN[%04u], Rest[%u]\n",
+				   u4Length, prAdapter->rFreeCmdList.u4NumElem);
 	}
 
 	return prCmdInfo;
 
 }				/* end of cmdBufAllocateCmdInfo() */
-
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -205,18 +212,56 @@ VOID cmdBufFreeCmdInfo(IN P_ADAPTER_T prAdapter, IN P_CMD_INFO_T prCmdInfo)
 			cnmMemFree(prAdapter, prCmdInfo->pucInfoBuffer);
 			prCmdInfo->pucInfoBuffer = NULL;
 		}
-
+#if CFG_DBG_MGT_BUF
+		prCmdInfo->fgIsUsed = FALSE;
+		prCmdInfo->rLastFreeTime = kalGetTimeTick();
+#endif
 		KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
 		QUEUE_INSERT_TAIL(&prAdapter->rFreeCmdList, &prCmdInfo->rQueEntry);
 		KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_RESOURCE);
 	}
 
-	if (prCmdInfo) {
-		DBGLOG(MEM, INFO,
-		       ("CMD[0x%p] freed! Rest[%u]\n", prCmdInfo,
-			prAdapter->rFreeCmdList.u4NumElem));
-	}
+	if (prCmdInfo)
+		DBGLOG(MEM, LOUD, "CMD[0x%p] freed! Rest[%u]\n", prCmdInfo, prAdapter->rFreeCmdList.u4NumElem);
 
 	return;
 
 }				/* end of cmdBufFreeCmdPacket() */
+
+/*----------------------------------------------------------------------------*/
+/*!
+* @brief This function is used to dump the CMD Packet.
+*
+* @param prAdapter  Pointer to the Adapter structure.
+* @param fgAll      Dump all CMD packet or used only
+*
+* @return (none)
+*/
+/*----------------------------------------------------------------------------*/
+VOID cmdBufDumpCmdInfo(IN P_ADAPTER_T prAdapter, IN BOOLEAN fgAll)
+{
+	P_CMD_INFO_T prCmdInfo;
+	UINT_32 i;
+
+#if CFG_DBG_MGT_BUF
+	DBGLOG(SW4, INFO, "============= DUMP CMD INFO =============\n");
+	for (i = 0; i < CFG_TX_MAX_CMD_PKT_NUM; i++) {
+		prCmdInfo = &prAdapter->arHifCmdDesc[i];
+
+		if (!prCmdInfo->fgIsUsed && !fgAll)
+			continue;
+		DBGLOG(SW4, INFO, "CMD[%u/0x%p] U[%u] Prev/Next[0x%p/0x%p]\n",
+			i, prCmdInfo, prCmdInfo->fgIsUsed, prCmdInfo->rQueEntry.prPrev,
+			prCmdInfo->rQueEntry.prNext);
+
+		DBGLOG(SW4, INFO, "TYPE/CID[%u/%u] SEQ[%u] Last Alloc/Free Time[%u/%u]\n",
+			prCmdInfo->eCmdType, prCmdInfo->ucCID, prCmdInfo->ucCmdSeqNum,
+			prCmdInfo->rLastAllocTime, prCmdInfo->rLastFreeTime);
+
+		DBGLOG(SW4, INFO, "BSS[%u] STA[%u] OID[%u] Set[%u] Rsp[%u]\n",
+			prCmdInfo->ucBssIndex, prCmdInfo->ucStaRecIndex,
+			prCmdInfo->fgIsOid, prCmdInfo->fgSetQuery, prCmdInfo->fgNeedResp);
+	}
+#endif
+}
+
