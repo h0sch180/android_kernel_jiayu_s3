@@ -9,6 +9,19 @@
 #include <mach/battery_meter_hal.h>
 #include <cust_battery_meter.h>
 #include <cust_pmic.h>
+#include <mach/battery_meter_hal_internal.h>
+
+/* lenovo-sw zhangrc2 support max17058 */
+#if defined(SOC_BY_3RD_FG)
+#include "./max17058_battery.h"
+extern void max17048_set_temperature(int tmp);
+extern  unsigned char max17058_get_capacity(void);
+#endif
+/* lenovo-sw zhangrc2 support max17058 */
+
+
+
+
 
 //============================================================ //
 //define
@@ -42,7 +55,6 @@ kal_bool g_fg_is_charging = 0;
 //extern function
 //============================================================ //
 extern int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, int trimd);
-extern int PMIC_IMM_SwGetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, int trimd);
 extern kal_uint32 upmu_get_reg_value(kal_uint32 reg);
 extern int IMM_GetOneChannelValue(int dwChannel, int data[4], int* rawdata);
 extern int IMM_IsAdcInitReady(void);
@@ -372,7 +384,159 @@ static kal_int32 fgauge_read_current_sign(void *data)
     return STATUS_OK;
 }
 
-static kal_int32 fgauge_read_columb_internal(void *data, int reset)
+static signed int fgauge_read_columb(void *data);
+
+signed int fgauge_set_columb_interrupt_internal(void *data, int reset)
+{
+#if defined(CONFIG_POWER_EXT)
+	return STATUS_OK;
+#else
+
+	unsigned int uvalue32_CAR = 0;
+	unsigned int uvalue32_CAR_MSB = 0;
+	signed short upperbound = 0, lowbound = 0;
+	signed short pcar = 0;
+	signed short m;
+	unsigned int car = *(unsigned int *) (data);
+	unsigned int ret = 0;
+	unsigned short *plow, *phigh, *pori;
+	unsigned int reg_val_1, reg_val_2;
+
+	bm_print(BM_LOG_FULL, "fgauge_set_columb_interrupt_internal car=%d\n", car);
+
+
+	plow = (unsigned short *) &lowbound;
+	phigh = (unsigned short *) &upperbound;
+	pori = (unsigned short *) &uvalue32_CAR;
+
+	if (car == 0) {
+		mt6325_upmu_set_rg_int_en_fg_bat_h(0);
+		mt6325_upmu_set_rg_int_en_fg_bat_l(0);
+
+		bm_print(BM_LOG_FULL,
+			 "[fgauge_set_columb_interrupt] low:[0xcae]=0x%x  high:[0xcb0]=0x%x  \r\n",
+			 upmu_get_reg_value(MT6325_FGADC_CON5),
+			 upmu_get_reg_value(MT6325_FGADC_CON6));
+		return STATUS_OK;
+	}
+
+	if (car == 0x1ffff) {
+		mt6325_upmu_set_rg_int_en_fg_bat_h(1);
+		mt6325_upmu_set_rg_int_en_fg_bat_l(1);
+
+		pmic_read_interface(MT6325_INT_CON2, &reg_val_1,
+			MT6325_PMIC_RG_INT_EN_FG_BAT_L_MASK, MT6325_PMIC_RG_INT_EN_FG_BAT_L_SHIFT);
+		pmic_read_interface(MT6325_INT_CON2, &reg_val_2,
+			MT6325_PMIC_RG_INT_EN_FG_BAT_H_MASK, MT6325_PMIC_RG_INT_EN_FG_BAT_H_SHIFT);
+
+		bm_print(BM_LOG_FULL,
+			 "[fgauge_set_columb_interrupt] low:[0xcae]=0x%x  high:[0xcb0]=0x%x %d %d\r\n",
+			 upmu_get_reg_value(MT6325_FGADC_CON5),
+			 upmu_get_reg_value(MT6325_FGADC_CON6),
+			 reg_val_1, reg_val_2);
+		return STATUS_OK;
+	}
+
+	/* HW Init */
+	/* (1)    i2c_write (0x60, 0xC8, 0x01); // Enable VA2 */
+	/* (2)    i2c_write (0x61, 0x15, 0x00); // Enable FGADC clock for digital */
+	/* (3)    i2c_write (0x61, 0x69, 0x28); // Set current mode, auto-calibration mode and 32KHz clock source */
+	/* (4)    i2c_write (0x61, 0x69, 0x29); // Enable FGADC */
+
+	/* Read HW Raw Data */
+	/* (1)    Set READ command */
+	if (reset == 0)
+		ret = pmic_config_interface(MT6325_FGADC_CON0, 0x0200, 0xFF00, 0x0);
+	else
+		ret = pmic_config_interface(MT6325_FGADC_CON0, 0x7300, 0xFF00, 0x0);
+
+
+	/* (2)    Keep i2c read when status = 1 (0x06) */
+	m = 0;
+	while (fg_get_data_ready_status() == 0) {
+		m++;
+		if (m > 1000) {
+			bm_print(BM_LOG_FULL,
+				 "[fgauge_set_columb_interrupt] fg_get_data_ready_status timeout 1 !");
+			break;
+		}
+	}
+	/* (3)    Read FG_CURRENT_OUT[28:14] */
+	/* (4)    Read FG_CURRENT_OUT[31] */
+	uvalue32_CAR = (mt6325_upmu_get_fg_car_15_00()) >> 14;
+	uvalue32_CAR |= ((mt6325_upmu_get_fg_car_31_16()) & 0x7FFF) << 2;
+
+	uvalue32_CAR_MSB = (mt6325_upmu_get_fg_car_31_16() & 0x8000) >> 15;
+
+	bm_print(BM_LOG_FULL,
+		 "[fgauge_set_columb_interrupt] FG_CAR = 0x%x   uvalue32_CAR_MSB:0x%x\r\n",
+		 uvalue32_CAR, uvalue32_CAR_MSB);
+	uvalue32_CAR = uvalue32_CAR & 0x7fff;
+
+	if (uvalue32_CAR_MSB == 1)
+		uvalue32_CAR = uvalue32_CAR | 0x8000;
+
+
+	bm_print(BM_LOG_FULL,
+		 "[fgauge_set_columb_interrupt] FG_CAR = 0x%x:%d  msb=0x%x  car=0x%x:%d FG_CAR2:0x%x:%d \r\n ",
+		 uvalue32_CAR, uvalue32_CAR, uvalue32_CAR_MSB, car, car, *pori, *pori);
+	/* restore use_chip_trim_value() */
+	car = ((car * 1000) / chip_diff_trim_value);
+	car = ((car * 100) / CAR_TUNE_VALUE);
+	car = ((car * R_FG_VALUE) / 20);
+	car = car * 8000;
+	car = car * 10;
+	car = car + 5;
+	car = car * 10;
+	car = car / 35986;
+	pcar = (signed short) car;
+
+	upperbound = *pori;
+	lowbound = *pori;
+
+/*
+	if(uvalue32_CAR_MSB==1)
+	{
+		upperbound=(signed short)(upperbound-upperbound*2);
+		lowbound=(signed short)(lowbound-lowbound*2);
+	}
+*/
+	bm_print(BM_LOG_FULL,
+		 "[fgauge_set_columb_interrupt] upper = 0x%x:%d  low=0x%x:%d  car=0x%x:%d\r\n",
+		 upperbound, upperbound, lowbound, lowbound, pcar, pcar);
+
+	upperbound = upperbound + pcar;
+	lowbound = lowbound - pcar;
+
+	bm_print(BM_LOG_FULL,
+		 "[fgauge_set_columb_interrupt]final upper = 0x%x:%d  low=0x%x:%d  car=0x%x:%d\r\n",
+		 upperbound, upperbound, lowbound, lowbound, pcar, pcar);
+
+
+	pmic_config_interface(MT6325_FGADC_CON5, *plow, 0xFFFF, 0x0); /* PMIC_FG_BLTR */
+	pmic_config_interface(MT6325_FGADC_CON6, *phigh, 0xFFFF, 0x0); /* PMIC_FG_BFTR */
+	msleep(1);/* usleep_range(1000, 2000); */
+	mt6325_upmu_set_rg_int_en_fg_bat_h(1);
+	mt6325_upmu_set_rg_int_en_fg_bat_l(1);
+
+
+	bm_print(BM_LOG_FULL,
+		 "[fgauge_set_columb_interrupt] low:[0xcae]=0x%x  high:[0xcb0]=0x%x\r\n",
+		 upmu_get_reg_value(MT6325_FGADC_CON5),
+		 upmu_get_reg_value(MT6325_FGADC_CON6));
+
+	return STATUS_OK;
+#endif
+
+}
+
+
+static signed int fgauge_set_columb_interrupt(void *data)
+{
+	return fgauge_set_columb_interrupt_internal(data, 0);
+}
+
+static kal_int32 fgauge_read_columb_internal(void *data, int reset, int precise)
 {
 #if defined(CONFIG_POWER_EXT)
     *(kal_int32*)(data) = 0;
@@ -476,8 +640,13 @@ static kal_int32 fgauge_read_columb_internal(void *data, int reset)
     dvalue_CAR = Temp_Value / 1000; //mAh
     #else
     //dvalue_CAR = (Temp_Value/8)/1000; //mAh, due to FG_OSR=0x8
-    do_div(Temp_Value, 8);
-    do_div(Temp_Value, 1000);
+	if (precise == 0) {
+		do_div(Temp_Value, 8);
+		do_div(Temp_Value, 1000);
+	} else {
+		do_div(Temp_Value, 8);
+		do_div(Temp_Value, 100);
+	}
 
     if(uvalue32_CAR_MSB == 0x1)
         dvalue_CAR = (kal_int32)(Temp_Value - (Temp_Value*2));  // keep negative value
@@ -523,7 +692,12 @@ static kal_int32 fgauge_read_columb_internal(void *data, int reset)
 
 static kal_int32 fgauge_read_columb(void *data)
 {
-    return fgauge_read_columb_internal(data, 0);
+	return fgauge_read_columb_internal(data, 0, 0);
+}
+
+static kal_int32 fgauge_read_columb_accurate(void *data)
+{
+	return fgauge_read_columb_internal(data, 0, 1);
 }
 
 static kal_int32 fgauge_hw_reset(void *data)
@@ -540,17 +714,32 @@ static kal_int32 fgauge_hw_reset(void *data)
     while(val_car != 0x0)
     {
         ret=pmic_config_interface(MT6325_FGADC_CON0, 0x7100, 0xFF00, 0x0);
-        fgauge_read_columb_internal(&val_car_temp, 1);
+		fgauge_read_columb_internal(&val_car_temp, 1, 0);
         val_car = val_car_temp;
         bm_print(BM_LOG_FULL, "#");
     }
 
     bm_print(BM_LOG_FULL, "[fgauge_hw_reset] : End \r\n");
 #endif
+    return STATUS_OK;
+}
+/*Begin,Lenovo-sw zhangrc2 modify  to support max17058 */	
+#if defined(SOC_BY_3RD_FG)
+static kal_int32 fgauge_get_soc(void *data)
+{
 
+    *(kal_int32*)(data) = max17058_get_capacity();
+ 
     return STATUS_OK;
 }
 
+static kal_int32 fgauge_set_temp(void *data)
+{
+   max17048_set_temperature(*(kal_int32*)(data));
+    return STATUS_OK;
+}
+
+#endif
 
 static kal_int32 read_adc_v_bat_sense(void *data)
 {
@@ -558,7 +747,7 @@ static kal_int32 read_adc_v_bat_sense(void *data)
     *(kal_int32*)(data) = 4201;
 #else
 #if defined(SWCHR_POWER_PATH)
-	*(kal_int32*)(data) = PMIC_IMM_SwGetOneChannelValue(AUX_ISENSE_AP,*(kal_int32*)(data),1);
+	*(kal_int32 *)(data) = PMIC_IMM_SwGetOneChannelValue(AUX_ISENSE_AP, *(kal_int32 *)(data), 1);
 #else
     *(kal_int32*)(data) = PMIC_IMM_GetOneChannelValue(AUX_BATSNS_AP,*(kal_int32*)(data),1);
 #endif
@@ -577,7 +766,7 @@ static kal_int32 read_adc_v_i_sense(void *data)
 #if defined(SWCHR_POWER_PATH)
 	*(kal_int32*)(data) = PMIC_IMM_GetOneChannelValue(AUX_BATSNS_AP,*(kal_int32*)(data),1);
 #else
-    *(kal_int32*)(data) = PMIC_IMM_SwGetOneChannelValue(AUX_ISENSE_AP,*(kal_int32*)(data),1);
+	*(kal_int32 *)(data) = PMIC_IMM_SwGetOneChannelValue(AUX_ISENSE_AP, *(kal_int32 *)(data), 1);
 #endif
 #endif
 
@@ -599,6 +788,8 @@ static kal_int32 read_adc_v_bat_temp(void *data)
 
     return STATUS_OK;
 }
+
+
 
 static kal_int32 read_adc_v_charger(void *data)
 {
@@ -635,6 +826,13 @@ static kal_int32 dump_register_fgadc(void *data)
     return STATUS_OK;
 }
 
+static kal_int32 read_battery_plug_out_status(void *data)
+{
+	*(kal_int32 *)(data) = g_plug_out_status;
+
+	return STATUS_OK;
+}
+
 static kal_int32 (* const bm_func[BATTERY_METER_CMD_NUMBER])(void *data)=
 {
     fgauge_initialization		//hw fuel gague used only
@@ -642,16 +840,24 @@ static kal_int32 (* const bm_func[BATTERY_METER_CMD_NUMBER])(void *data)=
     ,fgauge_read_current		//hw fuel gague used only
     ,fgauge_read_current_sign	//hw fuel gague used only
     ,fgauge_read_columb			//hw fuel gague used only
+	, fgauge_read_columb_accurate
 
     ,fgauge_hw_reset			//hw fuel gague used only
-
+    /*Begin,Lenovo-sw zhangrc2 modify to support max17058 */	
+#if defined(SOC_BY_3RD_FG)
+    ,fgauge_get_soc			    //3rd fuel gague used only
+    ,fgauge_set_temp			//3rd fuel gague used only
+#endif    
+/*End,Lenovo-sw chailu1 modify  to support support max17058*/    
     ,read_adc_v_bat_sense
     ,read_adc_v_i_sense
     ,read_adc_v_bat_temp
     ,read_adc_v_charger
 
     ,read_hw_ocv
+	, read_battery_plug_out_status
     ,dump_register_fgadc		//hw fuel gague used only
+	, fgauge_set_columb_interrupt
 };
 
 kal_int32 bm_ctrl_cmd(BATTERY_METER_CTRL_CMD cmd, void *data)

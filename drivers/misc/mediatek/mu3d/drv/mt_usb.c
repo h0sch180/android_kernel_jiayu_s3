@@ -261,7 +261,7 @@ bool usb_cable_connected(void)
 	{
 		CHARGER_TYPE chg_type = mt_charger_type_detection();
 		os_printk(K_INFO, "%s type=%d\n", __func__, chg_type);
-		if (chg_type == STANDARD_HOST)
+		if (chg_type == STANDARD_HOST || chg_type == CHARGING_HOST)
 			return true;
 	}
 #endif

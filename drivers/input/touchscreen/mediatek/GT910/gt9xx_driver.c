@@ -1741,6 +1741,7 @@ static s32 tpd_i2c_probe(struct i2c_client *client, const struct i2c_device_id *
         GTP_ERROR("Read version failed.");
         goto out;
     }
+	GTP_INFO(TPD_DEVICE " read gtp version: %d", version_info);
 
     ret = gtp_init_panel(client);
 
@@ -2399,7 +2400,7 @@ static int tpd_local_init(void)
     tpd->dev->id.product = tpd_info.pid;
     tpd->dev->id.version = tpd_info.vid;
     
-    GTP_INFO("end %s, %d", __FUNCTION__, __LINE__);
+    GTP_INFO("end %s, %d", __func__, __LINE__);
     tpd_type_cap = 1;
 
     return 0;

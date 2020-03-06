@@ -20,6 +20,7 @@
 
 #include <linux/bug.h>
 #include <linux/errno.h>
+#include <linux/mmc/ioctl.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
@@ -29,6 +30,8 @@
 #include <linux/mmc/ffu.h>
 
 #include "../core/core.h"
+
+#include <asm/uaccess.h>
 
 #define  FFU_BUS_FREQ	25000000
 
@@ -62,6 +65,63 @@ struct mmc_ffu_area {
 	struct mmc_ffu_mem *mem;
 	struct scatterlist *sg;
 };
+
+/* This strcut is cloned from mmc/card/block.c without modification*/
+struct mmc_blk_ioc_data {
+	struct mmc_ioc_cmd ic;
+	unsigned char *buf;
+	u64 buf_bytes;
+};
+
+/* This function is cloned from mmc_blk_ioctl_copy_from_user() and only change
+   MMC_IOC_MAX_BYTES as MMC_FFU_IOC_MAX_BYTES */
+struct mmc_blk_ioc_data *mmc_ffu_ioctl_copy_from_user(
+	struct mmc_ioc_cmd __user *user)
+{
+	struct mmc_blk_ioc_data *idata;
+	int err;
+
+	idata = kzalloc(sizeof(*idata), GFP_KERNEL);
+	if (!idata) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	if (copy_from_user(&idata->ic, user, sizeof(idata->ic))) {
+		err = -EFAULT;
+		goto idata_err;
+	}
+
+	idata->buf_bytes = (u64) idata->ic.blksz * idata->ic.blocks;
+	if (idata->buf_bytes > MMC_FFU_IOC_MAX_BYTES) {
+		err = -EOVERFLOW;
+		goto idata_err;
+	}
+
+	if (!idata->buf_bytes)
+		return idata;
+
+	idata->buf = kzalloc(idata->buf_bytes, GFP_KERNEL);
+	if (!idata->buf) {
+		err = -ENOMEM;
+		goto idata_err;
+	}
+
+	if (copy_from_user(idata->buf, (void __user *)(unsigned long)
+					idata->ic.data_ptr, idata->buf_bytes)) {
+		err = -EFAULT;
+		goto copy_err;
+	}
+
+	return idata;
+
+copy_err:
+	kfree(idata->buf);
+idata_err:
+	kfree(idata);
+out:
+	return ERR_PTR(err);
+}
 
 static void mmc_ffu_prepare_mrq(struct mmc_card *card,
 	struct mmc_request *mrq, struct scatterlist *sg, unsigned int sg_len,
@@ -424,10 +484,12 @@ static int mmc_ffu_restart(struct mmc_card *card)
 	if ( !err )
 		card->state &= ~MMC_STATE_FFUED;
 
+#ifdef CONFIG_MTK_EMMC_CACHE
 	if ( ( host->caps2 & MMC_CAP2_CACHE_CTRL ) &&
 		!(card->quirks & MMC_QUIRK_DISABLE_CACHE) ) {
 		mmc_cache_ctrl(host, 1);
 	}
+#endif
 
 	return err;
 }
@@ -814,4 +876,3 @@ exit:
 	return err;
 }
 EXPORT_SYMBOL(mmc_ffu_download);
-

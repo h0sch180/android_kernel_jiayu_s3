@@ -25,9 +25,11 @@
 
 #define CLK_DEBUG		0
 #define DUMMY_REG_TEST		0
-#if !defined(CONFIG_MTK_LEGACY)
-#define Bring_Up /* FIXME: disable after CCF is ready */
-#endif /* !defined(CONFIG_MTK_LEGACY) */
+/* #define Bring_Up */
+#ifdef Bring_Up
+#define MT_CCF_DEBUG	1
+#define MT_CCF_BRINGUP	0 /* 1: only for bring up */
+#endif /* Bring_Up */
 
 extern spinlock_t *get_mtk_clk_lock(void);
 

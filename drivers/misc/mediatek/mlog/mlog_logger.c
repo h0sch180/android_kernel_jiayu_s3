@@ -26,9 +26,6 @@
 #include <linux/zsmalloc.h>
 #endif
 
-#ifdef CONFIG_ZRAM
-#include <linux/zram_drv.h>
-#endif
 
 /* for collecting ion total memory usage*/
 #ifdef CONFIG_ION_MTK
@@ -363,12 +360,9 @@ static void mlog_meminfo(void)
 #endif
 
 	mlock = P2K(global_page_state(NR_MLOCK));
-#if 0//defined(CONFIG_ZRAM) & defined(CONFIG_ZSMALLOC)
-	zram = (zram_devices && zram_devices->meta) ?
-	    B2K(zs_get_total_size_bytes(zram_devices->meta->mem_pool)) : 0;
-#else
+
 	zram = 0;
-#endif
+
 
 	active = P2K(global_page_state(NR_ACTIVE_ANON) + global_page_state(NR_ACTIVE_FILE));
 	inactive = P2K(global_page_state(NR_INACTIVE_ANON) + global_page_state(NR_INACTIVE_FILE));
@@ -500,6 +494,7 @@ struct task_struct *find_trylock_task_mm(struct task_struct *t)
 /*
  * it's copied from lowmemorykiller.c
 */
+#ifndef CONFIG_MEMCG
 static short lowmem_oom_score_adj_to_oom_adj(short oom_score_adj)
 {
 	if (oom_score_adj == OOM_SCORE_ADJ_MAX)
@@ -507,6 +502,7 @@ static short lowmem_oom_score_adj_to_oom_adj(short oom_score_adj)
 	else
 		return ((oom_score_adj * -OOM_DISABLE * 10) / OOM_SCORE_ADJ_MAX + 5) / 10;	/* round */
 }
+#endif
 
 static void mlog_procinfo(void)
 {
@@ -534,10 +530,12 @@ static void mlog_procinfo(void)
 		if (!p->signal)
 			goto unlock_continue;
 
+#ifndef CONFIG_MEMCG
 #ifdef CONFIG_ANDROID_LOW_MEMORY_KILLER_AUTODETECT_OOM_ADJ_VALUES
 		oom_score_adj = lowmem_oom_score_adj_to_oom_adj(p->signal->oom_score_adj);
 #else
 		oom_score_adj = p->signal->oom_adj;
+#endif
 #endif
 
 		if (max_adj < oom_score_adj || oom_score_adj < min_adj)
@@ -585,11 +583,7 @@ collect_proc_mem_info:
 		do {
 			/* min_flt += t->min_flt; */
 			/* maj_flt += t->maj_flt; */
-#ifdef CONFIG_ZRAM
-			fm_flt += t->fm_flt;
-			swap_in += t->swap_in;
-			swap_out += t->swap_out;
-#endif
+
 			t = next_thread(t);
 #ifdef MLOG_DEBUG
 #if defined(__LP64__) || defined(_LP64)

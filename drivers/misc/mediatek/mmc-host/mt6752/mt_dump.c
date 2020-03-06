@@ -60,7 +60,6 @@ unsigned char g_tst_buf_r[TEST_SIZE] = {0};
 //==============
 
 //==============
-//#define printk(         pr_err(
 //maybe use pr_debug
 //==============
 
@@ -111,7 +110,7 @@ static struct simp_mmc_card g_mmc_card[2];
 static struct simp_mmc_host *pmmc_boot_host = &g_mmc_host[BOOT_STORAGE_ID];
 static struct simp_mmc_host *pmmc_extend_host = &g_mmc_host[EXTEND_STORAGE_ID];
 
-#define msdc_retry(expr, retry, cnt,id) \
+#define msdc_retry(expr, retry, cnt, id) \
     do { \
         int backup = cnt; \
         while (retry) { \
@@ -120,7 +119,7 @@ static struct simp_mmc_host *pmmc_extend_host = &g_mmc_host[EXTEND_STORAGE_ID];
                 retry--; msdc_mdelay(1); cnt = backup; \
             } \
         } \
-        if (retry == 0) { \
+		if (retry == 0) { \
             simp_msdc_dump_info(id); \
         } \
         WARN_ON(retry == 0); \
@@ -290,8 +289,8 @@ static int simp_msdc_wait_clk_stable(struct simp_msdc_host *host) {
 /* #define PDN_REG            (0xF1000010) */
 static void simp_msdc_config_clksrc(struct simp_msdc_host *host, CLK_SOURCE_T clksrc)
 {
-    host->clksrc = clksrc;
-    host->clk  = clks[clksrc];
+	host->clksrc = clksrc;
+	host->clk  = clks[clksrc];
 }
 
 static void simp_msdc_config_clock(struct simp_msdc_host *host, unsigned int hz)  /* no ddr */
@@ -481,7 +480,7 @@ static unsigned int simp_mmc_enable_clk(struct simp_mmc_host *host)
 		enable_clock(msdc_cg_clk_id[host->mtk_host->id], "SD");
 	}
     
-    return SIMP_SUCCESS;
+	return SIMP_SUCCESS;
 }
 
 
@@ -559,7 +558,6 @@ static unsigned int simp_msdc_init(struct simp_mmc_host *mmc_host)
 
     //struct msdc_hw *hw;
     /* Todo1: struct msdc_hw in board.c */
-
     base = host->base;
 
     /* set to SD/MMC mode, the first step while operation msdc */
@@ -657,7 +655,6 @@ static unsigned int simp_msdc_init(struct simp_mmc_host *mmc_host)
              * set gpio to msdc mode. (clk in GPIO_MODE1)
              */
             sdr_set_field(MSDC1_GPIO_MODE1_ADDR, MSDC1_CLK_PINMUX_BITS, 0x1);
-
             sdr_set_field(MSDC1_DRVING_BASE, MSDC1_CLK_DRVING, msdc1_hw.clk_drv);
             sdr_set_field(MSDC1_DRVING_BASE, MSDC1_CMD_DRVING, msdc1_hw.cmd_drv);
             sdr_set_field(MSDC1_DRVING_BASE, MSDC1_DAT0_3_DRVING, msdc1_hw.dat_drv);
@@ -768,7 +765,7 @@ static int simp_msdc_cmd(struct simp_msdc_host *host, unsigned int cmd, unsigned
 
     sdc_send_cmd(raw, arg);
 #if MTK_MMC_DUMP_DBG
-    printk("cmd=0x%x, arg=0x%x\n", raw, arg);
+	pr_err("cmd=0x%x, arg=0x%x\n", raw, arg);
 #endif
     /* polling to check the interrupt */
     retry = 5000; //CMD_WAIT_RETRY;
@@ -777,7 +774,7 @@ static int simp_msdc_cmd(struct simp_msdc_host *host, unsigned int cmd, unsigned
         retry--;
 #if MTK_MMC_DUMP_DBG
         if(retry %1000 == 0){
-            printk("int cmd=0x%x, arg=0x%x, retry=0x%x, intsts=0x%x\n", raw, arg, retry, intsts);
+			pr_err("int cmd=0x%x, arg=0x%x, retry=0x%x, intsts=0x%x\n", raw, arg, retry, intsts);
             simp_msdc_dump_info(host->id);
         }
 #endif
@@ -1307,11 +1304,8 @@ static int simp_mmc_sd_init(struct simp_mmc_host *host)
     if (simp_msdc_cmd(phost, CMD0, CMD0_RAW, CMD0_ARG, RESP_NONE, &resp)) goto EXIT;
 
     if (simp_msdc_cmd(phost, CMD8, CMD8_RAW, CMD8_ARG, RESP_R7,   &resp)){
-        // SD v1.0 will not repsonse to CMD8, then clr HCS bit
-        //printk("SD v1.0, clr HCS bit\n");
         ACMD41_ARG = ACMD41_ARG_10;
     } else if (resp == CMD8_ARG) {
-        //printk("SD v2.0, set HCS bit\n");
         ACMD41_ARG = ACMD41_ARG_20;
     }
 
@@ -1322,9 +1316,6 @@ static int simp_mmc_sd_init(struct simp_mmc_host *host)
         if (simp_msdc_cmd(phost, ACMD41, ACMD41_RAW, ACMD41_ARG,  RESP_R3, &resp)) goto EXIT;
         if (resp & R3_OCR_POWER_UP_BIT) {
             phost->card->card_cap = ((resp & R3_OCR_CARD_CAPACITY_BIT) ? high_capacity : standard_capacity);
-            if(phost->card->card_cap == standard_capacity){
-                //printk("just standard_capacity card!!\r\n");
-            }
             break;
         }
         msdc_mdelay(1000 / ACMD41_RETRY);
@@ -1405,7 +1396,7 @@ static int mmc_disable_cache(struct simp_mmc_host *host)
         }while(R1_CURRENT_STATE(status) == 7 && polling--);
 
         if (status & 0xFDFFA000)
-            printk("msdc unexpected status 0x%x after switch", status);
+			pr_err("msdc unexpected status 0x%x after switch", status);
         if (status & R1_SWITCH_ERROR)
             return -4;
     }
@@ -1455,7 +1446,7 @@ static unsigned int simple_mmc_attach_mmc(struct simp_mmc_host *host)
     if(!mtk_msdc_host[host->index] ||
          !mtk_msdc_host[host->index]->mmc ||
          !mtk_msdc_host[host->index]->mmc->card){
-        printk("[%s]: host/mmc/card is not existed\n", __func__);
+		pr_err("[%s]: host/mmc/card is not existed\n", __func__);
     } else if(mtk_msdc_host[host->index]->mmc->card->ext_csd.cache_ctrl & 0x1){
         /* enable clock */
         simp_mmc_enable_clk(host);
@@ -1465,17 +1456,17 @@ static unsigned int simple_mmc_attach_mmc(struct simp_mmc_host *host)
 
         err = mmc_disable_cache(host);
         if(err){
-            printk("[%s]: failed to disable cache ops, err = %d\n", __func__, err); ;
+			pr_err("[%s]: failed to disable cache ops, err = %d\n", __func__, err);
             simp_msdc_dump_register(host->mtk_host);
             err = 0;
         } else {
 #if MTK_MMC_DUMP_DBG
-            printk("[%s]: successfully disabled cache ops.\n", __func__ );
+			pr_err("[%s]: successfully disabled cache ops.\n",  __func__);
 #endif
         }
     } else {
 #if MTK_MMC_DUMP_DBG
-        printk("[%s]: cache is not enabled, no need to disable it\n", __func__);
+		pr_err("[%s]: cache is not enabled, no need to disable it\n", __func__);
 #endif
     }
 #endif
@@ -2221,15 +2212,15 @@ static int simp_sd_dump_write(unsigned char* buf, unsigned int len, unsigned int
 
     if (0 != len % 512) {
         /* emmc always in slot0 */
-        printk("debug: parameter error!\n");
+		pr_err("debug: parameter error!\n");
         return ret;
     }
 #if 0
-    printk("write data:");
+	pr_err("write data:");
     for (i = 0; i < 32; i++) {
-        printk("0x%x", buf[i]);
+		pr_err("0x%x", buf[i]);
         if (0 == (i+1)%32)
-            printk("\n");
+			pr_err("\n");
     }
 #endif
     l_buf  = buf;
@@ -2240,7 +2231,7 @@ static int simp_sd_dump_write(unsigned char* buf, unsigned int len, unsigned int
     }
 
 #if MTK_MMC_DUMP_DBG
-    printk("l_start_offset = 0x%x len = %d buf<%p>\n", l_addr, len, l_buf);
+	pr_err("l_start_offset = 0x%x len = %d buf<%p>\n", l_addr, len, l_buf);
 #endif
 
     if(len == 512)
@@ -2420,7 +2411,7 @@ static int emmc_dump_read(unsigned char* buf, unsigned int len, unsigned int off
 
     if ((0 != slot) || (0 != offset % 512) || (0 != len % 512)) {
         /* emmc always in slot0 */
-        printk("debug: slot is not use for emmc!\n");
+		pr_err("debug: slot is not use for emmc!\n");
         return ret;
     }
 
@@ -2440,21 +2431,22 @@ static int emmc_dump_read(unsigned char* buf, unsigned int len, unsigned int off
     }
 
 #if DEBUG_MMC_IOCTL
-    printk("l_user_begin_num = %d l_dest_num = %d\n",l_user_begin_num,l_dest_num);
+	pr_err("l_user_begin_num = %d l_dest_num = %d\n", l_user_begin_num, l_dest_num);
 #endif
 
     if (l_user_begin_num >= PART_NUM && l_dest_num >= PART_NUM) {
-        printk("not find in scatter file error!\n");
+		pr_err("not find in scatter file error!\n");
         return ret;
     }
 
     if (PartInfo[l_dest_num].size < (len + offset)) {
-        printk("read operation oversize!\n");
+		pr_err("read operation oversize!\n");
         return ret;
     }
 
 #if DEBUG_MMC_IOCTL
-    printk("read start address=0x%llx\n", PartInfo[l_dest_num].start_address - PartInfo[l_user_begin_num].start_address);
+	pr_err("read start address=0x%llx\n",
+		PartInfo[l_dest_num].start_address - PartInfo[l_user_begin_num].start_address);
 #endif
     l_start_offset = offset + PartInfo[l_dest_num].start_address - PartInfo[l_user_begin_num].start_address;
 
@@ -2470,17 +2462,17 @@ static int emmc_dump_read(unsigned char* buf, unsigned int len, unsigned int off
         msdc_ctl.buffer =(u32*)(buf + i * 512);
 
 #if DEBUG_MMC_IOCTL
-        printk("l_start_offset =0x%x\n", msdc_ctl.address);
+		pr_err("l_start_offset =0x%x\n", msdc_ctl.address);
 #endif
         msdc_ctl.result = simple_sd_ioctl_rw(&msdc_ctl);
     }
 
 #if DEBUG_MMC_IOCTL
-    printk("read data:");
+	pr_err("read data:");
     for (i = 0; i < 32; i++) {
-        printk("0x%x", buf[i]);
+		pr_err("0x%x", buf[i]);
         if (0 == (i+1)%32)
-            printk("\n");
+			pr_err("\n");
     }
 #endif
     return SD_TRUE;
@@ -2498,7 +2490,7 @@ int card_dump_func_read(unsigned char* buf, unsigned int len, unsigned long long
     pr_err( "card_dump_func_read len<%d> addr<%lld> type<%d>\n",len,offset,dev);
 #endif
     if(offset % 512){
-        printk("Address isn't 512 alignment!\n");
+		pr_err("Address isn't 512 alignment!\n");
         return SIMP_FAILED;
     }
     sec_offset = offset/512;
@@ -2514,7 +2506,7 @@ int card_dump_func_read(unsigned char* buf, unsigned int len, unsigned long long
             ret = sd_dump_read(buf, len, sec_offset);
             break;
         default:
-            printk("unknown card type, error!\n");
+			pr_err("unknown card type, error!\n");
             break;
     }
     return ret;

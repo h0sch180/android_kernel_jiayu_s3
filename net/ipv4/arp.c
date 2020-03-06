@@ -166,10 +166,10 @@ struct neigh_table arp_tbl = {
 	.id		= "arp_cache",
 	.parms		= {
 		.tbl			= &arp_tbl,
-		.base_reachable_time	= 300 * HZ,
+		.base_reachable_time	= 30 * HZ,/*lenovo-sw lumy1, change to android default value, ALPS01907674*/
 		.retrans_time		= 1 * HZ,
 		.gc_staletime		= 60 * HZ,
-		.reachable_time		= 300 * HZ,
+		.reachable_time		= 30 * HZ,/*lenovo-sw lumy1, change to android default value, ALPS01907674*/
 		.delay_probe_time	= 5 * HZ,
 		.queue_len_bytes	= 64*1024,
 		.ucast_probes		= 3,
@@ -806,6 +806,14 @@ static int arp_process(struct sk_buff *skb)
  */
 	if (ipv4_is_multicast(tip) ||
 	    (!IN_DEV_ROUTE_LOCALNET(in_dev) && ipv4_is_loopback(tip)))
+		goto out;
+
+ /*
+  *	For some 802.11 wireless deployments (and possibly other networks),
+  *	there will be an ARP proxy and gratuitous ARP frames are attacks
+  *	and thus should not be accepted.
+  */
+	if (sip == tip && IN_DEV_ORCONF(in_dev, DROP_GRATUITOUS_ARP))
 		goto out;
 
 /*

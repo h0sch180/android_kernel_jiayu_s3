@@ -80,7 +80,7 @@ static struct i2c_board_info i2c_devs2 __initdata = {I2C_BOARD_INFO(CAMERA_HW_DR
 #define PFX "[kd_sensorlist]"
 #define PK_DBG_NONE(fmt, arg...)    do {} while (0)
 #define PK_DBG_FUNC(fmt, arg...)    pr_debug(fmt, ##arg)
-#define PK_INF(fmt, args...)     pr_debug(PFX "[%s] " fmt, __FUNCTION__, ##args)
+#define PK_INF(fmt, args...)     pr_debug(PFX "[%s] " fmt, __func__, ##args)
 
 #undef DEBUG_CAMERA_HW_K
 /* #define DEBUG_CAMERA_HW_K */
@@ -741,8 +741,8 @@ int iWriteRegI2C(u8 *a_pSendData , u16 a_sizeSendData, u16 i2cId)
 /*******************************************************************************
 * sensor function adapter
 ********************************************************************************/
-#define KD_MULTI_FUNCTION_ENTRY()   /* PK_XLOG_INFO("[%s]:E\n",__FUNCTION__) */
-#define KD_MULTI_FUNCTION_EXIT()    /* PK_XLOG_INFO("[%s]:X\n",__FUNCTION__) */
+#define KD_MULTI_FUNCTION_ENTRY()   /* PK_XLOG_INFO("[%s]:E\n",__func__) */
+#define KD_MULTI_FUNCTION_EXIT()    /* PK_XLOG_INFO("[%s]:X\n",__func__) */
 /*  */
 MUINT32
 kdSetI2CSlaveID(MINT32 i, MUINT32 socketIdx, MUINT32 firstSet) {
@@ -1117,7 +1117,7 @@ u32 i = 0;
 
     for (i = KDIMGSENSOR_INVOKE_DRIVER_0; i < KDIMGSENSOR_MAX_INVOKE_DRIVERS; i++) {
     if (g_bEnableDriver[i]) {
-        /* PK_XLOG_INFO("[%s][%d][%d][%s][%s]\r\n",__FUNCTION__,g_bEnableDriver[i],socketIdx[i],sensorNameStr[i],mode_name); */
+        /* PK_XLOG_INFO("[%s][%d][%d][%s][%s]\r\n",__func__,g_bEnableDriver[i],socketIdx[i],sensorNameStr[i],mode_name); */
         ret = kdCISModulePowerOn(socketIdx[i], sensorNameStr[i], On, mode_name);
         if (ERROR_NONE != ret) {
         PK_ERR("[%s]", __func__);
@@ -1964,50 +1964,49 @@ inline static int  adopt_CAMERA_HW_FeatureControl(void *pBuf)
         break;
      case SENSOR_FEATURE_SET_SENSOR_SYNC:    /* Update new sensor exposure time and gain to keep */
         if (copy_from_user((void *)pFeaturePara , (void *) pFeatureCtrl->pFeaturePara, FeatureParaLen)) {
-         PK_DBG("[CAMERA_HW][pFeaturePara] ioctl copy from user failed\n");
-         return -EFAULT;
-    }
-    /* keep the information to wait Vsync synchronize */
-    pSensorSyncInfo = (ACDK_KD_SENSOR_SYNC_STRUCT *)pFeaturePara;
-    spin_lock(&kdsensor_drv_lock);
-    g_NewSensorExpGain.u2SensorNewExpTime = pSensorSyncInfo->u2SensorNewExpTime;
-    g_NewSensorExpGain.u2SensorNewGain = pSensorSyncInfo->u2SensorNewGain;
-    g_NewSensorExpGain.u2ISPNewRGain = pSensorSyncInfo->u2ISPNewRGain;
-    g_NewSensorExpGain.u2ISPNewGrGain = pSensorSyncInfo->u2ISPNewGrGain;
-    g_NewSensorExpGain.u2ISPNewGbGain = pSensorSyncInfo->u2ISPNewGbGain;
-    g_NewSensorExpGain.u2ISPNewBGain = pSensorSyncInfo->u2ISPNewBGain;
-    g_NewSensorExpGain.uSensorExpDelayFrame = pSensorSyncInfo->uSensorExpDelayFrame;
-    g_NewSensorExpGain.uSensorGainDelayFrame = pSensorSyncInfo->uSensorGainDelayFrame;
-    g_NewSensorExpGain.uISPGainDelayFrame = pSensorSyncInfo->uISPGainDelayFrame;
-    /* AE smooth not change shutter to speed up */
-    if ((0 == g_NewSensorExpGain.u2SensorNewExpTime) || (0xFFFF == g_NewSensorExpGain.u2SensorNewExpTime)) {
-        g_NewSensorExpGain.uSensorExpDelayFrame = 0xFF;
-    }
-
-    if (g_NewSensorExpGain.uSensorExpDelayFrame == 0) {
-        FeatureParaLen = 2;
-        g_pSensorFunc->SensorFeatureControl(pFeatureCtrl->InvokeCamera, SENSOR_FEATURE_SET_ESHUTTER, (unsigned char *)&g_NewSensorExpGain.u2SensorNewExpTime, (unsigned int *) &FeatureParaLen);
-        g_NewSensorExpGain.uSensorExpDelayFrame = 0xFF; /* disable */
-    }
-    else if (g_NewSensorExpGain.uSensorExpDelayFrame != 0xFF) {
-        g_NewSensorExpGain.uSensorExpDelayFrame--;
-    }
-    /* exposure gain */
-    if (g_NewSensorExpGain.uSensorGainDelayFrame == 0) {
-        FeatureParaLen = 2;
-        g_pSensorFunc->SensorFeatureControl(pFeatureCtrl->InvokeCamera, SENSOR_FEATURE_SET_GAIN, (unsigned char *)&g_NewSensorExpGain.u2SensorNewGain, (unsigned int *) &FeatureParaLen);
-        g_NewSensorExpGain.uSensorGainDelayFrame = 0xFF; /* disable */
-    }
-    else if (g_NewSensorExpGain.uSensorGainDelayFrame != 0xFF) {
-        g_NewSensorExpGain.uSensorGainDelayFrame--;
-    }
-    /* if the delay frame is 0 or 0xFF, stop to count */
-    if ((g_NewSensorExpGain.uISPGainDelayFrame != 0xFF) && (g_NewSensorExpGain.uISPGainDelayFrame != 0)) {
-        g_NewSensorExpGain.uISPGainDelayFrame--;
-    }
-
-
-
+            PK_DBG("[CAMERA_HW][pFeaturePara] ioctl copy from user failed\n");
+            return -EFAULT;
+	}
+	/* keep the information to wait Vsync synchronize */
+	pSensorSyncInfo = (ACDK_KD_SENSOR_SYNC_STRUCT *)pFeaturePara;
+	spin_lock(&kdsensor_drv_lock);
+	g_NewSensorExpGain.u2SensorNewExpTime = pSensorSyncInfo->u2SensorNewExpTime;
+	g_NewSensorExpGain.u2SensorNewGain = pSensorSyncInfo->u2SensorNewGain;
+	g_NewSensorExpGain.u2ISPNewRGain = pSensorSyncInfo->u2ISPNewRGain;
+	g_NewSensorExpGain.u2ISPNewGrGain = pSensorSyncInfo->u2ISPNewGrGain;
+	g_NewSensorExpGain.u2ISPNewGbGain = pSensorSyncInfo->u2ISPNewGbGain;
+	g_NewSensorExpGain.u2ISPNewBGain = pSensorSyncInfo->u2ISPNewBGain;
+	g_NewSensorExpGain.uSensorExpDelayFrame = pSensorSyncInfo->uSensorExpDelayFrame;
+	g_NewSensorExpGain.uSensorGainDelayFrame = pSensorSyncInfo->uSensorGainDelayFrame;
+	g_NewSensorExpGain.uISPGainDelayFrame = pSensorSyncInfo->uISPGainDelayFrame;
+	/* AE smooth not change shutter to speed up */
+	if ((0 == g_NewSensorExpGain.u2SensorNewExpTime) || (0xFFFF == g_NewSensorExpGain.u2SensorNewExpTime)) {
+	    g_NewSensorExpGain.uSensorExpDelayFrame = 0xFF;
+	}
+	if (g_NewSensorExpGain.uSensorExpDelayFrame == 0) {
+	    FeatureParaLen = 2;
+	    g_pSensorFunc->SensorFeatureControl(pFeatureCtrl->InvokeCamera, SENSOR_FEATURE_SET_ESHUTTER,
+		(unsigned char *)&g_NewSensorExpGain.u2SensorNewExpTime, (unsigned int *) &FeatureParaLen);
+	    g_NewSensorExpGain.uSensorExpDelayFrame = 0xFF; /* disable */
+	}
+	else if (g_NewSensorExpGain.uSensorExpDelayFrame != 0xFF) {
+	    g_NewSensorExpGain.uSensorExpDelayFrame--;
+	}
+	/* exposure gain */
+	if (g_NewSensorExpGain.uSensorGainDelayFrame == 0) {
+	    FeatureParaLen = 2;
+	    g_pSensorFunc->SensorFeatureControl(pFeatureCtrl->InvokeCamera, SENSOR_FEATURE_SET_GAIN,
+		(unsigned char *)&g_NewSensorExpGain.u2SensorNewGain, (unsigned int *) &FeatureParaLen);
+	    g_NewSensorExpGain.uSensorGainDelayFrame = 0xFF; /* disable */
+	}
+	else if (g_NewSensorExpGain.uSensorGainDelayFrame != 0xFF) {
+	    g_NewSensorExpGain.uSensorGainDelayFrame--;
+	}
+	/* if the delay frame is 0 or 0xFF, stop to count */
+	if ((g_NewSensorExpGain.uISPGainDelayFrame != 0xFF) && (g_NewSensorExpGain.uISPGainDelayFrame != 0)) {
+	    g_NewSensorExpGain.uISPGainDelayFrame--;
+	}
+	spin_unlock(&kdsensor_drv_lock);
      break;
     case SENSOR_FEATURE_GET_GROUP_INFO:
         if (copy_from_user((void *)pFeaturePara , (void *) pFeatureCtrl->pFeaturePara, FeatureParaLen)) {

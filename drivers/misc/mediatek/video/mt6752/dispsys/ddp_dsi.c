@@ -285,6 +285,7 @@ static DSI_STATUS DSI_Reset(DISP_MODULE_ENUM module, cmdqRecHandle cmdq)
 	int i = 0;
 	unsigned int irq_en[2];
 
+	/* DSI_RESET Protect: backup & disable dsi interrupt */
 	for (i = DSI_MODULE_BEGIN(module); i <= DSI_MODULE_END(module); i++) {
 		irq_en[i] = AS_UINT32(&DSI_REG[i]->DSI_INTEN);
 		DSI_OUTREG32(NULL, &DSI_REG[i]->DSI_INTEN, 0);
@@ -2778,10 +2779,13 @@ static void lcm_udelay(UINT32 us)
 
 static void lcm_mdelay(UINT32 ms)
 {
-	if (ms < 10)
-		udelay(ms*1000);
-	else
-		msleep(ms);
+	//if (ms < 10)
+		//udelay(ms*1000);
+	//else
+		//msleep(ms);
+
+	// fixed wakeup lagg
+	udelay(ms*120);
 
 }
 
@@ -3515,6 +3519,11 @@ int ddp_dsi_clk_off(DISP_MODULE_ENUM module, void *cmdq_handle, unsigned int lev
 	//}*/
 }
 
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+extern unsigned int sre_init;
+extern unsigned int sre_suspend;
+#endif
+
 int ddp_dsi_ioctl(DISP_MODULE_ENUM module, void *cmdq_handle, unsigned int ioctl_cmd, unsigned long *params)
 {
 	int ret = 0;
@@ -3557,6 +3566,26 @@ int ddp_dsi_ioctl(DISP_MODULE_ENUM module, void *cmdq_handle, unsigned int ioctl
 		    unsigned int level = params[0];
 			pr_debug("[ddp_dsi_ioctl] level = %d\n", level);
 			DSI_set_cmdq_V2(module, cmdq_handle, cmd, count, &level, 1);
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+			if(sre_init == 0)//first start
+			{
+				cmd = 0x53;
+				count = 1;
+				level = 0x24;
+				DSI_set_cmdq_V2(module, cmdq_handle, cmd, count, &level, 1);
+				sre_init = 1;
+				//printk("[sre] system first start\n");
+			}
+			if(sre_suspend == 1)//first start
+			{
+				cmd = 0x53;
+				count = 1;
+				level = 0x24;
+				DSI_set_cmdq_V2(module, cmdq_handle, cmd, count, &level, 1);
+				sre_suspend = 0;
+				//printk("[sre] system start from suspend\n");
+			}
+#endif
 			break;
 	}
 	case DDP_DSI_IDLE_CLK_CLOSED:
@@ -3943,8 +3972,8 @@ int ddp_dsi_build_cmdq(DISP_MODULE_ENUM module, void *cmdq_trigger_handle, CMDQ_
 		for (j=0; j<4; j++) {
 			if (hSlot[j]) {
 				cmdqRecBackupRegisterToSlot(cmdq_trigger_handle, hSlot[j], i, 0x14012074 + 4*j);
-		   /* cmdqRecBackupRegisterToSlot(cmdq_trigger_handle, hSlot, i, dsi_i ? 0x1401c074 : 0x1401b074); */
-		}
+			   /* cmdqRecBackupRegisterToSlot(cmdq_trigger_handle, hSlot, i, dsi_i ? 0x1401c074 : 0x1401b074); */
+			}
 		}
 
 			/* 3. write RX_RACK */
@@ -4054,7 +4083,7 @@ int ddp_dsi_build_cmdq(DISP_MODULE_ENUM module, void *cmdq_trigger_handle, CMDQ_
 			if (hSlot[j]) {
 				cmdqBackupFreeSlot(hSlot[j]);
 				hSlot[j] = 0;
-		}
+			}
 		}
 	} else if (state == CMDQ_STOP_VDO_MODE) {
 		/* use cmdq to stop dsi vdo mode

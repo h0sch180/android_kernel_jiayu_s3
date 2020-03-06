@@ -58,18 +58,19 @@
 
 #define MT6573FDVT_PARM
 #ifdef MT6573FDVT_PARM
-#define LOG_DBG(fmt,arg...) printk("[CAMERAFDVT]" "%s() - "  fmt, __FUNCTION__  ,##arg)
+#define LOG_DBG(fmt,arg...) printk("[CAMERAFDVT]" "%s() - "  fmt, __func__  ,##arg)
 #else
 #define LOG_DBG(fmt,arg...)
 #endif
 */
 
-#define LOG_VRB(format, args...)    xlog_printk(ANDROID_LOG_VERBOSE, "FDVT", "[%s] " format, __FUNCTION__, ##args)
-#define LOG_DBG(format, args...)    xlog_printk(ANDROID_LOG_DEBUG  , "FDVT", "[%s] " format, __FUNCTION__, ##args)
-#define LOG_INF(format, args...)    xlog_printk(ANDROID_LOG_INFO   , "FDVT", "[%s] " format, __FUNCTION__, ##args)
-#define LOG_WRN(format, args...)    xlog_printk(ANDROID_LOG_WARN   , "FDVT", "[%s] WARNING: " format, __FUNCTION__, ##args)
-#define LOG_ERR(format, args...)    xlog_printk(ANDROID_LOG_ERROR  , "FDVT", "[%s, line%04d] ERROR: " format, __FUNCTION__, __LINE__, ##args)
-#define LOG_AST(format, args...)    xlog_printk(ANDROID_LOG_ASSERT , "FDVT", "[%s, line%04d] ASSERT: " format, __FUNCTION__, __LINE__, ##args)
+#define LOG_VRB(format, args...)	pr_debug("FDVT" "[%s] " format, __func__, ##args)
+#define LOG_DBG(format, args...)	pr_debug("FDVT" "[%s] " format, __func__, ##args)
+#define LOG_INF(format, args...)	pr_debug("FDVT" "[%s] " format, __func__, ##args)
+/* pr_info has been forbidden after kernel standard */
+#define LOG_WRN(format, args...)	pr_warn("FDVT" "[%s] WARNING: " format, __func__, ##args)
+#define LOG_ERR(format, args...)	pr_err("FDVT" "[%s, line%04d] ERROR: " format, __func__, __LINE__, ##args)
+#define LOG_AST(format, args...)	pr_err("FDVT" "[%s, line%04d] ASSERT: " format, __func__, __LINE__, ##args)
 
 
 static dev_t FDVT_devno;
@@ -444,7 +445,7 @@ static int MT6573FDVT_SetRegHW(MT6573FDVTRegIO * a_pstCfg)
         }
         else
         {
-            LOG_DBG("Error: Writing Memory(0x%8x) Excess FDVT Range!\n", FDVT_ADDR + pMT6573FDVTWRBuff.u4Addr[i]);
+            //LOG_DBG("Error: Writing Memory(0x%8x) Excess FDVT Range!\n", FDVT_ADDR + pMT6573FDVTWRBuff.u4Addr[i]);
         }
     }
 
@@ -478,7 +479,7 @@ static int MT6573FDVT_ReadRegHW(MT6573FDVTRegIO * a_pstCfg)
         }
         else
         {
-            LOG_DBG("Error: Reading Memory(0x%8x) Excess FDVT Range!\n", FDVT_ADDR + pMT6573FDVTRDBuff.u4Addr[i]);
+            //LOG_DBG("Error: Reading Memory(0x%8x) Excess FDVT Range!\n", FDVT_ADDR + pMT6573FDVTRDBuff.u4Addr[i]);
             ret = -EFAULT;
             goto mt_FDVT_read_reg_exit; 
         }

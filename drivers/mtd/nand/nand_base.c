@@ -3197,7 +3197,11 @@ static int nand_write_oob(struct mtd_info *mtd, loff_t to,
 	ops->retlen = 0;
 
 	/* Do not allow writes past end of device */
+#ifdef CONFIG_MTK_MTD_NAND
+	if (ops->datbuf && (to + ops->len) > (mtd->size+PMT_POOL_SIZE*mtd->erasesize)) {
+#else
 	if (ops->datbuf && (to + ops->len) > mtd->size) {
+#endif
 		pr_debug("%s: attempt to write beyond end of device\n",
 				__func__);
 		return -EINVAL;

@@ -143,16 +143,16 @@ kal_uint32 tps6128x_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 
     kal_uint8 tps6128x_reg = 0;
     int ret = 0;
 
-   pr_notice("--------------------------------------------------\n");
+   battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n");
 
     ret = tps6128x_read_byte(RegNum, &tps6128x_reg);
 
-	pr_notice("[tps6128x_read_interface] Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
+	battery_log(BAT_LOG_CRTI, "[tps6128x_read_interface] Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
 
     tps6128x_reg &= (MASK << SHIFT);
     *val = (tps6128x_reg >> SHIFT);
 
-	pr_notice("[tps6128x_read_interface] val=0x%x\n", *val);
+	battery_log(BAT_LOG_CRTI, "[tps6128x_read_interface] val=0x%x\n", *val);
 
     return ret;
 }
@@ -162,20 +162,20 @@ kal_uint32 tps6128x_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8
     kal_uint8 tps6128x_reg = 0;
     int ret = 0;
 
-    pr_notice("--------------------------------------------------\n");
+	battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n");
 
     ret = tps6128x_read_byte(RegNum, &tps6128x_reg);
-    pr_notice("[tps6128x_config_interface] Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
+	battery_log(BAT_LOG_CRTI, "[tps6128x_config_interface] Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
 
     tps6128x_reg &= ~(MASK << SHIFT);
     tps6128x_reg |= (val << SHIFT);
 
     ret = tps6128x_write_byte(RegNum, tps6128x_reg);
-    pr_notice("[tps6128x_config_interface] write Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
+	battery_log(BAT_LOG_CRTI, "[tps6128x_config_interface] write Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
 
     // Check
     //tps6128x_read_byte(RegNum, &tps6128x_reg);
-    //pr_notice("[tps6128x_config_interface] Check Reg[%x]=0x%x\n", RegNum, tps6128x_reg);
+    /*battery_log(BAT_LOG_CRTI, "[tps6128x_config_interface] Check Reg[%x]=0x%x\n", RegNum, tps6128x_reg));*/
 
     return ret;
 }
@@ -198,25 +198,25 @@ kal_uint32 tps6128x_reg_config_interface (kal_uint8 RegNum, kal_uint8 val)
 void tps6128x_dump_register(void)
 {
     int i=0;
-    pr_notice("[tps6128x] ");
+	battery_log(BAT_LOG_CRTI, "[tps6128x] ");
     for (i=0;i<tps6128x_REG_NUM;i++)
     {
         tps6128x_read_byte(i, &tps6128x_reg[i]);
-        pr_notice("[0x%x]=0x%x ", i, tps6128x_reg[i]);
+		battery_log(BAT_LOG_CRTI, "[0x%x]=0x%x ", i, tps6128x_reg[i]);
     }
-    pr_notice("\n");
+	battery_log(BAT_LOG_CRTI, "\n");
 }
 
 int is_tps6128x_sw_ready(void)
 {
-    pr_notice("g_tps6128x_driver_ready=%d\n", g_tps6128x_driver_ready);
+	battery_log(BAT_LOG_CRTI, "g_tps6128x_driver_ready=%d\n", g_tps6128x_driver_ready);
 
     return g_tps6128x_driver_ready;
 }
 
 int is_tps6128x_exist(void)
 {
-    pr_notice("g_tps6128x_hw_exist=%d\n", g_tps6128x_hw_exist);
+	battery_log(BAT_LOG_CRTI, "g_tps6128x_hw_exist=%d\n", g_tps6128x_hw_exist);
 
     return g_tps6128x_hw_exist;
 }
@@ -233,17 +233,17 @@ void tps6128x_hw_component_detect(void)
     else
         g_tps6128x_hw_exist=1;
 
-    pr_notice("[tps6128x_hw_component_detect] exist=%d, Reg[0x3]=0x%x\n",
+	battery_log(BAT_LOG_CRTI, "[tps6128x_hw_component_detect] exist=%d, Reg[0x3]=0x%x\n",
         g_tps6128x_hw_exist, val);
 }
 
 void tps6128x_hw_init(void)
 {
-    pr_notice("[tps6128x_hw_init] From Johnson\n");
+	battery_log(BAT_LOG_CRTI, "[tps6128x_hw_init] From Johnson\n");
     tps6128x_config_interface(0x3, 0xB, 0x1F, 0); // Output voltage threshold = 3.4V
     tps6128x_config_interface(0x4, 0xF, 0xF,  0); // OC_input=max
 
-    pr_notice("[tps6128x_hw_init] After HW init\n");
+	battery_log(BAT_LOG_CRTI, "[tps6128x_hw_init] After HW init\n");
     tps6128x_dump_register();
 }
 
@@ -251,7 +251,7 @@ static int tps6128x_driver_probe(struct i2c_client *client, const struct i2c_dev
 {
     int err=0;
 
-    pr_notice("[tps6128x_driver_probe] \n");
+	battery_log(BAT_LOG_CRTI, "[tps6128x_driver_probe]\n");
 
     if (!(new_client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
         err = -ENOMEM;
@@ -270,12 +270,12 @@ static int tps6128x_driver_probe(struct i2c_client *client, const struct i2c_dev
     }
     g_tps6128x_driver_ready=1;
 
-    pr_notice("[tps6128x_driver_probe] g_tps6128x_hw_exist=%d, g_tps6128x_driver_ready=%d\n",
+	battery_log(BAT_LOG_CRTI, "[tps6128x_driver_probe] g_tps6128x_hw_exist=%d, g_tps6128x_driver_ready=%d\n",
         g_tps6128x_hw_exist, g_tps6128x_driver_ready);
 
     if(g_tps6128x_hw_exist==0)
     {
-        pr_notice("[tps6128x_driver_probe] return err\n");
+		battery_log(BAT_LOG_CRTI, "[tps6128x_driver_probe] return err\n");
         return err;
     }
 
@@ -297,7 +297,7 @@ exit:
 kal_uint8 g_reg_value_tps6128x=0;
 static ssize_t show_tps6128x_access(struct device *dev,struct device_attribute *attr, char *buf)
 {
-    pr_notice("[show_tps6128x_access] 0x%x\n", g_reg_value_tps6128x);
+	battery_log(BAT_LOG_CRTI, "[show_tps6128x_access] 0x%x\n", g_reg_value_tps6128x);
     return sprintf(buf, "%u\n", g_reg_value_tps6128x);
 }
 static ssize_t store_tps6128x_access(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
@@ -307,24 +307,24 @@ static ssize_t store_tps6128x_access(struct device *dev,struct device_attribute 
     unsigned int reg_value = 0;
     unsigned int reg_address = 0;
 
-    pr_notice("[store_tps6128x_access] \n");
+	battery_log(BAT_LOG_CRTI, "[store_tps6128x_access]\n");
 
     if(buf != NULL && size != 0)
     {
-        pr_notice("[store_tps6128x_access] buf is %s and size is %zu \n",buf,size);
+		battery_log(BAT_LOG_CRTI, "[store_tps6128x_access] buf is %s and size is %zu\n", buf, size);
         reg_address = simple_strtoul(buf,&pvalue,16);
 
         if(size > 3)
         {
             reg_value = simple_strtoul((pvalue+1),NULL,16);
-            pr_notice("[store_tps6128x_access] write tps6128x reg 0x%x with value 0x%x !\n",reg_address,reg_value);
+			battery_log(BAT_LOG_CRTI, "[store_tps6128x_access] write tps6128x reg 0x%x with value 0x%x !\n", reg_address, reg_value);
             ret=tps6128x_config_interface(reg_address, reg_value, 0xFF, 0x0);
         }
         else
         {
             ret=tps6128x_read_interface(reg_address, &g_reg_value_tps6128x, 0xFF, 0x0);
-            pr_notice("[store_tps6128x_access] read tps6128x reg 0x%x with value 0x%x !\n",reg_address,g_reg_value_tps6128x);
-            pr_notice("[store_tps6128x_access] Please use \"cat tps6128x_access\" to get value\r\n");
+			battery_log(BAT_LOG_CRTI, "[store_tps6128x_access] read tps6128x reg 0x%x with value 0x%x !\n", reg_address, g_reg_value_tps6128x);
+			battery_log(BAT_LOG_CRTI, "[store_tps6128x_access] Please use \"cat tps6128x_access\" to get value\r\n");
         }
     }
     return size;
@@ -335,7 +335,7 @@ static int tps6128x_user_space_probe(struct platform_device *dev)
 {
     int ret_device_file = 0;
 
-    pr_notice("******** tps6128x_user_space_probe!! ********\n" );
+	battery_log(BAT_LOG_CRTI, "******** tps6128x_user_space_probe!! ********\n");
 
     ret_device_file = device_create_file(&(dev->dev), &dev_attr_tps6128x_access);
 
@@ -360,34 +360,34 @@ static struct i2c_board_info __initdata i2c_tps6128x = { I2C_BOARD_INFO("tps6128
 static int __init tps6128x_init(void)
 {
 #if defined(CONFIG_POWER_EXT) || defined(CONFIG_MTK_FPGA) || defined(DISABLE_TPS6128X)
-    pr_notice("[tps6128x_init] not support or disable\n");
+	battery_log(BAT_LOG_CRTI, "[tps6128x_init] not support or disable\n");
     g_tps6128x_hw_exist=0;
     g_tps6128x_driver_ready=1;
 
 #else
     int ret=0;
-    pr_notice("[tps6128x_init] init start. ch=%d\n", tps6128x_BUSNUM);
+	battery_log(BAT_LOG_CRTI, "[tps6128x_init] init start. ch=%d\n", tps6128x_BUSNUM);
 
     i2c_register_board_info(tps6128x_BUSNUM, &i2c_tps6128x, 1);
 
     if(i2c_add_driver(&tps6128x_driver)!=0)
     {
-        pr_notice("[tps6128x_init] failed to register tps6128x i2c driver.\n");
+		battery_log(BAT_LOG_CRTI, "[tps6128x_init] failed to register tps6128x i2c driver.\n");
     }
     else
     {
-        pr_notice("[tps6128x_init] Success to register tps6128x i2c driver.\n");
+		battery_log(BAT_LOG_CRTI, "[tps6128x_init] Success to register tps6128x i2c driver.\n");
     }
 
     // tps6128x user space access interface
     ret = platform_device_register(&tps6128x_user_space_device);
     if (ret) {
-        pr_notice("****[tps6128x_init] Unable to device register(%d)\n", ret);
+		battery_log(BAT_LOG_CRTI, "****[tps6128x_init] Unable to device register(%d)\n", ret);
         return ret;
     }
     ret = platform_driver_register(&tps6128x_user_space_driver);
     if (ret) {
-        pr_notice("****[tps6128x_init] Unable to register driver (%d)\n", ret);
+		battery_log(BAT_LOG_CRTI, "****[tps6128x_init] Unable to register driver (%d)\n", ret);
         return ret;
     }
 #endif

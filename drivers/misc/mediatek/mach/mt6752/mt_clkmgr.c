@@ -21,7 +21,7 @@
 #include <mach/mt_spm.h>
 #include <mach/mt_spm_mtcmos.h>
 #include <mach/mt_spm_sleep.h>
-#include <mach/mt_freqhopping.h>
+#include "mt_freqhopping.h"
 #include <mach/mt_gpufreq.h>
 #include <mach/irqs.h>
 
@@ -61,7 +61,7 @@ void __iomem  *clk_venc_gcon_base;
 //#define MUX_LOG_TOP
 //#define MUX_LOG
 //#define PLL_LOG_TOP
-#define PLL_LOG
+/* #define PLL_LOG */
 
 //#define Bring_Up
 #define PLL_CLK_LINK
@@ -76,14 +76,10 @@ void __iomem  *clk_venc_gcon_base;
 
 #define TAG     "[Power/clkmgr] "
 
-#define clk_err(fmt, args...)       \
-    pr_err(TAG fmt, ##args)
-#define clk_warn(fmt, args...)      \
-    pr_warn(TAG fmt, ##args)
-#define clk_info(fmt, args...)      \
-    pr_info(TAG fmt, ##args)
-#define clk_dbg(fmt, args...)       \
-    pr_info(TAG fmt, ##args)
+#define clk_err(fmt, args...)
+#define clk_warn(fmt, args...)
+#define clk_info(fmt, args...)
+#define clk_dbg(fmt, args...)
 
 #else
 
@@ -1918,7 +1914,8 @@ static void larb_backup(int larb_idx)
     struct larb_monitor *pos;
 
     //clk_info("[%s]: start to backup larb%d\n", __func__, larb_idx);
-    clk_dbg("[%s]: backup larb%d\n", __func__, larb_idx);
+	if (larb_idx == MT_LARB_DISP)
+		clk_dbg("[%s]: backup larb%d\n", __func__, larb_idx);
     
     larb_clk_prepare(larb_idx);
 
@@ -1938,7 +1935,8 @@ static void larb_restore(int larb_idx)
     struct larb_monitor *pos;
 
     //clk_info("[%s]: start to restore larb%d\n", __func__, larb_idx);
-    clk_dbg("[%s]: restore larb%d\n", __func__, larb_idx);
+	if (larb_idx == MT_LARB_DISP)
+		clk_dbg("[%s]: restore larb%d\n", __func__, larb_idx);
 
     larb_clk_prepare(larb_idx);
 
@@ -3300,9 +3298,10 @@ return 0;
 #ifdef CLK_LOG_TOP
     clk_info("[%s]: id=%d, names=%s\n", __func__, id, name);
 #else
-    if ((id == MT_CG_DISP0_SMI_COMMON))
-        clk_dbg("[%s]: id=%d, names=%s\n", __func__, id, name);
-        
+/*	
+	if ((id == MT_CG_DISP0_SMI_COMMON))
+		clk_dbg("[%s]: id=%d, names=%s\n", __func__, id, name);
+*/    
 #endif
 
     clkmgr_lock(flags);
@@ -3332,8 +3331,10 @@ return 0;
 #ifdef CLK_LOG_TOP
     clk_info("[%s]: id=%d, names=%s\n", __func__, id, name);
 #else
+/*
     if (id == MT_CG_DISP0_SMI_COMMON)
         clk_dbg("[%s]: id=%d, names=%s\n", __func__, id, name);
+*/
 #endif
 
     clkmgr_lock(flags);
@@ -3623,7 +3624,6 @@ static void cg_bootup_pdn(void)
     clk_writel(MJC_CG_SET, MJC_CG);
 }
 
-
 #ifdef MTK_KERNEL_POWER_OFF_CHARGING
 extern BOOTMODE g_boot_mode;
 #endif
@@ -3647,21 +3647,21 @@ static void mt_subsys_init(void)
     for (i = 0; i < NR_SYSS; i++) {
         sys = &syss[i];
         sys->state = sys->ops->get_state(sys);
-
+        
 #ifndef CONFIG_MTK_ECCCI_DRIVER
-        if(i==0)
-            continue;
+		if(i==0)
+			continue;
 #else
 #ifdef MTK_KERNEL_POWER_OFF_CHARGING
-        if ((g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT) || (g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT)) {
-            if(i==0)
-                continue;
-        }
+		if ((g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT) || (g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT)) {
+			if(i==0)
+				continue;
+		}
 #endif
 #endif
 
         if (sys->state != sys->default_sta) {
-            clk_info("[%s]%s, change state: (%u->%u)\n", __func__,
+			clk_info("[%s]%s, change state: (%u->%u)\n", __func__,
                     sys->name, sys->state, sys->default_sta);
             if (sys->default_sta == PWR_DOWN) {
                 sys_disable_locked(sys, 1);

@@ -366,7 +366,7 @@ static void dump_reg_table(/*struct*/ sn65dsi8x_setting_table *table, unsigned i
 		printf("dump cmd=0x%x  data=0x%x \n",cmd,data);
 		#else
 		sn65dsi83_read_byte(cmd,&data);
-		printk("dump cmd=0x%x  data=0x%x \n",cmd,data);
+		pr_debug("dump cmd=0x%x  data=0x%x \n",cmd,data);
 		#endif
        	}
     }
@@ -541,7 +541,7 @@ static void lcm_init(void)
 #elif (defined BUILD_UBOOT)
 	
 #else
-	   printk("tM070ddh06--kernel--lcm_init \n");	
+	   pr_debug("tM070ddh06--kernel--lcm_init \n");	
 	   DSI_clk_HS_mode(1);
 	  // DSI_continuous_clock();	 
 
@@ -578,10 +578,10 @@ static void lcm_suspend(void)
     mt_set_gpio_out(LVDS_LCM_VCC, GPIO_OUT_ZERO); // / LCM VCC :enable LCD VCC
    //step 2 suspend sn65dsi8x
 	sn65dsi83_read_byte(0x0a,&temp);//for test wether ti lock the pll clok
-	printk("lcm_suspend  0x0a  value=0x%x \n",temp);
+	pr_debug("lcm_suspend  0x0a  value=0x%x \n",temp);
 
 	sn65dsi83_read_byte(0x0d,&temp);
-    	printk("lcm_suspend  0x0d  value=0x%x \n",temp);
+    	pr_debug("lcm_suspend  0x0d  value=0x%x \n",temp);
        sn65dsi83_write_byte(0x0d, (temp&0xfe));//set bit0: 0
        //mt_set_gpio_out(GPIO133, GPIO_OUT_ZERO);
 	   
@@ -626,11 +626,11 @@ static void lcm_resume(void)
 	
 	#if 1  //def SN65DSI_DEBUG
 	sn65dsi83_read_byte(0x0a,&temp);
-	printk("lcm_resume cmd-- 0x0a=0x%x \n",temp);
+	pr_debug("lcm_resume cmd-- 0x0a=0x%x \n",temp);
 	sn65dsi83_read_byte(0x0d,&temp);
-	printk("lcm_resume cmd-- 0x0d=0x%x \n",temp);
+	pr_debug("lcm_resume cmd-- 0x0d=0x%x \n",temp);
 	sn65dsi83_read_byte(0x09,&temp);
-	printk("lcm_resume cmd-- 0x09=0x%x \n",temp);
+	pr_debug("lcm_resume cmd-- 0x09=0x%x \n",temp);
 	#endif
 	//step 2 resume lvds
    lvds_kernel_power_init();//set io=3.3v
@@ -658,7 +658,7 @@ static void lcm_resume(void)
     MDELAY(50); 
 	
     MDELAY(20);
-	printk("tM070ddh06--lcm_resume end \n");
+	pr_debug("tM070ddh06--lcm_resume end \n");
 #else
 printf("tM070ddh06--suspend \n");
 #endif

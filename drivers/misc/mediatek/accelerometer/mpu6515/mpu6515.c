@@ -45,7 +45,7 @@
 #define POWER_NONE_MACRO MT65XX_POWER_NONE
 
 /*----------------------------------------------------------------------------*/
-#define DEBUG 1
+//#define DEBUG 1
 //#define GSENSOR_UT
 /*----------------------------------------------------------------------------*/
 #define CONFIG_MPU6515_LOWPASS   /*apply low pass filter on output*/       
@@ -182,8 +182,8 @@ static struct acc_init_info mpu6515_init_info = {
 
 /*----------------------------------------------------------------------------*/
 #define GSE_TAG                  "[Gsensor] "
-#define GSE_FUN(f)               printk(GSE_TAG"%s\n", __FUNCTION__)
-#define GSE_ERR(fmt, args...)    printk(GSE_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define GSE_FUN(f)               printk(GSE_TAG"%s\n", __func__)
+#define GSE_ERR(fmt, args...)    printk(GSE_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define GSE_LOG(fmt, args...)    printk(GSE_TAG fmt, ##args)
 /*----------------------------------------------------------------------------*/
 static struct data_resolution mpu6515_data_resolution[] = {
@@ -397,7 +397,7 @@ static int MPU6515_SetPowerMode(struct i2c_client *client, bool enable)
 
     if (enable == sensor_power)
     {
-        GSE_LOG("Sensor power status is newest!\n");
+        /* GSE_LOG("Sensor power status is newest!\n"); */
         return MPU6515_SUCCESS;
     }
 

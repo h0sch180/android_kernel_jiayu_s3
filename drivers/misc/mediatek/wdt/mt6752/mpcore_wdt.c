@@ -40,7 +40,7 @@
 #include <mach/irqs.h>
 #include <linux/aee.h>
 
-#include <linux/mt_sched_mon.h>
+#include "mt_sched_mon.h"
 
 #if defined(CONFIG_FIQ_GLUE)
 #else
@@ -48,56 +48,52 @@ static int __percpu *wdt_evt;
 #endif
 
 struct mpcore_wdt {
-	unsigned long	timer_alive;
-	struct device	*dev;
-	void __iomem	*base;
-	int		irq;
-	unsigned int	perturb;
-	char		expect_close;
+	unsigned long timer_alive;
+	struct device *dev;
+	void __iomem *base;
+	int irq;
+	unsigned int perturb;
+	char expect_close;
 };
 
 static struct platform_device *mpcore_wdt_dev;
-extern void mt_irq_unmask(struct irq_data *data);
-extern void mt_irq_mask(struct irq_data *data);
-/* Externanl functions */
-extern void mtk_wdt_disable(void);
 
 static DEFINE_SPINLOCK(wdt_lock);
-//#define WDT_CPU0
+/* #define WDT_CPU0 */
 #define DEBUG_INFO "[WDK-mpwdt]:"
-//#define MPCORE_WDT_DEBUG 1
-#ifdef  MPCORE_WDT_DEBUG
+/* #define MPCORE_WDT_DEBUG 1 */
+#ifdef MPCORE_WDT_DEBUG
 #define mpcore_wdt_print(fmt, arg...) \
 do {\
-	printk(DEBUG_INFO fmt, ##arg);\
-	printk(DEBUG_INFO"%s, %d\n", __FUNCTION__, __LINE__);\
-} while(0)
+	pr_debug(fmt, ##arg);\
+	pr_debug("%s, %d\n", __func__, __LINE__);\
+} while (0)
 #else
-#define mpcore_wdt_print(fmt, arg...) do{} while(0)
+#define mpcore_wdt_print(fmt, arg...) do {} while (0)
 #endif
 
-#define TIMER_MARGIN	30 //default 30s
+#define TIMER_MARGIN	30	/* default 30s */
 int mpcore_margin = TIMER_MARGIN;
 #define PERIPHCLK   (13000000)
-static struct mpcore_wdt mp_wdt = {.base = (void __iomem*)0xf000a600};
+static struct mpcore_wdt mp_wdt = {.base = (void __iomem *)0xf000a600 };
 
 module_param(mpcore_margin, int, 00664);
 MODULE_PARM_DESC(mpcore_margin,
-	"MPcore timer margin in seconds. (0 < mpcore_margin < 65536, default="
-				__MODULE_STRING(TIMER_MARGIN) ")");
+		 "MPcore timer margin in seconds. (0 < mpcore_margin < 65536, default="
+		 __MODULE_STRING(TIMER_MARGIN) ")");
 
 static int nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, int, 00664);
 MODULE_PARM_DESC(nowayout,
-	"Watchdog cannot be stopped once started (default="
-				__MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
+		 "Watchdog cannot be stopped once started (default="
+		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
-#define ONLY_TESTING	1 // setting timer mode
+#define ONLY_TESTING	1	/* setting timer mode */
 static int mpcore_noboot = ONLY_TESTING;
 module_param(mpcore_noboot, int, 0);
-MODULE_PARM_DESC(mpcore_noboot, "MPcore watchdog action, "
-	"set to 1 to ignore reboots, 0 to reboot (default="
-					__MODULE_STRING(ONLY_TESTING) ")");
+MODULE_PARM_DESC(mpcore_noboot,
+		"MPcore watchdog action, set to 1 to ignore reboots, 0 to reboot (default="
+		__MODULE_STRING(ONLY_TESTING) ")");
 
 static void mpcore_wdt_irq_enable(unsigned int irq)
 {
@@ -105,7 +101,7 @@ static void mpcore_wdt_irq_enable(unsigned int irq)
 
 	local_irq_save(flags);
 	irq_set_status_flags(irq, IRQ_NOPROBE);
-	mt_irq_unmask(irq_get_irq_data(irq));
+	/* mt_irq_unmask(irq_get_irq_data(irq)); */
 	local_irq_restore(flags);
 }
 
@@ -115,7 +111,7 @@ static void mpcore_wdt_irq_disable(unsigned int irq)
 
 	local_irq_save(flags);
 	irq_set_status_flags(irq, IRQ_NOPROBE);
-	mt_irq_mask(irq_get_irq_data(irq));
+	/* mt_irq_mask(irq_get_irq_data(irq)); */
 	local_irq_restore(flags);
 }
 
@@ -123,15 +119,15 @@ static void mpcore_wdt_irq_disable(unsigned int irq)
  *	This is the interrupt handler.  Note that we only use this
  *	in testing mode, so don't actually do a reboot here.
  */
- #ifdef WDT_CPU0 
+#ifdef WDT_CPU0
 static irqreturn_t mpcore_wdt_fire(int irq, void *arg)
 {
 	struct mpcore_wdt *wdt = arg;
-	
-	printk(DEBUG_INFO"Triggered :cpu-%d\n", get_cpu());
+
+	pr_debug("Triggered :cpu-%d\n", get_cpu());
 	/* Check it really was our interrupt */
 	if (readl(wdt->base + TWD_WDOG_INTSTAT)) {
-		printk(DEBUG_INFO"Triggered :cpu-%d\n", get_cpu());
+		pr_debug("Triggered :cpu-%d\n", get_cpu());
 		/* Clear the interrupt on the watchdog */
 		writel(1, wdt->base + TWD_WDOG_INTSTAT);
 		return IRQ_HANDLED;
@@ -143,42 +139,41 @@ static irqreturn_t mpcore_wdt_fire(int irq, void *arg)
  *	This is the interrupt handler.  Note that we only use this
  *	in testing mode, so don't actually do a reboot here.
  */
-#if 0 
+#if 0
 static void do_local_wdt(void)
 {
-	printk(DEBUG_INFO"Triggered :cpu-%d\n", get_cpu());
+	pr_debug("Triggered :cpu-%d\n", get_cpu());
 	/* Check it really was our interrupt */
 	if (readl(wdt.base + TWD_WDOG_INTSTAT)) {
-		printk(DEBUG_INFO"Triggered :cpu-%d\n", get_cpu());
+		pr_debug("Triggered :cpu-%d\n", get_cpu());
 		/* Clear the interrupt on the watchdog */
 		writel(1, wdt.base + TWD_WDOG_INTSTAT);
 	}
-		printk(DEBUG_INFO"exit :cpu-%d\n", get_cpu());
+	pr_debug("exit :cpu-%d\n", get_cpu());
 	return;
 }
 #endif
 
-#if 0 // remove for linux3.0-->linux3.4
+#if 0				/* remove for linux3.0-->linux3.4 */
 asmlinkage void __exception_irq_entry do_local_wdt(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	int cpu = smp_processor_id();
 	struct mpcore_wdt wdt;
 
-    mt_trace_ISR_start(30);
+	mt_trace_ISR_start(30);
 	/* Disable ext wdt (rgu) */
 	mtk_wdt_disable();
-	wdt.base = (void __iomem*)0xf000a600;
-	printk(DEBUG_INFO"control: 0x%x, count:0x%x, load:0x%x\n", readl(wdt.base + TWD_WDOG_CONTROL), readl(wdt.base + TWD_WDOG_COUNTER), readl(wdt.base + TWD_WDOG_LOAD));
-	printk(DEBUG_INFO"Triggered :cpu-%d\n", cpu);
-	if (readl(wdt.base + TWD_WDOG_INTSTAT)) {
-//		__inc_irq_stat(cpu, local_timer_irqs);
+	wdt.base = (void __iomem *)0xf000a600;
+	pr_debug("control: 0x%x, count:0x%x, load:0x%x\n",
+	       readl(wdt.base + TWD_WDOG_CONTROL), readl(wdt.base + TWD_WDOG_COUNTER),
+	       readl(wdt.base + TWD_WDOG_LOAD));
+	pr_debug("Triggered :cpu-%d\n", cpu);
+	if (readl(wdt.base + TWD_WDOG_INTSTAT))
 		writel(1, wdt.base + TWD_WDOG_INTSTAT);
-		
-	}
-	printk(DEBUG_INFO"exit :cpu-%d\n", cpu);
+	pr_debug("exit :cpu-%d\n", cpu);
 	aee_wdt_irq_info();
-    mt_trace_ISR_end(30);
+	mt_trace_ISR_end(30);
 	set_irq_regs(old_regs);
 }
 #endif
@@ -191,51 +186,58 @@ asmlinkage void __exception_irq_entry do_local_wdt(struct pt_regs *regs)
  */
 static void mpcore_wdt_keepalive(struct mpcore_wdt *wdt)
 {
-	unsigned long count,prescale, flags;
+	unsigned long count, prescale, flags;
 	int cpu = 0;
+
 	spin_lock_irqsave(&wdt_lock, flags);
 	cpu = smp_processor_id();
-#if 0	
+#if 0
 	/* Assume prescale is set to 256 */
-	count =  __raw_readl(wdt->base + TWD_WDOG_COUNTER);
+	count = __raw_readl(wdt->base + TWD_WDOG_COUNTER);
 	count = (0xFFFFFFFFU - count) * (HZ / 5);
 #endif
-	//prescale =  ((__raw_readl(wdt->base + TWD_WDOG_CONTROL)&0xffff)>>8);
+	/* prescale =  ((__raw_readl(wdt->base + TWD_WDOG_CONTROL)&0xffff)>>8); */
 	prescale = 0x0;
-	count = PERIPHCLK/(prescale + 1)*mpcore_margin;
+	count = PERIPHCLK / (prescale + 1) * mpcore_margin;
 
 	/* Reload the counter */
 	writel(count + wdt->perturb, wdt->base + TWD_WDOG_LOAD);
 	wdt->perturb = wdt->perturb ? 0 : 1;
-		
+
 	spin_unlock_irqrestore(&wdt_lock, flags);
-	printk("WDT mpcore_wdt_keepalive:cpu-%d: count:%ld. prescale:%ld, mpcore_margin:%d,TWD_WDOG_LOAD:%x\n", cpu, count, prescale, mpcore_margin,readl(wdt->base + TWD_WDOG_LOAD));
-	mpcore_wdt_print("cpu-%d: count:%d. prescale:%d,  mpcore_margin:%d\n", cpu, count, prescale, mpcore_margin);
+	pr_debug
+	    ("WDT mpcore_wdt_keepalive:cpu-%d: count:%ld. prescale:%ld, mpcore_margin:%d,TWD_WDOG_LOAD:%x\n",
+	     cpu, count, prescale, mpcore_margin, readl(wdt->base + TWD_WDOG_LOAD));
+	mpcore_wdt_print("cpu-%d: count:%d. prescale:%d,  mpcore_margin:%d\n", cpu, count, prescale,
+			 mpcore_margin);
 }
 
 static void mpcore_wdt_stop(struct mpcore_wdt *wdt)
 {
 	unsigned long flags;
 	int cpu = 0;
+
 	spin_lock_irqsave(&wdt_lock, flags);
 	cpu = smp_processor_id();
 	writel(0x12345678, wdt->base + TWD_WDOG_DISABLE);
 	writel(0x87654321, wdt->base + TWD_WDOG_DISABLE);
 	writel(0x0, wdt->base + TWD_WDOG_CONTROL);
 	spin_unlock_irqrestore(&wdt_lock, flags);
-	mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
+	mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu,
+			 readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER),
+			 readl(wdt->base + TWD_WDOG_LOAD));
 }
+
 static void mpcore_wdt_stop_fiq(struct mpcore_wdt *wdt)
 {
-	//unsigned long flags;
-	//int cpu = 0;
-	//spin_lock_irqsave(&wdt_lock, flags);
-	//cpu = smp_processor_id();
-	*(volatile u32 *)(wdt->base + TWD_WDOG_DISABLE)=0x12345678;
-	*(volatile u32 *)(wdt->base + TWD_WDOG_DISABLE)=0x87654321;
-	*(volatile u32 *)(wdt->base + TWD_WDOG_CONTROL)=0x0;
-	//spin_unlock_irqrestore(&wdt_lock, flags);
-	//mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
+	/* unsigned long flags; */
+	/* int cpu = 0; */
+	/* spin_lock_irqsave(&wdt_lock, flags); */
+	/* cpu = smp_processor_id(); */
+	*(u32 *)(wdt->base + TWD_WDOG_DISABLE) = 0x12345678;
+	*(u32 *)(wdt->base + TWD_WDOG_DISABLE) = 0x87654321;
+	*(u32 *)(wdt->base + TWD_WDOG_CONTROL) = 0x0;
+	/* spin_unlock_irqrestore(&wdt_lock, flags); */
 }
 
 
@@ -243,6 +245,7 @@ static void mpcore_wdt_start(struct mpcore_wdt *wdt)
 {
 	unsigned long flags;
 	int cpu = 0;
+
 	mpcore_wdt_print("start watchdog.\n");
 
 	/* This loads the count register but does NOT start the count yet */
@@ -258,31 +261,33 @@ static void mpcore_wdt_start(struct mpcore_wdt *wdt)
 		writel(0x0000000F, wdt->base + TWD_WDOG_CONTROL);
 	}
 	spin_unlock_irqrestore(&wdt_lock, flags);
-	printk("WDT mpcore_wdt_start:cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
-	//mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
+	pr_debug("WDT mpcore_wdt_start:cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu,
+	       readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER),
+	       readl(wdt->base + TWD_WDOG_LOAD));
 }
 
 static void mpcore_wdt_start_fiq(struct mpcore_wdt *wdt)
 {
-	//unsigned long flags;
-	//int cpu = 0;
-	//mpcore_wdt_print("start watchdog.\n");
+	/* unsigned long flags; */
+	/* int cpu = 0; */
+	/* mpcore_wdt_print("start watchdog.\n"); */
 
 	/* This loads the count register but does NOT start the count yet */
 	mpcore_wdt_keepalive(wdt);
 
-	//spin_lock_irqsave(&wdt_lock, flags);
-	//cpu = smp_processor_id();
-	if (mpcore_noboot) {
+	/* spin_lock_irqsave(&wdt_lock, flags); */
+	/* cpu = smp_processor_id(); */
+	if (mpcore_noboot)
 		/* Enable watchdog - prescale=0, watchdog mode=0, enable=1, IT = 1, reload = 1 */
-		*(volatile u32 *)(wdt->base + TWD_WDOG_CONTROL)=0x00000007;
-	} else {
+		*(u32 *)(wdt->base + TWD_WDOG_CONTROL) = 0x00000007;
+	else
 		/* Enable watchdog - prescale=0, watchdog mode=1, enable=1, IT = 1, reload = 1 */
-		*(volatile u32 *)( wdt->base + TWD_WDOG_CONTROL)=0x0000000F;
-	}
-	//spin_unlock_irqrestore(&wdt_lock, flags);
-	//printk("WDT mpcore_wdt_start:cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
-	//mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n", cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD));
+		*(u32 *)(wdt->base + TWD_WDOG_CONTROL) = 0x0000000F;
+	/* spin_unlock_irqrestore(&wdt_lock, flags); */
+/* pr_debug("WDT mpcore_wdt_start:cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n",*/
+/* cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD)); */
+/* mpcore_wdt_print("cpu-%d,control: 0x%x, count:0x%x, load:0x%x\n",*/
+/* cpu, readl(wdt->base + TWD_WDOG_CONTROL), readl(wdt->base + TWD_WDOG_COUNTER), readl(wdt->base + TWD_WDOG_LOAD)); */
 }
 
 static int mpcore_wdt_set_heartbeat(int t)
@@ -293,27 +298,33 @@ static int mpcore_wdt_set_heartbeat(int t)
 	mpcore_margin = t;
 	return 0;
 }
+
 unsigned long mpcore_wdt_get_counter(void)
 {
 	int cpu = 0;
 	unsigned long counter_value, flags;
+
 	spin_lock_irqsave(&wdt_lock, flags);
 	cpu = smp_processor_id();
 	counter_value = readl(mp_wdt.base + TWD_WDOG_COUNTER);
 	spin_unlock_irqrestore(&wdt_lock, flags);
 	mpcore_wdt_print("mpcore_wdt_get_counter:cpu-%d,counter_value: 0x%x\n", cpu, counter_value);
-    return counter_value;
+	return counter_value;
 }
+
 void mpcore_wdt_set_counter(unsigned long counter_value)
 {
 	int cpu = 0;
 	unsigned long flags;
+
 	spin_lock_irqsave(&wdt_lock, flags);
 	cpu = smp_processor_id();
 	writel(counter_value, mp_wdt.base + TWD_WDOG_COUNTER);
 	spin_unlock_irqrestore(&wdt_lock, flags);
-	printk(KERN_INFO "WDT mpcore_wdt_set_counter:cpu-%d,counter_value: %ld, TWD_WDOG_COUNTER: 0x%x\n", cpu, counter_value,readl(mp_wdt.base + TWD_WDOG_COUNTER));	
-	//mpcore_wdt_print("mpcore_wdt_get_counter:cpu-%d,counter_value: 0x%x\n", cpu, counter_value);
+	pr_debug(
+	       "WDT mpcore_wdt_set_counter:cpu-%d,counter_value: %ld, TWD_WDOG_COUNTER: 0x%x\n",
+	       cpu, counter_value, readl(mp_wdt.base + TWD_WDOG_COUNTER));
+	/* mpcore_wdt_print("mpcore_wdt_get_counter:cpu-%d,counter_value: 0x%x\n", cpu, counter_value); */
 }
 
 /*
@@ -322,8 +333,8 @@ void mpcore_wdt_set_counter(unsigned long counter_value)
 static int mpcore_wdt_open(struct inode *inode, struct file *file)
 {
 	struct mpcore_wdt *wdt = platform_get_drvdata(mpcore_wdt_dev);
-  
-  mpcore_wdt_print("enter %s\n", __FUNCTION__);
+
+	mpcore_wdt_print("enter %s\n", __func__);
 	if (test_and_set_bit(0, &wdt->timer_alive))
 		return -EBUSY;
 
@@ -333,10 +344,10 @@ static int mpcore_wdt_open(struct inode *inode, struct file *file)
 	file->private_data = wdt;
 
 	/*
-	 *	Activate timer
+	 *      Activate timer
 	 */
 	mpcore_wdt_start(wdt);
-  
+
 	return nonseekable_open(inode, file);
 }
 
@@ -345,29 +356,25 @@ static int mpcore_wdt_release(struct inode *inode, struct file *file)
 	struct mpcore_wdt *wdt = file->private_data;
 
 	/*
-	 *	Shut off the timer.
-	 *	Lock it in if it's a module and we set nowayout
+	 *      Shut off the timer.
+	 *      Lock it in if it's a module and we set nowayout
 	 */
 	if (wdt->expect_close == 42)
 		mpcore_wdt_stop(wdt);
-	else {
-		dev_printk(KERN_CRIT, wdt->dev,
-				"unexpected close, not stopping watchdog!\n");
+	else
 		mpcore_wdt_keepalive(wdt);
-	}
 	clear_bit(0, &wdt->timer_alive);
 	wdt->expect_close = 0;
-	mpcore_wdt_print("enter %s\n", __FUNCTION__);
+	mpcore_wdt_print("enter %s\n", __func__);
 	return 0;
 }
 
-static ssize_t mpcore_wdt_write(struct file *file, const char *data,
-						size_t len, loff_t *ppos)
+static ssize_t mpcore_wdt_write(struct file *file, const char *data, size_t len, loff_t *ppos)
 {
 	struct mpcore_wdt *wdt = file->private_data;
 
 	/*
-	 *	Refresh the timer.
+	 *      Refresh the timer.
 	 */
 	if (len) {
 		if (!nowayout) {
@@ -387,19 +394,16 @@ static ssize_t mpcore_wdt_write(struct file *file, const char *data,
 		}
 		mpcore_wdt_keepalive(wdt);
 	}
-	mpcore_wdt_print("enter %s\n", __FUNCTION__);
+	mpcore_wdt_print("enter %s\n", __func__);
 	return len;
 }
 
 static const struct watchdog_info ident = {
-	.options		= WDIOF_SETTIMEOUT |
-				  WDIOF_KEEPALIVEPING |
-				  WDIOF_MAGICCLOSE,
-	.identity		= "MPcore Watchdog",
+	.options = WDIOF_SETTIMEOUT | WDIOF_KEEPALIVEPING | WDIOF_MAGICCLOSE,
+	.identity = "MPcore Watchdog",
 };
 
-static long mpcore_wdt_ioctl(struct file *file, unsigned int cmd,
-							unsigned long arg)
+static long mpcore_wdt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct mpcore_wdt *wdt = file->private_data;
 	int ret;
@@ -476,11 +480,11 @@ static long mpcore_wdt_ioctl(struct file *file, unsigned int cmd,
  */
 static void mpcore_wdt_shutdown(struct platform_device *dev)
 {
-	#if 0
+#if 0
 	struct mpcore_wdt *wdt = platform_get_drvdata(dev);
-	#else
+#else
 	struct mpcore_wdt *wdt = &mp_wdt;
-	#endif
+#endif
 
 	if (system_state == SYSTEM_RESTART || system_state == SYSTEM_HALT)
 		mpcore_wdt_stop(wdt);
@@ -490,18 +494,18 @@ static void mpcore_wdt_shutdown(struct platform_device *dev)
  *	Kernel Interfaces
  */
 static const struct file_operations mpcore_wdt_fops = {
-	.owner		= THIS_MODULE,
-	.llseek		= no_llseek,
-	.write		= mpcore_wdt_write,
-	.unlocked_ioctl	= mpcore_wdt_ioctl,
-	.open		= mpcore_wdt_open,
-	.release	= mpcore_wdt_release,
+	.owner = THIS_MODULE,
+	.llseek = no_llseek,
+	.write = mpcore_wdt_write,
+	.unlocked_ioctl = mpcore_wdt_ioctl,
+	.open = mpcore_wdt_open,
+	.release = mpcore_wdt_release,
 };
 
 static struct miscdevice mpcore_wdt_miscdev = {
-	.minor		= WATCHDOG_MINOR,
-	.name		= "mpcore-watchdog",
-	.fops		= &mpcore_wdt_fops,
+	.minor = WATCHDOG_MINOR,
+	.name = "mpcore-watchdog",
+	.fops = &mpcore_wdt_fops,
 };
 
 #if defined(CONFIG_FIQ_GLUE)
@@ -511,38 +515,33 @@ static void fiq_wdt_func(void *arg, void *regs, void *svc_sp)
 	struct mpcore_wdt wdt;
 
 	wdt.base = (void __iomem *)0xf000a600;
-	if(*(volatile u32 *)(wdt.base + TWD_WDOG_INTSTAT))
-	{
-	    *(volatile u32 *)(wdt.base + TWD_WDOG_INTSTAT) =1 ;
-	}
+	if (*(u32 *)(wdt.base + TWD_WDOG_INTSTAT))
+		*(u32 *)(wdt.base + TWD_WDOG_INTSTAT) = 1;
 
 	aee_wdt_fiq_info(arg, regs, svc_sp);
 }
 
 #else
-//irq handler
+/* irq handler */
 static irqreturn_t wdt_handler(int irq, void *dev_id)
-
 {
-	
+
 	int cpu = smp_processor_id();
 	struct mpcore_wdt wdt;
 
-      // mt_trace_ISR_start(30);
+	/* mt_trace_ISR_start(30); */
 	/* Disable ext wdt (rgu) */
-	//mtk_wdt_disable();
-	wdt.base = (void __iomem*)0xf000a600;
-	printk("wdt_irq control: 0x%x, count:0x%x, load:0x%x\n", readl(wdt.base + TWD_WDOG_CONTROL), readl(wdt.base + TWD_WDOG_COUNTER), readl(wdt.base + TWD_WDOG_LOAD));
-	printk("wdt_irq Triggered :cpu-%d\n", cpu);
-	if (readl(wdt.base + TWD_WDOG_INTSTAT)) {
-//		__inc_irq_stat(cpu, local_timer_irqs);
+	/* mtk_wdt_disable(); */
+	wdt.base = (void __iomem *)0xf000a600;
+	pr_debug("wdt_irq control: 0x%x, count:0x%x, load:0x%x\n", readl(wdt.base + TWD_WDOG_CONTROL),
+	       readl(wdt.base + TWD_WDOG_COUNTER), readl(wdt.base + TWD_WDOG_LOAD));
+	pr_debug("wdt_irq Triggered :cpu-%d\n", cpu);
+	if (readl(wdt.base + TWD_WDOG_INTSTAT))
 		writel(1, wdt.base + TWD_WDOG_INTSTAT);
-		
-	}
-	printk("wdt_irq exit :cpu-%d\n", cpu);
+	pr_debug("wdt_irq exit :cpu-%d\n", cpu);
 	aee_wdt_irq_info();
-     // mt_trace_ISR_end(30);
-	
+	/* mt_trace_ISR_end(30); */
+
 	return IRQ_HANDLED;
 }
 
@@ -553,115 +552,111 @@ static irqreturn_t wdt_handler(int irq, void *dev_id)
 static void fiq_wdt_init(void *info)
 {
 	int err;
-	
+
 
 	err = request_fiq(GIC_PPI_WATCHDOG_TIMER, fiq_wdt_func, 0, NULL);
-	if (err) {
-		printk(KERN_ERR "Fail to request FIQ for local WDT\n");
-	} else {
-		printk(KERN_INFO "Use FIQ for PPI WDT on cpu %d\n", smp_processor_id());
-	}
+	if (err)
+		pr_err("Fail to request FIQ for local WDT\n");
+	else
+		pr_err("Use FIQ for PPI WDT on cpu %d\n", smp_processor_id());
 	return;
 }
 #else
 
 static void irq_wdt_init(void)
 {
-      int err =0;
-      wdt_evt = alloc_percpu(int *);
+	int err = 0;
+
+	wdt_evt = alloc_percpu(int *);
 	if (!wdt_evt) {
 		err = -ENOMEM;
-		 printk( "fwq ?????\n");
+		pr_debug("fwq ?????\n");
 		goto out_free;
 	}
-      err = request_percpu_irq(GIC_PPI_WATCHDOG_TIMER, wdt_handler, "local_wdt", wdt_evt);
-	if (err) {
-		printk(KERN_ERR "fwq Fail to request IRQ for local WDT\n");
-		
-	}else
-	{
-	      printk( "fwq user IRQ\n");
-	}
+	err = request_percpu_irq(GIC_PPI_WATCHDOG_TIMER, wdt_handler, "local_wdt", wdt_evt);
+	if (err)
+		pr_err("fwq Fail to request IRQ for local WDT\n");
+	else
+		pr_debug("fwq user IRQ\n");
 	return;
 out_free:
-	 printk( "fwq error \n");
+	pr_debug("fwq error\n");
 	free_percpu(wdt_evt);
 	return;
 
 }
 #endif
 
-static int __devinit mpcore_wdt_probe(struct platform_device *dev)
+static int mpcore_wdt_probe(struct platform_device *dev)
 {
 	struct mpcore_wdt *wdt = &mp_wdt;
-//	struct resource *res;
+/* struct resource *res; */
 	int ret;
-	
+
 	/* We only accept one device, and it must have an id of -1 */
 	if (dev->id != -1)
 		return -ENODEV;
 
 	wdt->dev = &dev->dev;
 	wdt->irq = GIC_PPI_WATCHDOG_TIMER;
-	
-	wdt->base = (void __iomem*)0xF000A600;
-#if 0	
+
+	wdt->base = (void __iomem *)0xF000A600;
+#if 0
 	mpcore_wdt_miscdev.parent = &dev->dev;
 	ret = misc_register(&mpcore_wdt_miscdev);
 	if (ret) {
-		printk(DEBUG_INFO"cannot register miscdev on minor=%d (err=%d)\n",
-							WATCHDOG_MINOR, ret);
+		pr_debug("cannot register miscdev on minor=%d (err=%d)\n",
+		       WATCHDOG_MINOR, ret);
 		goto err_misc;
 	}
 #endif
-#ifdef WDT_CPU0 
-	ret = request_irq(wdt->irq, mpcore_wdt_fire, IRQF_TRIGGER_HIGH,
-							"mpcore_wdt", wdt);
+#ifdef WDT_CPU0
+	ret = request_irq(wdt->irq, mpcore_wdt_fire, IRQF_TRIGGER_HIGH, "mpcore_wdt", wdt);
 	if (ret) {
-		printk(DEBUG_INFO"cannot register IRQ%d for watchdog\n", wdt->irq);
+		pr_debug("cannot register IRQ%d for watchdog\n", wdt->irq);
 		goto err_irq;
 	}
-#endif	
+#endif
 
 #if defined(CONFIG_FIQ_GLUE)
 	/*
 	 * NoteXXX: The FIQ handler's initialization will use one SMP call.
-	 *          Thus it cannot be used via another SMP call. 
+	 *          Thus it cannot be used via another SMP call.
 	 *          We need to do this initialization on the current CPU first.
 	 */
 	fiq_wdt_init(NULL);
 	smp_call_function(fiq_wdt_init, NULL, 1);
 #else
-      irq_wdt_init();
+	irq_wdt_init();
 #endif
-  //mpcore_wdt_irq_enable(wdt->irq);
+	/* mpcore_wdt_irq_enable(wdt->irq); */
 	mpcore_wdt_stop(wdt);
-	#if 0 // for debug
+#if 0				/* for debug */
 	mpcore_wdt_irq_enable(wdt->irq);
 	mpcore_wdt_start(wdt);
-	
-	#endif
-	#if 0
+
+#endif
+#if 0
 	platform_set_drvdata(dev, wdt);
-	
+
 	mpcore_wdt_dev = dev;
-	#endif
-	printk(DEBUG_INFO"mpcore wdt probe success\n");
+#endif
+	pr_debug("mpcore wdt probe success\n");
 	return 0;
 
-#ifdef WDT_CPU0 
+#ifdef WDT_CPU0
 err_irq:
 	misc_deregister(&mpcore_wdt_miscdev);
 err_out:
 #endif
-	
+
 	return ret;
 }
 
 int mpcore_wk_wdt_config(enum wk_wdt_type type, enum wk_wdt_mode mode, int timeout_val)
 {
-	//mpcore_wdt_print("enter:type:%d, mode:%d, val:%d\n", type, mode, timeout_val);
-      printk("WDT enter:type:%d, mode:%d, val:%d\n", type, mode, timeout_val);
+	/* mpcore_wdt_print("enter:type:%d, mode:%d, val:%d\n", type, mode, timeout_val); */
+	pr_debug("WDT enter:type:%d, mode:%d, val:%d\n", type, mode, timeout_val);
 	mpcore_wdt_set_heartbeat(timeout_val);
 	return 0;
 }
@@ -669,32 +664,36 @@ int mpcore_wk_wdt_config(enum wk_wdt_type type, enum wk_wdt_mode mode, int timeo
 void mpcore_wdt_restart(enum wk_wdt_type type)
 {
 	struct mpcore_wdt *wdt = &mp_wdt;
+
 	mpcore_wdt_print("enter:type:%d\n", type);
 	mpcore_wdt_stop(wdt);
 	mpcore_wdt_start(wdt);
-#ifndef WDT_CPU0	
+#ifndef WDT_CPU0
 	mpcore_wdt_irq_enable(wdt->irq);
-#endif		
+#endif
 }
 
 void mpcore_wdt_restart_fiq(void)
 {
 	struct mpcore_wdt *wdt = &mp_wdt;
+
 	mpcore_wdt_stop_fiq(wdt);
 	mpcore_wdt_start_fiq(wdt);
-#ifndef WDT_CPU0	
+#ifndef WDT_CPU0
 	mpcore_wdt_irq_enable(wdt->irq);
-#endif		
+#endif
 }
 
 void mpcore_wk_wdt_stop(void)
 {
 	struct mpcore_wdt *wdt = &mp_wdt;
+
 	mpcore_wdt_print("mpcore_wk_wdt_stop\n");
 	mpcore_wdt_irq_disable(wdt->irq);
-	mpcore_wdt_stop(wdt);	
+	mpcore_wdt_stop(wdt);
 }
-static int __devexit mpcore_wdt_remove(struct platform_device *dev)
+
+static int mpcore_wdt_remove(struct platform_device *dev)
 {
 	struct mpcore_wdt *wdt = platform_get_drvdata(dev);
 
@@ -714,19 +713,19 @@ static int __devexit mpcore_wdt_remove(struct platform_device *dev)
 MODULE_ALIAS("platform:mpcore_wdt");
 
 static struct platform_driver mpcore_wdt_driver = {
-	.probe		= mpcore_wdt_probe,
-	.remove		= __devexit_p(mpcore_wdt_remove),
-	.shutdown	= mpcore_wdt_shutdown,
-	.driver		= {
-		.owner	= THIS_MODULE,
-		.name	= "mpcore_wdt",
-	},
+	.probe = mpcore_wdt_probe,
+	.remove = __devexit_p(mpcore_wdt_remove),
+	.shutdown = mpcore_wdt_shutdown,
+	.driver = {
+		   .owner = THIS_MODULE,
+		   .name = "mpcore_wdt",
+		   },
 };
 
 #if 1
 static struct platform_device mpcore_wdt_device = {
-		.name		= "mpcore_wdt",
-		.id		= -1,
+	.name = "mpcore_wdt",
+	.id = -1,
 };
 #endif
 
@@ -734,22 +733,19 @@ static struct platform_device mpcore_wdt_device = {
 static int __init mpcore_wdt_init(void)
 {
 	int ret = -1;
-
-	printk("MPcore Watchdog Timer: 0.1. "
-		"mpcore_noboot=%d mpcore_margin=%d sec (nowayout= %d)\n", mpcore_noboot, mpcore_margin, nowayout);
 #if 1
 	ret = platform_device_register(&mpcore_wdt_device);
 	if (ret) {
-		printk(DEBUG_INFO"Unable to device register(%d)\n", ret);
+		pr_debug("Unable to device register(%d)\n", ret);
 		return ret;
 	}
-#endif	
+#endif
 	ret = platform_driver_register(&mpcore_wdt_driver);
 	if (ret) {
-		printk(DEBUG_INFO"Unable to driver register(%d)\n", ret);
+		pr_debug("Unable to driver register(%d)\n", ret);
 		return ret;
 	}
-	printk(DEBUG_INFO"MPcore init\n");
+	pr_debug("MPcore init\n");
 	return 0;
 }
 
@@ -758,7 +754,5 @@ static void __exit mpcore_wdt_exit(void)
 	platform_driver_unregister(&mpcore_wdt_driver);
 	platform_device_unregister(&mpcore_wdt_device);
 }
-
 module_init(mpcore_wdt_init);
 module_exit(mpcore_wdt_exit);
-

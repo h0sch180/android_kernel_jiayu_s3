@@ -32,9 +32,6 @@
  *   Chipeng Chang (mtk02308)
  *
  *------------------------------------------------------------------------------
- * $Revision: #1 $
- * $Modtime:$
- * $Log:$
  *
  *
  *******************************************************************************/
@@ -71,7 +68,7 @@
 
 void AudDrv_Clk_AllOn(void);
 
-void Auddrv_Bus_Init( void);
+void Auddrv_Bus_Init(void);
 
 void AudDrv_Clk_Power_On(void);
 void AudDrv_Clk_Power_Off(void);
@@ -118,4 +115,3 @@ void AudDrv_Clk_Reset(void);
 
 
 #endif
-

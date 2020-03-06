@@ -6,8 +6,6 @@
 #include <linux/notifier.h>
 #include <linux/aee.h>
 #include <linux/mtk_ram_console.h>
-//#include <asm/mach/irq.h>
-//#include <asm/hardware/gic.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -19,19 +17,14 @@
 #include <asm/fiq.h>
 #include <asm/fiq_glue.h>
 #endif
-//#include <mach/mt_reg_base.h>
 #include <mach/irqs.h>
 #include <mach/sync_write.h>
 #include <mach/mt_secure_api.h>
-//#include <mach/mt_spm_idle.h>
 
 void __iomem *GIC_DIST_BASE;
 void __iomem *GIC_CPU_BASE;
 void __iomem *INT_POL_CTL0;
 phys_addr_t INT_POL_CTL0_phys;
-
-
-//#define LDVT
 
 #define GIC_ICDISR (GIC_DIST_BASE + 0x80)
 #define GIC_ICDISER0 (GIC_DIST_BASE + 0x100)
@@ -63,17 +56,16 @@ unsigned int irq_total_secondary_cpus;
 #define H 1
 #define EDGE MT_EDGE_SENSITIVE
 #define LEVEL MT_LEVEL_SENSITIVE
-struct __check_irq_type
-{
+struct __check_irq_type {
 	int num;
 	int polarity;
 	int sensitivity;
 };
-struct __check_irq_type __check_irq_type[] =
-{
+struct __check_irq_type __check_irq_type[] = {
 #include <mach/x_define_irq.h>
-	{ .num = -1, },
+	{.num = -1,},
 };
+
 #undef X_DEFINE_IRQ
 #undef L
 #undef H
@@ -92,7 +84,7 @@ struct __check_irq_type __check_irq_type[] =
  * @compstr: compatible string of the irqchip driver
  * @fn: initialization function
  */
-#define IRQCHIP_DECLARE(name,compstr,fn)				\
+#define IRQCHIP_DECLARE(name, compstr, fn)				\
 	static const struct of_device_id irqchip_of_match_##name	\
 	__used __section(__irqchip_of_table)				\
 	= { .compatible = compstr, .data = fn }
@@ -107,15 +99,15 @@ void mt_irq_mask(struct irq_data *data)
 	const unsigned int irq = data->irq;
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		/*Note: workaround for false alarm:"Fail to disable interrupt 14"*/
+	if (irq < NR_GIC_SGI) {
+		/*Note: workaround for false alarm:"Fail to disable interrupt 14" */
 		if (irq != FIQ_DBG_SGI)
-			printk(KERN_CRIT "Fail to disable interrupt %d\n", irq);
-		return ;
+			pr_err(KERN_CRIT "Fail to disable interrupt %d\n", irq);
+		return;
 	}
-
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR + irq / 32 * 4) = mask;
+	mt_reg_sync_writel(mask,
+			   IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR +
+				 irq / 32 * 4));
 	dsb();
 }
 
@@ -128,16 +120,16 @@ void mt_irq_unmask(struct irq_data *data)
 	const unsigned int irq = data->irq;
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		/*Note: workaround for false alarm:"Fail to enable interrupt 14"*/
+	if (irq < NR_GIC_SGI) {
+		/*Note: workaround for false alarm:"Fail to enable interrupt 14" */
 		if (irq != FIQ_DBG_SGI)
-			printk(KERN_CRIT "Fail to enable interrupt %d\n", irq);
-		return ;
+			pr_err(KERN_CRIT "Fail to enable interrupt %d\n", irq);
+		return;
 	}
 
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4) = mask;
-	dsb();
+	mt_reg_sync_writel(mask,
+			   IOMEM((GIC_DIST_BASE + GIC_DIST_ENABLE_SET +
+				  irq / 32 * 4)));
 }
 
 /*
@@ -148,12 +140,12 @@ static void mt_irq_ack(struct irq_data *data)
 {
 	u32 irq = data->irq;
 
-	//printk("in mt_irq_ack: %d\n", irq);
 #if defined(CONFIG_FIQ_GLUE)
-	*(volatile u32 *)(GIC_CPU_BASE + GIC_CPU_AEOI) = irq;
+	mt_reg_sync_writel(irq, IOMEM(GIC_CPU_BASE + GIC_CPU_AEOI));
 #else
-	*(volatile u32 *)(GIC_CPU_BASE + GIC_CPU_EOI) = irq;
+	mt_reg_sync_writel(irq, IOMEM(GIC_CPU_BASE + GIC_CPU_EOI));
 #endif
+
 	dsb();
 }
 
@@ -167,31 +159,35 @@ void mt_irq_set_sens(unsigned int irq, unsigned int sens)
 	unsigned long flags;
 	u32 config;
 
-	if (irq < (NR_GIC_SGI + NR_GIC_PPI))
-	{
-		printk(KERN_CRIT "Fail to set sensitivity of interrupt %d\n", irq);
-		return ;
+	if (irq < (NR_GIC_SGI + NR_GIC_PPI)) {
+		pr_err(KERN_CRIT "Fail to set sensitivity of interrupt %d\n",
+		       irq);
+		return;
 	}
 
 	spin_lock_irqsave(&irq_lock, flags);
 
-	if (sens == MT_EDGE_SENSITIVE)
-	{
-		config = readl(IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
+	if (sens == MT_EDGE_SENSITIVE) {
+		config =
+		    readl(IOMEM
+			  (GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
 		config |= (0x2 << (irq % 16) * 2);
-		writel(config, IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
-	}
-	else
-	{
-		config = readl(IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
+		writel(config,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
+	} else {
+		config =
+		    readl(IOMEM
+			  (GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
 		config &= ~(0x2 << (irq % 16) * 2);
-		writel(config, IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
+		writel(config,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + (irq / 16) * 4));
 	}
 
 	spin_unlock_irqrestore(&irq_lock, flags);
 
 	dsb();
 }
+EXPORT_SYMBOL(mt_irq_set_sens);
 
 /*
  * mt_irq_set_polarity: set the interrupt polarity
@@ -203,10 +199,9 @@ void mt_irq_set_polarity(unsigned int irq, unsigned int polarity)
 	unsigned long flags;
 	u32 offset, reg_index, value;
 
-	if (irq < (NR_GIC_SGI + NR_GIC_PPI))
-	{
-		printk(KERN_CRIT "Fail to set polarity of interrupt %d\n", irq);
-		return ;
+	if (irq < (NR_GIC_SGI + NR_GIC_PPI)) {
+		pr_err(KERN_CRIT "Fail to set polarity of interrupt %d\n", irq);
+		return;
 	}
 
 	offset = (irq - GIC_PRIVATE_SIGNALS) & 0x1F;
@@ -214,26 +209,23 @@ void mt_irq_set_polarity(unsigned int irq, unsigned int polarity)
 
 	spin_lock_irqsave(&irq_lock, flags);
 
-	if (polarity == 0)
-	{
+	if (polarity == 0) {
 		/* active low */
 		value = readl(IOMEM(INT_POL_CTL0 + (reg_index * 4)));
 		value |= (1 << offset);
-		//mt_reg_sync_writel(value, (INT_POL_CTL0 + (reg_index * 4)));
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
-		mcusys_smc_write_phy(INT_POL_CTL0_phys + (reg_index * 4), value);
+		mcusys_smc_write_phy(INT_POL_CTL0_phys + (reg_index * 4),
+				     value);
 #else
 		mcusys_smc_write((INT_POL_CTL0 + (reg_index * 4)), value);
 #endif
-	}
-	else
-	{
+	} else {
 		/* active high */
 		value = readl(IOMEM(INT_POL_CTL0 + (reg_index * 4)));
 		value &= ~(0x1 << offset);
-		//mt_reg_sync_writel(value, INT_POL_CTL0 + (reg_index * 4));
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
-		mcusys_smc_write_phy(INT_POL_CTL0_phys + (reg_index * 4), value);
+		mcusys_smc_write_phy(INT_POL_CTL0_phys + (reg_index * 4),
+				     value);
 #else
 		mcusys_smc_write((INT_POL_CTL0 + (reg_index * 4)), value);
 #endif
@@ -241,6 +233,7 @@ void mt_irq_set_polarity(unsigned int irq, unsigned int polarity)
 
 	spin_unlock_irqrestore(&irq_lock, flags);
 }
+EXPORT_SYMBOL(mt_irq_set_polarity);
 
 /*
  * mt_irq_set_type: set interrupt type
@@ -253,76 +246,73 @@ static int mt_irq_set_type(struct irq_data *data, unsigned int flow_type)
 	const unsigned int irq = data->irq;
 
 #if defined(__CHECK_IRQ_TYPE)
-	if (irq > (NR_GIC_SGI + NR_GIC_PPI))
-	{
+	if (irq > (NR_GIC_SGI + NR_GIC_PPI)) {
 		int i = 0;
 
-		while (__check_irq_type[i].num >= 0)
-		{
-			if (__check_irq_type[i].num == irq)
-			{
-				if (flow_type & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING))
-				{
-					if (__check_irq_type[i].sensitivity != MT_EDGE_SENSITIVE)
-					{
-						pr_err("irq_set_type_error: level-sensitive interrupt %d is set as edge-trigger\n", irq);
+		while (__check_irq_type[i].num >= 0) {
+			if (__check_irq_type[i].num == irq) {
+				if (flow_type &
+				    (IRQF_TRIGGER_RISING |
+				     IRQF_TRIGGER_FALLING)) {
+					if (__check_irq_type[i].sensitivity !=
+					    MT_EDGE_SENSITIVE) {
+						pr_err("irq_set_type_error: level-sensitive interrupt %d is set as edge-trigger\n",
+						 irq);
 					}
-				}
-				else if (flow_type & (IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW))
-				{
-					if (__check_irq_type[i].sensitivity != MT_LEVEL_SENSITIVE)
-					{
-						pr_err("irq_set_type_error: edge-trigger interrupt %d is set as level-sensitive\n", irq);
+				} else if (flow_type &
+					   (IRQF_TRIGGER_HIGH |
+					    IRQF_TRIGGER_LOW)) {
+					if (__check_irq_type[i].sensitivity !=
+					    MT_LEVEL_SENSITIVE) {
+						pr_err("irq_set_type_error: edge-trigger interrupt %d is set as level-sensitive\n",
+						irq);
 					}
 				}
 
-				if (flow_type & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_HIGH))
-				{
-					if (__check_irq_type[i].polarity != 1)
-					{
-						pr_err("irq_set_type error: active-low interrupt %d is set as active-high\n", irq);
+				if (flow_type &
+				    (IRQF_TRIGGER_RISING | IRQF_TRIGGER_HIGH)) {
+					if (__check_irq_type[i].polarity != 1) {
+						pr_err("irq_set_type error: active-low interrupt %d is set as active-high\n",
+						irq);
 					}
-				}
-				else if (flow_type & (IRQF_TRIGGER_FALLING | IRQF_TRIGGER_LOW))
-				{
-					if (__check_irq_type[i].polarity != 0)
-					{
-						pr_err("irq_set_type error: active-high interrupt %d is set as active-low\n", irq);
+				} else if (flow_type &
+					   (IRQF_TRIGGER_FALLING |
+					    IRQF_TRIGGER_LOW)) {
+					if (__check_irq_type[i].polarity != 0) {
+						pr_err("irq_set_type error: active-high interrupt %d is set as active-low\n",
+						irq);
 					}
 				}
 
 				break;
-			}
-			else
-			{
+			} else {
 				i++;
 			}
 		}
-		if (__check_irq_type[i].num < 0)
-		{
-			pr_err("irq_set_type error: unknown interrupt %d is configured\n", irq);
+		if (__check_irq_type[i].num < 0) {
+			pr_err
+			    ("irq_set_type error: unknown interrupt %d is configured\n",
+			     irq);
 		}
 	}
 #endif
 
-	if (flow_type & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING))
-	{
+	if (flow_type & (IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING)) {
 		mt_irq_set_sens(irq, MT_EDGE_SENSITIVE);
-		mt_irq_set_polarity(irq, (flow_type & IRQF_TRIGGER_FALLING) ? 0 : 1);
+		mt_irq_set_polarity(irq,
+				    (flow_type & IRQF_TRIGGER_FALLING) ? 0 : 1);
 		__irq_set_handler_locked(irq, handle_edge_irq);
-	}
-	else if (flow_type & (IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW))
-	{
+	} else if (flow_type & (IRQF_TRIGGER_HIGH | IRQF_TRIGGER_LOW)) {
 		mt_irq_set_sens(irq, MT_LEVEL_SENSITIVE);
-		mt_irq_set_polarity(irq, (flow_type & IRQF_TRIGGER_LOW) ? 0 : 1);
+		mt_irq_set_polarity(irq,
+				    (flow_type & IRQF_TRIGGER_LOW) ? 0 : 1);
 		__irq_set_handler_locked(irq, handle_level_irq);
 	}
 
 	return 0;
 }
 
-static struct irq_chip mt_irq_chip =
-{
+static struct irq_chip mt_irq_chip = {
 	.irq_disable = mt_irq_mask,
 	.irq_enable = mt_irq_unmask,
 	.irq_ack = mt_irq_ack,
@@ -333,28 +323,25 @@ static struct irq_chip mt_irq_chip =
 
 #ifdef CONFIG_OF
 static int mt_gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
-								 irq_hw_number_t hw)
+				 irq_hw_number_t hw)
 {
-	if (hw < 32)
-	{
+	if (hw < 32) {
 		irq_set_percpu_devid(irq);
 		irq_set_chip_and_handler(irq, &mt_irq_chip,
-								 handle_percpu_devid_irq);
+					 handle_percpu_devid_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_NOAUTOEN);
-	}
-	else
-	{
-		irq_set_chip_and_handler(irq, &mt_irq_chip,
-								 handle_level_irq);
+	} else {
+		irq_set_chip_and_handler(irq, &mt_irq_chip, handle_level_irq);
 		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
 	}
 	return 0;
 }
 
 static int mt_gic_irq_domain_xlate(struct irq_domain *d,
-								   struct device_node *controller,
-								   const u32 *intspec, unsigned int intsize,
-								   unsigned long *out_hwirq, unsigned int *out_type)
+				   struct device_node *controller,
+				   const u32 *intspec, unsigned int intsize,
+				   unsigned long *out_hwirq,
+				   unsigned int *out_type)
 {
 	if (d->of_node != controller)
 		return -EINVAL;
@@ -372,8 +359,7 @@ static int mt_gic_irq_domain_xlate(struct irq_domain *d,
 	return 0;
 }
 
-const struct irq_domain_ops mt_gic_irq_domain_ops =
-{
+const struct irq_domain_ops mt_gic_irq_domain_ops = {
 	.map = mt_gic_irq_domain_map,
 	.xlate = mt_gic_irq_domain_xlate,
 };
@@ -397,49 +383,46 @@ static void mt_gic_dist_init(void)
 	 * Set all global interrupts to be level triggered, active low.
 	 */
 	for (i = 32; i < (MT_NR_SPI + 32); i += 16)
-	{
 		writel(0, IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + i * 4 / 16));
-	}
 
 	/*
 	 * Set all global interrupts to this CPU only.
 	 */
-	for (i = 32; i < (MT_NR_SPI + 32); i += 4)
-	{
-		writel(cpumask, IOMEM(GIC_DIST_BASE + GIC_DIST_TARGET + i * 4 / 4));
+	for (i = 32; i < (MT_NR_SPI + 32); i += 4) {
+		writel(cpumask,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_TARGET + i * 4 / 4));
 	}
 
 	/*
 	 * Set priority on all global interrupts.
 	 */
-	for (i = 32; i < NR_MT_IRQ_LINE; i += 4)
-	{
-		writel(0xA0A0A0A0, IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + i * 4 / 4));
+	for (i = 32; i < NR_MT_IRQ_LINE; i += 4) {
+		writel(0xA0A0A0A0,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + i * 4 / 4));
 	}
 
 	/*
 	 * Disable all global interrupts.
 	 */
-	for (i = 32; i < NR_MT_IRQ_LINE; i += 32)
-	{
-		writel(0xFFFFFFFF, IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR + i * 4 / 32));
+	for (i = 32; i < NR_MT_IRQ_LINE; i += 32) {
+		writel(0xFFFFFFFF,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR +
+			     i * 4 / 32));
 	}
 
 #ifndef CONFIG_OF
 	/*
 	 * Setup the Linux IRQ subsystem.
 	 */
-	for (i = GIC_PPI_OFFSET; i < NR_MT_IRQ_LINE; i++)
-	{
-		if(i == GIC_PPI_PRIVATE_TIMER || i == GIC_PPI_WATCHDOG_TIMER)
-		{
+	for (i = GIC_PPI_OFFSET; i < NR_MT_IRQ_LINE; i++) {
+		if (i == GIC_PPI_PRIVATE_TIMER || i == GIC_PPI_WATCHDOG_TIMER) {
 			irq_set_percpu_devid(i);
-			irq_set_chip_and_handler(i, &mt_irq_chip, handle_percpu_devid_irq);
+			irq_set_chip_and_handler(i, &mt_irq_chip,
+						 handle_percpu_devid_irq);
 			set_irq_flags(i, IRQF_VALID | IRQF_NOAUTOEN);
-		}
-		else
-		{
-			irq_set_chip_and_handler(i, &mt_irq_chip, handle_level_irq);
+		} else {
+			irq_set_chip_and_handler(i, &mt_irq_chip,
+						 handle_level_irq);
 			set_irq_flags(i, IRQF_VALID | IRQF_PROBE);
 		}
 	}
@@ -454,15 +437,12 @@ static void mt_gic_dist_init(void)
 	 * set all global interrupts as non-secure interrupts
 	 */
 	for (i = 32; i < NR_IRQS; i += 32)
-	{
 		writel(0xFFFFFFFF, IOMEM(GIC_ICDISR + 4 * (i / 32)));
-	}
 #endif
 	/*
 	 * enable secure and non-secure interrupts on Distributor
 	 */
 	writel(3, IOMEM(GIC_DIST_BASE + GIC_DIST_CTRL));
-	//writel(1, IOMEM(GIC_DIST_BASE + GIC_DIST_CTRL));
 }
 
 static void mt_gic_cpu_init(void)
@@ -478,11 +458,11 @@ static void mt_gic_cpu_init(void)
 
 	/* set priority on PPI and SGI interrupts */
 	for (i = 0; i < 32; i += 4)
-		writel(0x80808080, IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + i * 4 / 4));
-	//writel(0xa0a0a0a0, IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + i * 4 / 4));
+		writel(0x80808080,
+		       IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + i * 4 / 4));
 
 #if defined(CONFIG_FIQ_GLUE)
-	/* when enable FIQ*/
+	/* when enable FIQ */
 	/* set PPI and SGI interrupts as non-secure interrupts */
 	writel(0xFFFFFFFF, IOMEM(GIC_ICDISR));
 #endif
@@ -490,22 +470,21 @@ static void mt_gic_cpu_init(void)
 
 #if defined(CONFIG_FIQ_GLUE)
 	/* enable SBPR, FIQEn, EnableNS and EnableS */
-	/* SBPR=1, IRQ and FIQ use the same BPR bit*/
+	/* SBPR=1, IRQ and FIQ use the same BPR bit */
 	/* FIQEn=1,forward group 0 interrupts using the FIQ signal
-	 *		 GIC always signals grp1 interrupt using IRQ
+	 *               GIC always signals grp1 interrupt using IRQ
 	 * */
-	/* EnableGrp1=1, enable signaling of grp 1*/
-	/* EnableGrp0=1, enable signaling of grp 0*/
+	/* EnableGrp1=1, enable signaling of grp 1 */
+	/* EnableGrp0=1, enable signaling of grp 0 */
 	writel(0x1B, IOMEM(GIC_CPU_BASE + GIC_CPU_CTRL));
 #else
 	/* enable SBPR, EnableNS and EnableS */
 	writel(0x13, IOMEM(GIC_CPU_BASE + GIC_CPU_CTRL));
-	//writel(0x1, IOMEM(GIC_CPU_BASE + GIC_CPU_CTRL));
 #endif
 	dsb();
 }
 
-void __cpuinit mt_gic_secondary_init(void)
+void mt_gic_secondary_init(void)
 {
 	mt_gic_cpu_init();
 }
@@ -519,21 +498,17 @@ void irq_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	satt = 1 << 15;
 	/*
 	 * NoteXXX: CPU1 SGI is configured as secure as default.
-	 *		  Need to use the secure SGI 1 which is for waking up cpu1.
+	 *                Need to use the secure SGI 1 which is for waking up cpu1.
 	 */
-	if (irq == CPU_BRINGUP_SGI)
-	{
-		if (irq_total_secondary_cpus)
-		{
+	if (irq == CPU_BRINGUP_SGI) {
+		if (irq_total_secondary_cpus) {
 			--irq_total_secondary_cpus;
 			satt = 0;
 		}
 	}
 
-
 	val = readl(IOMEM(GIC_ICDISR + 4 * (irq / 32)));
-	if (!(val & (1 << (irq % 32))))	 /*  secure interrupt? */
-	{
+	if (!(val & (1 << (irq % 32)))) {	/*  secure interrupt? */
 		satt = 0;
 	}
 
@@ -546,9 +521,11 @@ void irq_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	 */
 	dsb();
 #ifndef MTK_FORCE_CLUSTER1
-	*(volatile u32 *)(GIC_DIST_BASE + 0xf00) = (map << 16) | satt | irq;
+	mt_reg_sync_writel((map << 16) | satt | irq,
+			   IOMEM(GIC_DIST_BASE + 0xf00));
 #else
-	*(volatile u32 *)(GIC_DIST_BASE + 0xf00) = (map << (16+4)) | satt | irq;
+	mt_reg_sync_writel((map << (16 + 4)) | satt | irq,
+			   IOMEM(GIC_DIST_BASE + 0xf00));
 #endif
 	dsb();
 
@@ -556,7 +533,8 @@ void irq_raise_softirq(const struct cpumask *mask, unsigned int irq)
 
 int mt_irq_is_active(const unsigned int irq)
 {
-	const unsigned int iActive = readl(IOMEM(GIC_DIST_BASE + 0x200 + irq / 32 * 4));
+	const unsigned int iActive =
+	    readl(IOMEM(GIC_DIST_BASE + 0x200 + irq / 32 * 4));
 
 	return iActive & (1 << (irq % 32)) ? 1 : 0;
 }
@@ -569,18 +547,18 @@ void mt_enable_ppi(int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		printk(KERN_CRIT "Fail to enable PPI %d\n", irq);
-		return ;
+	if (irq < NR_GIC_SGI) {
+		pr_err(KERN_CRIT "Fail to enable PPI %d\n", irq);
+		return;
 	}
-	if (irq >= (NR_GIC_SGI + NR_GIC_PPI))
-	{
-		printk(KERN_CRIT "Fail to enable PPI %d\n", irq);
-		return ;
+	if (irq >= (NR_GIC_SGI + NR_GIC_PPI)) {
+		pr_err(KERN_CRIT "Fail to enable PPI %d\n", irq);
+		return;
 	}
+	mt_reg_sync_writel(mask,
+			   IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_SET +
+				 irq / 32 * 4));
 
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4) = mask;
 	dsb();
 }
 
@@ -593,8 +571,7 @@ int mt_PPI_mask_all(struct mtk_irq_mask *mask)
 {
 	unsigned long flags;
 
-	if(mask)
-	{
+	if (mask) {
 #if defined(CONFIG_FIQ_GLUE)
 		local_fiq_disable();
 #endif
@@ -612,9 +589,7 @@ int mt_PPI_mask_all(struct mtk_irq_mask *mask)
 		mask->footer = IRQ_MASK_FOOTER;
 
 		return 0;
-	}
-	else
-	{
+	} else {
 		return -1;
 	}
 }
@@ -629,18 +604,11 @@ int mt_PPI_mask_restore(struct mtk_irq_mask *mask)
 	unsigned long flags;
 
 	if (!mask)
-	{
 		return -1;
-	}
 	if (mask->header != IRQ_MASK_HEADER)
-	{
 		return -1;
-	}
 	if (mask->footer != IRQ_MASK_FOOTER)
-	{
 		return -1;
-	}
-
 #if defined(CONFIG_FIQ_GLUE)
 	local_fiq_disable();
 #endif
@@ -665,8 +633,7 @@ int mt_SPI_mask_all(struct mtk_irq_mask *mask)
 {
 	unsigned long flags;
 
-	if (mask)
-	{
+	if (mask) {
 #if defined(CONFIG_FIQ_GLUE)
 		local_fiq_disable();
 #endif
@@ -699,9 +666,7 @@ int mt_SPI_mask_all(struct mtk_irq_mask *mask)
 		mask->footer = IRQ_MASK_FOOTER;
 
 		return 0;
-	}
-	else
-	{
+	} else {
 		return -1;
 	}
 }
@@ -716,18 +681,11 @@ int mt_SPI_mask_restore(struct mtk_irq_mask *mask)
 	unsigned long flags;
 
 	if (!mask)
-	{
 		return -1;
-	}
 	if (mask->header != IRQ_MASK_HEADER)
-	{
 		return -1;
-	}
 	if (mask->footer != IRQ_MASK_FOOTER)
-	{
 		return -1;
-	}
-
 #if defined(CONFIG_FIQ_GLUE)
 	local_fiq_disable();
 #endif
@@ -760,8 +718,7 @@ int mt_irq_mask_all(struct mtk_irq_mask *mask)
 {
 	unsigned long flags;
 
-	if (mask)
-	{
+	if (mask) {
 #if defined(CONFIG_FIQ_GLUE)
 		local_fiq_disable();
 #endif
@@ -796,9 +753,7 @@ int mt_irq_mask_all(struct mtk_irq_mask *mask)
 		mask->footer = IRQ_MASK_FOOTER;
 
 		return 0;
-	}
-	else
-	{
+	} else {
 		return -1;
 	}
 }
@@ -814,17 +769,13 @@ int mt_irq_mask_restore(struct mtk_irq_mask *mask)
 	unsigned long flags;
 
 	if (!mask)
-	{
 		return -1;
-	}
+
 	if (mask->header != IRQ_MASK_HEADER)
-	{
 		return -1;
-	}
+
 	if (mask->footer != IRQ_MASK_FOOTER)
-	{
 		return -1;
-	}
 
 #if defined(CONFIG_FIQ_GLUE)
 	local_fiq_disable();
@@ -848,6 +799,7 @@ int mt_irq_mask_restore(struct mtk_irq_mask *mask)
 
 	return 0;
 }
+
 /*
 #define GIC_DIST_PENDING_SET			0x200
 #define GIC_DIST_PENDING_CLEAR		  0x280
@@ -860,14 +812,18 @@ void mt_irq_set_pending_for_sleep(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		printk(KERN_CRIT "Fail to set a pending on interrupt %d\n", irq);
-		return ;
+	if (irq < NR_GIC_SGI) {
+		pr_err(KERN_CRIT "Fail to set a pending on interrupt %d\n",
+		       irq);
+		return;
 	}
 
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4) = mask;
-	printk(KERN_CRIT "irq:%d, 0x%p=0x%x\n", irq, GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4,mask);
+	mt_reg_sync_writel(mask,
+			   IOMEM(GIC_DIST_BASE + GIC_DIST_PENDING_SET +
+				 irq / 32 * 4));
+
+	pr_err(KERN_CRIT "irq:%d, 0x%p=0x%x\n", irq,
+	       GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4, mask);
 	dsb();
 }
 
@@ -880,14 +836,14 @@ void mt_irq_unmask_for_sleep(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		printk(KERN_CRIT "Fail to enable interrupt %d\n", irq);
-		return ;
+	if (irq < NR_GIC_SGI) {
+		pr_err(KERN_CRIT "Fail to enable interrupt %d\n", irq);
+		return;
 	}
 
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4) = mask;
-	dsb();
+	mt_reg_sync_writel(mask,
+			   GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4);
+
 }
 
 /*
@@ -899,40 +855,35 @@ void mt_irq_mask_for_sleep(unsigned int irq)
 {
 	u32 mask = 1 << (irq % 32);
 
-	if (irq < NR_GIC_SGI)
-	{
-		printk(KERN_CRIT "Fail to enable interrupt %d\n", irq);
-		return ;
+	if (irq < NR_GIC_SGI) {
+		pr_err(KERN_CRIT "Fail to enable interrupt %d\n", irq);
+		return;
 	}
+	mt_reg_sync_writel(mask,
+			   IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR +
+				 irq / 32 * 4));
 
-	*(volatile u32 *)(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR + irq / 32 * 4) = mask;
-	dsb();
 }
 
 #if defined(CONFIG_FIQ_GLUE)
 
-struct irq2fiq
-{
+struct irq2fiq {
 	int irq;
 	fiq_isr_handler handler;
 	void *arg;
 };
 
-static struct irq2fiq irqs_to_fiq[] =
-{
-	{ .irq = UART0_IRQ_BIT_ID, },
-	{ .irq = UART1_IRQ_BIT_ID, },
-	{ .irq = UART2_IRQ_BIT_ID, },
-	{ .irq = UART3_IRQ_BIT_ID, },
-	{ .irq = WDT_IRQ_BIT_ID, },
-	//FIX-ME for early porting
-//	{ .irq = MT_SPM1_IRQ_ID, },
-	{ .irq = GIC_PPI_WATCHDOG_TIMER, },
-	{ .irq = FIQ_SMP_CALL_SGI, }
+static struct irq2fiq irqs_to_fiq[] = {
+	{.irq = UART0_IRQ_BIT_ID,},
+	{.irq = UART1_IRQ_BIT_ID,},
+	{.irq = UART2_IRQ_BIT_ID,},
+	{.irq = UART3_IRQ_BIT_ID,},
+	{.irq = WDT_IRQ_BIT_ID,},
+	{.irq = GIC_PPI_WATCHDOG_TIMER,},
+	{.irq = FIQ_SMP_CALL_SGI,}
 };
 
-struct fiq_isr_log
-{
+struct fiq_isr_log {
 	int in_fiq_isr;
 	int irq;
 	int smp_call_cnt;
@@ -948,12 +899,13 @@ static int fiq_glued;
  */
 void trigger_sw_irq(int irq)
 {
-	if (irq < NR_GIC_SGI)
-	{
+	if (irq < NR_GIC_SGI) {
 #ifndef MTK_FORCE_CLUSTER1
-		*((volatile unsigned int *)(GIC_DIST_BASE + GIC_DIST_SOFTINT)) = (0x1 << 16) | (0x1 << 15) | irq;
+		mt_reg_sync_writel((0x1 << 16) | (0x1 << 15) | irq,
+				   IOMEM(GIC_DIST_BASE + GIC_DIST_SOFTINT));
 #else
-		*((volatile unsigned int *)(GIC_DIST_BASE + GIC_DIST_SOFTINT)) = (0x1 << (16 + 4)) | (0x1 << 15) | irq;
+		mt_reg_sync_writel((0x1 << (16 + 4)) | (0x1 << 15) | irq,
+				   IOMEM(GIC_DIST_BASE + GIC_DIST_SOFTINT));
 #endif
 	}
 }
@@ -969,10 +921,8 @@ int mt_disable_fiq(int irq)
 	int i;
 	struct irq_data data;
 
-	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++)
-	{
-		if (irqs_to_fiq[i].irq == irq)
-		{
+	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++) {
+		if (irqs_to_fiq[i].irq == irq) {
 			data.irq = irq;
 			mt_irq_mask(&data);
 			return 0;
@@ -993,10 +943,8 @@ int mt_enable_fiq(int irq)
 	int i;
 	struct irq_data data;
 
-	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++)
-	{
-		if (irqs_to_fiq[i].irq == irq)
-		{
+	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++) {
+		if (irqs_to_fiq[i].irq == irq) {
 			data.irq = irq;
 			mt_irq_unmask(&data);
 			return 0;
@@ -1014,64 +962,51 @@ static void fiq_isr(struct fiq_glue_handler *h, void *regs, void *svc_sp)
 	unsigned int iar, irq;
 	int cpu, i;
 
-	iar = *((volatile unsigned int*)(GIC_CPU_BASE + GIC_CPU_INTACK));
+	iar = readl(IOMEM(GIC_CPU_BASE + GIC_CPU_INTACK));
 	irq = iar & 0x3FF;
 
 	cpu = 0;
-	asm volatile (																				"MRC p15, 0, %0, c0, c0, 5\n"
-			"AND %0, %0, #3\n"
-			: "+r"(cpu)
-			:
-			: "cc"
-				 );
+	asm volatile ("MRC p15, 0, %0, c0, c0, 5\n"
+		      "AND %0, %0, #3\n":"+r" (cpu)
+		      : : "cc");
 
 	fiq_isr_logs[cpu].irq = irq;
 
 	if (irq >= NR_IRQS)
-	{
 		return;
-	}
 
 	fiq_isr_logs[cpu].in_fiq_isr = 1;
 
 	if (irq == FIQ_SMP_CALL_SGI)
-	{
 		fiq_isr_logs[cpu].smp_call_cnt++;
-	}
+
 	if (irq == WDT_IRQ_BIT_ID)
-	{
 		aee_rr_rec_fiq_step(AEE_FIQ_STEP_FIQ_ISR_BASE);
-	}
-	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++)
-	{
-		if (irqs_to_fiq[i].irq == irq)
-		{
-			if (irqs_to_fiq[i].handler)
-			{
-				(irqs_to_fiq[i].handler)(irqs_to_fiq[i].arg, regs, svc_sp);
+
+	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++) {
+		if (irqs_to_fiq[i].irq == irq) {
+			if (irqs_to_fiq[i].handler) {
+				(irqs_to_fiq[i].handler) (irqs_to_fiq[i].arg,
+							  regs, svc_sp);
 			}
 			break;
 		}
 	}
-	if (i == ARRAY_SIZE(irqs_to_fiq))
-	{
+	if (i == ARRAY_SIZE(irqs_to_fiq)) {
 		register int sp asm("sp");
 		struct pt_regs *ptregs = (struct pt_regs *)regs;
 
-		asm volatile("mov %0, %1\n"
-					 "mov fp, %2\n"
-					 : "=r" (sp)
-					 : "r" (svc_sp), "r" (ptregs->ARM_fp)
-					 : "cc"
-					);
+		asm volatile ("mov %0, %1\n" "mov fp, %2\n":"=r" (sp)
+			      : "r"(svc_sp), "r"(ptregs->ARM_fp)
+			      : "cc");
 		preempt_disable();
-		pr_err("Interrupt %d triggers FIQ but it is not registered\n", irq);
+		pr_err("Interrupt %d triggers FIQ but it is not registered\n",
+		       irq);
 	}
 
 	fiq_isr_logs[cpu].in_fiq_isr = 0;
 
-	*(volatile unsigned int *)(GIC_CPU_BASE + GIC_CPU_EOI) = iar;
-
+	mt_reg_sync_writel(iar, IOMEM(GIC_CPU_BASE + GIC_CPU_EOI));
 	dsb();
 }
 
@@ -1085,13 +1020,9 @@ static void fiq_isr(struct fiq_glue_handler *h, void *regs, void *svc_sp)
 int get_fiq_isr_log(int cpu, unsigned int *log, unsigned int *len)
 {
 	if (log)
-	{
 		*log = (unsigned int)&(fiq_isr_logs[cpu]);
-	}
 	if (len)
-	{
 		*len = sizeof(struct fiq_isr_log);
-	}
 
 	return 0;
 }
@@ -1130,14 +1061,11 @@ restore_for_fiq(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	int i;
 
-	switch (action)
-	{
+	switch (action) {
 	case CPU_STARTING:
-		for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++)
-		{
+		for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++) {
 			if ((irqs_to_fiq[i].irq < (NR_GIC_SGI + NR_GIC_PPI))
-					&& (irqs_to_fiq[i].handler))
-			{
+			    && (irqs_to_fiq[i].handler)) {
 				__set_security(irqs_to_fiq[i].irq);
 				__raise_priority(irqs_to_fiq[i].irq);
 				dsb();
@@ -1152,13 +1080,11 @@ restore_for_fiq(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata fiq_notifier =
-{
+static struct notifier_block fiq_notifier = {
 	.notifier_call = restore_for_fiq,
 };
 
-static struct fiq_glue_handler fiq_handler =
-{
+static struct fiq_glue_handler fiq_handler = {
 	.fiq = fiq_isr,
 };
 
@@ -1170,13 +1096,9 @@ static int __init_fiq(void)
 
 	ret = fiq_glue_register_handler(&fiq_handler);
 	if (ret)
-	{
 		pr_err("fail to register fiq_glue_handler\n");
-	}
 	else
-	{
 		fiq_glued = 1;
-	}
 
 	return ret;
 }
@@ -1192,23 +1114,20 @@ static int __init_fiq(void)
  * 1.set grp0
  * 2.raise priority
  */
-int request_fiq(int irq, fiq_isr_handler handler, unsigned long irq_flags, void *arg)
+int request_fiq(int irq, fiq_isr_handler handler, unsigned long irq_flags,
+		void *arg)
 {
 	int i;
 	unsigned long flags;
 	struct irq_data data;
 
 	if (!fiq_glued)
-	{
 		__init_fiq();
-	}
 
-	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++)
-	{
+	for (i = 0; i < ARRAY_SIZE(irqs_to_fiq); i++) {
 		spin_lock_irqsave(&irq_lock, flags);
 
-		if (irqs_to_fiq[i].irq == irq)
-		{
+		if (irqs_to_fiq[i].irq == irq) {
 
 			irqs_to_fiq[i].handler = handler;
 			irqs_to_fiq[i].arg = arg;
@@ -1219,7 +1138,8 @@ int request_fiq(int irq, fiq_isr_handler handler, unsigned long irq_flags, void 
 			__raise_priority(irq);
 			data.irq = irq;
 			mt_irq_set_type(&data, irq_flags);
-
+			/* we want all access of gic and memory for
+			   configure type are done before unmask irq */
 			mb();
 
 			mt_irq_unmask(&data);
@@ -1233,22 +1153,22 @@ int request_fiq(int irq, fiq_isr_handler handler, unsigned long irq_flags, void 
 	return -1;
 }
 
-#endif  /* CONFIG_FIQ_GLUE */
+#endif /* CONFIG_FIQ_GLUE */
 void mt_gic_cfg_irq2cpu(unsigned int irq, unsigned int cpu, unsigned int set)
 {
 
 	uintptr_t reg;
 	u32 data;
 	u32 mask;
-	if(cpu >= NR_CPUS)
+	if (cpu >= num_possible_cpus())
 		goto error;
 
 	if (irq < NR_GIC_SGI)
-	{
 		goto error;
-	}
 
-	reg  = (uintptr_t)GIC_DIST_BASE + (uintptr_t)GIC_DIST_TARGET + (irq / 4) * 4;
+	reg =
+	    (uintptr_t) GIC_DIST_BASE + (uintptr_t) GIC_DIST_TARGET +
+	    (irq / 4) * 4;
 	data = readl(IOMEM(reg));
 #ifndef MTK_FORCE_CLUSTER1
 	mask = 0x1 << (cpu + (irq % 4) * 8);
@@ -1256,25 +1176,24 @@ void mt_gic_cfg_irq2cpu(unsigned int irq, unsigned int cpu, unsigned int set)
 	mask = 0x1 << ((cpu + 4) + (irq % 4) * 8);
 #endif
 
-	if(set)
-	{
+	if (set) {
 		data |= mask;
-	}
-	else /* clear */
-	{
+	} else {		/* clear */
+
 		data &= ~mask;
 	}
 
 	writel(data, IOMEM(reg));
 	dsb();
 
-	printk(KERN_CRIT "set irq %d to cpu %d\n", irq, cpu);
-	printk(KERN_CRIT "reg 0x%08x = 0x%08x\n", (int)reg, readl(IOMEM(reg)));
+	pr_err(KERN_CRIT "set irq %d to cpu %d\n", irq, cpu);
+	pr_debug(KERN_CRIT "reg 0x%08x = 0x%08x\n", (int)reg,
+		 readl(IOMEM(reg)));
 
-	return ;
+	return;
 
 error:
-	printk(KERN_CRIT "Fail to set irq %d to cpu %d\n", irq, cpu);
+	pr_err(KERN_CRIT "Fail to set irq %d to cpu %d\n", irq, cpu);
 
 }
 
@@ -1289,56 +1208,75 @@ static unsigned int get_mask(int irq)
 {
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4)) & bit)?1:0);
+	return (readl
+		(IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_SET + irq / 32 * 4)) &
+		bit) ? 1 : 0;
 }
 
 static unsigned int get_grp(int irq)
 {
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-	//0x1:irq,0x0:fiq
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_IGROUP + irq / 32 * 4)) & bit)?1:0);
+	return (readl(IOMEM(GIC_DIST_BASE + GIC_DIST_IGROUP + irq / 32 * 4)) &
+		bit) ? 1 : 0;
 }
+
 static unsigned int get_pri(int irq)
 {
 	unsigned int bit;
-	bit = 0xff << ((irq % 4)*8);
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + irq / 4 * 4)) & bit) >> ((irq % 4)*8));
+	bit = 0xff << ((irq % 4) * 8);
+	return (readl(IOMEM(GIC_DIST_BASE + GIC_DIST_PRI + irq / 4 * 4)) & bit)
+	    >> ((irq % 4) * 8);
 }
+
 static unsigned int get_target(int irq)
 {
 	unsigned int bit;
-	bit = 0xff << ((irq % 4)*8);
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_TARGET + irq / 4 * 4)) & bit) >> ((irq % 4)*8));
+	bit = 0xff << ((irq % 4) * 8);
+	return (readl(IOMEM(GIC_DIST_BASE + GIC_DIST_TARGET + irq / 4 * 4)) &
+		bit) >> ((irq % 4) * 8);
 }
+
 static unsigned int get_sens(int irq)
 {
 	unsigned int bit;
-	bit = 0x3 << ((irq % 16)*2);
-	//edge:0x2, level:0x1
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + irq / 16 * 4)) & bit) >> ((irq % 16)*2));
+	bit = 0x3 << ((irq % 16) * 2);
+	return (readl(IOMEM(GIC_DIST_BASE + GIC_DIST_CONFIG + irq / 16 * 4)) &
+		bit) >> ((irq % 16) * 2);
 }
+
 static unsigned int get_pending_status(int irq)
 {
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4)) & bit)?1:0);
+	return (readl
+		(IOMEM(GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4)) &
+		bit) ? 1 : 0;
 }
+
+unsigned int mt_irq_get_pending(unsigned int irq)
+{
+	return get_pending_status(irq);
+}
+EXPORT_SYMBOL(mt_irq_get_pending);
 
 static unsigned int get_active_status(int irq)
 {
 
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-	return ((readl(IOMEM(GIC_DIST_BASE + GIC_DIST_ACTIVE_SET + irq / 32 * 4)) & bit)?1:0);
+	return (readl
+		(IOMEM(GIC_DIST_BASE + GIC_DIST_ACTIVE_SET + irq / 32 * 4)) &
+		bit) ? 1 : 0;
+
 }
 
 static unsigned int get_pol(int irq)
 {
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-//0x0: high, 0x1:low
-	return ((readl(IOMEM(INT_POL_CTL0 + ((irq-32) / 32 * 4))) & bit)?1:0);
+	return (readl(IOMEM(INT_POL_CTL0 + ((irq - 32) / 32 * 4))) & bit) ? 1 :
+	    0;
 }
 
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
@@ -1348,14 +1286,13 @@ void mt_irq_dump_status(int irq)
 	unsigned int result;
 
 	pr_notice("[mt gic dump] irq = %d\n", irq);
-	
+
 	rc = mt_secure_call(MTK_SIP_KERNEL_GIC_DUMP, irq, 0, 0);
-	if(rc < 0)
-	{
+	if (rc < 0) {
 		pr_notice("[mt gic dump] not allowed to dump!\n");
 		return;
-	}	
-	
+	}
+
 	/* get mask */
 	result = rc & 0x1;
 	pr_notice("[mt gic dump] enable = %d\n", result);
@@ -1367,10 +1304,11 @@ void mt_irq_dump_status(int irq)
 	/* get priority */
 	result = (rc >> 2) & 0xff;
 	pr_notice("[mt gic dump] priority = %x\n", result);
-	
+
 	/* get sensitivity */
 	result = (rc >> 10) & 0x3;
-	pr_notice("[mt gic dump] sensitivity = %x (edge:0x1, level:0x0)\n", result>>1);
+	pr_notice("[mt gic dump] sensitivity = %x (edge:0x1, level:0x0)\n",
+		  result >> 1);
 
 	/* get pending status */
 	result = (rc >> 11) & 0x1;
@@ -1383,19 +1321,22 @@ void mt_irq_dump_status(int irq)
 	/* get polarity */
 	result = (rc >> 13) & 0x1;
 	pr_notice("[mt gic dump] polarity = %x (0x0: high, 0x1:low)\n", result);
-	
+
 }
 #else
 void mt_irq_dump_status(int irq)
 {
 	if (irq >= NR_IRQS)
-		return ;
-	printk("[INT] irq:%d,enable:%x,active:%x,pending:%x,pri:%x,grp:%x,target:%x,sens:%x,pol:%x\n",irq,get_mask(irq),get_active_status(irq),get_pending_status(irq),get_pri(irq),get_grp(irq),get_target(irq),get_sens(irq),get_pol(irq));
+		return;
+	pr_debug
+	    ("[INT] irq:%d,enable:%x,active:%x,pending:%x,pri:%x,grp:%x,target:%x,sens:%x,pol:%x\n",
+	     irq, get_mask(irq), get_active_status(irq),
+	     get_pending_status(irq), get_pri(irq), get_grp(irq),
+	     get_target(irq), get_sens(irq), get_pol(irq));
 
 }
 #endif
-
-#ifdef LDVT // For test cases
+EXPORT_SYMBOL(mt_irq_dump_status);
 
 int set_mask(int irq)
 {
@@ -1408,16 +1349,18 @@ int set_unmask(int irq)
 {
 	unsigned int bit;
 	bit = 1 << (irq % 32);
-	writel(bit, IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR + irq / 32 * 4));
+	writel(bit,
+	       IOMEM(GIC_DIST_BASE + GIC_DIST_ENABLE_CLEAR + irq / 32 * 4));
 }
 
-int set_pending_status(int irq)
+void mt_irq_set_pending(unsigned int irq)
 {
 
 	unsigned int bit;
 	bit = 1 << (irq % 32);
 	writel(bit, IOMEM(GIC_DIST_BASE + GIC_DIST_PENDING_SET + irq / 32 * 4));
 }
+EXPORT_SYMBOL(mt_irq_set_pending);
 
 int set_active_status(int irq)
 {
@@ -1433,55 +1376,64 @@ int test_irq_dump_status(void)
 
 	mt_irq_dump_status(irq);
 	set_active_status(irq);
-	set_pending_status(irq);
+	mt_irq_set_pending(irq);
 	set_mask(irq);
 	mt_irq_dump_status(irq);
 
 	return 0;
 }
 
+#ifdef LDVT
 int mt_gic_test(void)
 {
 	int irq = 162;
 
-	/*test polarity*/
+	/*test polarity */
 	mt_irq_set_polarity(irq, MT_POLARITY_LOW);
-	if(get_pol(irq) == !MT_POLARITY_LOW)
-		printk(KERN_NOTICE "mt_irq_set_polarity GIC_POL_LOW test passed!!!\n");
+	if (get_pol(irq) == !MT_POLARITY_LOW)
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_polarity GIC_POL_LOW test passed!!!\n");
 	else
-		printk(KERN_NOTICE "mt_irq_set_polarity GIC_POL_LOW test failed!!!\n");
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_polarity GIC_POL_LOW test failed!!!\n");
 
 	mt_irq_set_polarity(irq, MT_POLARITY_HIGH);
-	if(get_pol(irq) == !MT_POLARITY_HIGH)
-		printk(KERN_NOTICE "mt_irq_set_polarity GIC_POL_HIGH test passed!!\n");
+	if (get_pol(irq) == !MT_POLARITY_HIGH)
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_polarity GIC_POL_HIGH test passed!!\n");
 	else
-		printk(KERN_NOTICE "mt_irq_set_polarity GIC_POL_HIGH test failed!!\n");
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_polarity GIC_POL_HIGH test failed!!\n");
 
-	/*test sensitivity*/
+	/*test sensitivity */
 	mt_irq_set_sens(irq, MT_LEVEL_SENSITIVE);
-	if(!(get_sens(irq) & 0x2))
-		printk(KERN_NOTICE "mt_irq_set_sens MT_LEVEL_SENSITIVE test passed!!!\n");
+	if (!(get_sens(irq) & 0x2))
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_sens MT_LEVEL_SENSITIVE test passed!!!\n");
 	else
-		printk(KERN_NOTICE "mt_irq_set_sens MT_LEVEL_SENSITIVE test failed!!!\n");
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_sens MT_LEVEL_SENSITIVE test failed!!!\n");
 
 	mt_irq_set_sens(irq, MT_EDGE_SENSITIVE);
-	if(get_sens(irq) & 0x2)
-		printk(KERN_NOTICE "mt_irq_set_sens MT_EDGE_SENSITIVE test passed!!!\n");
+	if (get_sens(irq) & 0x2)
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_sens MT_EDGE_SENSITIVE test passed!!!\n");
 	else
-		printk(KERN_NOTICE "mt_irq_set_sens MT_EDGE_SENSITIVE test failed!!!\n");
+		pr_debug(KERN_NOTICE
+			 "mt_irq_set_sens MT_EDGE_SENSITIVE test failed!!!\n");
 
-	/*test mask*/
+	/*test mask */
 	set_mask(irq);
 	if (get_mask(irq) == 1)
-		printk(KERN_NOTICE "GIC set_mask test passed!!!\n");
+		pr_debug(KERN_NOTICE "GIC set_mask test passed!!!\n");
 	else
-		printk(KERN_NOTICE "GIC set_mask test failed!!!\n");
+		pr_debug(KERN_NOTICE "GIC set_mask test failed!!!\n");
 
 	set_unmask(irq);
 	if (get_mask(irq) == 0)
-		printk(KERN_NOTICE "GIC set_unmask test passed!!!\n");
+		pr_debug(KERN_NOTICE "GIC set_unmask test passed!!!\n");
 	else
-		printk(KERN_NOTICE "GIC set_unmask test failed!!!\n");
+		pr_debug(KERN_NOTICE "GIC set_unmask test failed!!!\n");
 
 	return 0;
 }
@@ -1489,19 +1441,18 @@ int mt_gic_test(void)
 static ssize_t gic_dvt_show(struct device_driver *driver, char *buf)
 {
 	return snprintf(buf, PAGE_SIZE, "=== GIC test ===\n"
-					"1.Dump GIC status\n"
-					"2.Run GIC test cases\n"
-				   );
+			"1.Dump GIC status\n" "2.Run GIC test cases\n");
 }
 
-static ssize_t gic_dvt_store(struct device_driver *driver, const char *buf, size_t count)
+static ssize_t gic_dvt_store(struct device_driver *driver, const char *buf,
+			     size_t count)
 {
 	char *p = (char *)buf;
 	unsigned int num;
+	int rc;
+	rc = kstrtoul(p, 10, (unsigned long *)&num);
 
-	num = simple_strtoul(p, &p, 10);
-	switch(num)
-	{
+	switch (num) {
 	case 1:
 		test_irq_dump_status();
 		break;
@@ -1520,27 +1471,26 @@ DRIVER_ATTR(gic_dvt, 0666, gic_dvt_show, gic_dvt_store);
 /*
  * Define Data Structure
  */
-struct mt_gic_driver
-{
+struct mt_gic_driver {
 	struct device_driver driver;
 	const struct platform_device_id *id_table;
 };
 
-
 /*
  * Define Global Variable
  */
-static struct mt_gic_driver mt_gic_drv =
-{
+static struct mt_gic_driver mt_gic_drv = {
 	.driver = {
-		.name = "gic",
-		.bus = &platform_bus_type,
-		.owner = THIS_MODULE,
+		.driver = {
+			.name = "gic",
+			.bus = &platform_bus_type,
+			.owner = THIS_MODULE,
+		},
 	},
-	.id_table= NULL,
+	.id_table = NULL,
 };
 
-#endif	//!LDVT
+#endif /*!LDVT */
 
 /*
 static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
@@ -1586,17 +1536,20 @@ int __init mt_gic_of_init(struct device_node *node, struct device_node *parent)
 	INT_POL_CTL0 = of_iomap(node, 2);
 	WARN(!INT_POL_CTL0, "unable to map pol registers\n");
 	if (of_address_to_resource(node, 2, &res))
-	{
 		WARN(!INT_POL_CTL0, "unable to map pol registers\n");
-	}
-	
+
 	INT_POL_CTL0_phys = res.start;
 
-	irq_base = irq_alloc_descs(-1, NR_GIC_SGI, (NR_GIC_PPI+MT_NR_SPI), numa_node_id());
+	irq_base =
+	    irq_alloc_descs(-1, NR_GIC_SGI, (NR_GIC_PPI + MT_NR_SPI),
+			    numa_node_id());
 	if (irq_base != NR_GIC_SGI)
-		pr_err("[%s] irq_alloc_descs failed! (irq_base = %d)\n", __func__, irq_base);
+		pr_err("[%s] irq_alloc_descs failed! (irq_base = %d)\n",
+		       __func__, irq_base);
 
-	domain = irq_domain_add_legacy(node, (NR_GIC_PPI+MT_NR_SPI), irq_base, NR_GIC_SGI, &mt_gic_irq_domain_ops, NULL);
+	domain =
+	    irq_domain_add_legacy(node, (NR_GIC_PPI + MT_NR_SPI), irq_base,
+				  NR_GIC_SGI, &mt_gic_irq_domain_ops, NULL);
 	if (!domain)
 		pr_err("[%s] irq_domain_add_legacy failed!\n", __func__);
 
@@ -1608,6 +1561,7 @@ int __init mt_gic_of_init(struct device_node *node, struct device_node *parent)
 
 	return 0;
 }
+
 IRQCHIP_DECLARE(mt_cortex_a15_gic, "mtk,mt-gic", mt_gic_of_init);
 #endif
 
@@ -1620,13 +1574,13 @@ static int __init mt_gic_init(void)
 {
 	int ret;
 
-	ret = driver_register(&mt_gic_drv.driver);
+	ret = driver_register(&mt_gic_drv.driver.driver);
 	if (ret == 0)
-		printk(KERN_CRIT "GIC init done...\n");
+		pr_err(KERN_CRIT "GIC init done...\n");
 
-	ret = driver_create_file(&mt_gic_drv.driver, &driver_attr_gic_dvt);
-	if(ret == 0)
-		printk(KERN_CRIT "GIC create sysfs file done...\n");
+	ret = driver_create_file(&mt_gic_drv.driver.driver, &driver_attr_gic_dvt);
+	if (ret == 0)
+		pr_err(KERN_CRIT "GIC create sysfs file done...\n");
 
 	return 0;
 }
@@ -1635,6 +1589,3 @@ static int __init mt_gic_init(void)
 #ifdef LDVT
 arch_initcall(mt_gic_init);
 #endif
-EXPORT_SYMBOL(mt_irq_dump_status);
-EXPORT_SYMBOL(mt_irq_set_sens);
-EXPORT_SYMBOL(mt_irq_set_polarity);

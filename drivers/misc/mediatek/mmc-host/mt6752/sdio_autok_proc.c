@@ -109,14 +109,14 @@ extern void msdc_gate_clock(struct msdc_host* host, int delay);
 
 void autok_claim_host(struct msdc_host *host)
 {
-    mmc_claim_host(host->mmc);
-    printk("[%s] msdc%d host claimed\n", __func__, host->id);
+	mmc_claim_host(host->mmc);
+	pr_debug("[%s] msdc%d host claimed\n", __func__, host->id);
 }
 
 void autok_release_host(struct msdc_host *host)
 {
-    mmc_release_host(host->mmc);
-    printk("[%s] msdc%d host released\n", __func__, host->id);
+	mmc_release_host(host->mmc);
+	pr_debug("[%s] msdc%d host released\n", __func__, host->id);
 }
 
 /* keep track of how many times it is mmapped */
@@ -145,7 +145,7 @@ int autok_mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
     pgoff_t pgoff = vmf->pgoff;  
     offset = (pgoff << PAGE_SHIFT) + (vma->vm_pgoff << PAGE_SHIFT);
     if (!dev->data) {
-        printk("no data\n");
+		pr_err("no data\n");
         return 0;    
     }
     if (offset >= dev->size)
@@ -272,7 +272,8 @@ static int autok_thread_func(void *data)
         autok_thread_data->is_autok_done[host->id] = 0;
         res = msdc_autok_stg1_cal(host, vcore_uv, autok_thread_data->p_autok_predata);
         if(res){
-            printk(KERN_INFO "[%s] Auto-K stage 1 fail, res = %d, set msdc parameter settings stored in nvram to 0\n", __func__, res);
+		pr_err("[%s] Auto-K stage 1 fail, res = %d, set msdc parameter settings stored in nvram to 0\n",
+			__func__, res);
             memset(autok_thread_data->p_autok_predata->ai_data[0], 0, autok_thread_data->p_autok_predata->param_count * sizeof(unsigned int));
             autok_thread_data->is_autok_done[host->id] = 2;
         }
@@ -294,7 +295,7 @@ static int autok_thread_func(void *data)
         if(doStg2){
             res = msdc_autok_stg2_cal(host, autok_thread_data->p_autok_predata, vcore_uv);
             if(res){
-                printk(KERN_INFO "[%s] Auto-K stage 2 fail, res = %d, downgrade SDIO freq to 50MHz\n", __func__, res);
+			pr_err("[%s] Auto-K stage 2 fail, res = %d, downgrade SDIO freq to 50MHz\n", __func__, res);
                 mmc->ios.clock = 50*1000*1000;
                 mmc_set_clock(mmc, mmc->ios.clock);
                 msdc_sdio_set_long_timing_delay_by_freq(host, mmc->ios.clock);
@@ -308,7 +309,7 @@ static int autok_thread_func(void *data)
                 }
             }
         } else {    // Auto-K stg1 failed
-            printk(KERN_INFO "[%s] Auto-K stage 1 fail, downgrade SDIO freq to 50MHz\n", __func__); 
+		pr_err("[%s] Auto-K stage 1 fail, downgrade SDIO freq to 50MHz\n", __func__);
             mmc->ios.clock = 50*1000*1000;
             mmc_set_clock(mmc, mmc->ios.clock);
             msdc_sdio_set_long_timing_delay_by_freq(host, mmc->ios.clock);
@@ -324,7 +325,7 @@ static int autok_thread_func(void *data)
         
         log_info = NULL;
     } else {
-        printk(KERN_INFO "[%s] stage %d doesn't support in auto-K\n", __func__, stage);
+		pr_err("[%s] stage %d doesn't support in auto-K\n", __func__, stage);
         //return -EFAULT;
     }
     do_gettimeofday(&t1);
@@ -349,7 +350,7 @@ static int autok_thread_func(void *data)
     }  
     time_in_s = (t1.tv_sec - t0.tv_sec);
     time_in_ms = (t1.tv_usec - t0.tv_usec)>>10;
-    printk(KERN_ERR "\n[AUTOKK][Stage%d] Timediff is %d.%d(s)\n", (int)stage, time_in_s, time_in_ms );
+	pr_debug("\n[AUTOKK][Stage%d] Timediff is %d.%d(s)\n", (int)stage, time_in_s, time_in_ms);
     
 //    preempt_enable();
     return 0;
@@ -378,7 +379,7 @@ int send_autok_uevent(char *text, struct msdc_host *host)
     kfree(host_buf);
     kfree(what_buf);
     if(err < 0)
-        printk(KERN_INFO "[%s] kobject_uevent_env error = %d\n", __func__, err);
+		pr_err("[%s] kobject_uevent_env error = %d\n", __func__, err);
     
     return err;
 }   
@@ -394,7 +395,7 @@ int wait_sdio_autok_ready(void *data){
     int id;
     unsigned int vcore_uv = 0;
     //btmod = get_boot_mode();
-    //printk("btmod = %d\n", btmod);
+	/*pr_debug("btmod = %d\n", btmod);*/
 
     if (1/*(btmod!=META_BOOT) && (btmod!=FACTORY_BOOT) && (btmod!=ATE_FACTORY_BOOT)*/){
         sdio_host_debug = 0;
@@ -584,7 +585,7 @@ static ssize_t stage1_store(struct kobject *kobj, struct kobj_attribute *attr,
     sscanf(kobj->name, "%d", &id);
 
     if (id >= HOST_MAX_NUM) {
-        printk("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
+		pr_err("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
         return count;
     }
 
@@ -610,15 +611,17 @@ static ssize_t stage1_store(struct kobject *kobj, struct kobj_attribute *attr,
             memcpy(&cur_name[2], &cur_voltage[id], sizeof(unsigned int));
             store_autok(&p_single_autok[id], cur_name, count);
 
-            printk(KERN_ERR "[AUTOKD] Enter Store Autok");
-            printk(KERN_ERR "[AUTOKD] p_single_autok[%d].vol_count=%d", id, p_single_autok[id].vol_count);
-            printk(KERN_ERR "[AUTOKD] p_single_autok[%d].param_count=%d", id, p_single_autok[id].param_count);
+		pr_debug("[AUTOKD] Enter Store Autok");
+		pr_debug("[AUTOKD] p_single_autok[%d].vol_count=%d", id, p_single_autok[id].vol_count);
+		pr_debug("[AUTOKD] p_single_autok[%d].param_count=%d", id, p_single_autok[id].param_count);
             for(i=0; i<p_single_autok[id].vol_count; i++){
-                printk(KERN_ERR "[AUTOKD] p_single_autok[%d].vol_list[%d]=%d", id, i, p_single_autok[id].vol_list[i]);
+			pr_debug("[AUTOKD] p_single_autok[%d].vol_list[%d]=%d",
+				id, i, p_single_autok[id].vol_list[i]);
             }
             for(i=0; i<p_single_autok[id].vol_count; i++){
                 for(j=0; j<p_single_autok[id].param_count; j++)
-                    printk(KERN_ERR "[AUTOKD] p_single_autok[%d].ai_data[%d][%d]=%d", id, i, j, p_single_autok[id].ai_data[i][j].data.sel);
+			pr_debug("[AUTOKD] p_single_autok[%d].ai_data[%d][%d]=%d",
+				id, i, j, p_single_autok[id].ai_data[i][j].data.sel);
             }
             //[FIXDONE] Start to do autok alforithm; data is in p_single_autok
 #ifdef UT_TEST
@@ -685,7 +688,7 @@ static ssize_t stage1_show(struct kobject *kobj, struct kobj_attribute *attr,
     sscanf(kobj->name, "%d", &id);
 
     if (id >= HOST_MAX_NUM) {
-        printk("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
+	pr_err("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
         return count;
     }
 
@@ -833,7 +836,7 @@ static ssize_t stage2_store(struct kobject *kobj, struct kobj_attribute *attr,
     sscanf(attr->attr.name, "%d", &id);
 
     if (id >= HOST_MAX_NUM) {
-        printk("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
+	pr_err("[%s] id<%d> is bigger than HOST_MAX_NUM<%d>\n", __func__, id, HOST_MAX_NUM);
         return count;
     }
 

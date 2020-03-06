@@ -326,7 +326,7 @@ static void init_lcm_registers(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
 }
 
@@ -339,7 +339,7 @@ static void lcm_init(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
 	//tps65640_en();
     //mt_set_gpio_out(GPIO118, GPIO_OUT_ONE);
@@ -393,7 +393,7 @@ static void lcm_suspend(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
 	//mt_set_gpio_out(GPIO118, GPIO_OUT_ZERO);//set standby LOW
     /* set display off */
@@ -430,7 +430,7 @@ static void lcm_resume(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
 	
 //mt_set_gpio_out(GPIO118, GPIO_OUT_ONE);//set standby HIGH

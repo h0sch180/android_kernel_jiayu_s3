@@ -635,49 +635,6 @@ static struct platform_driver gpio_driver = {
 #endif
 		},
 };
-/* Vanzo:maxiaojun on: Mon, 26 Aug 2013 17:04:18 +0800
- * board device name support.
- */
-#ifdef VANZO_DEVICE_NAME_SUPPORT
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-
-static struct proc_dir_entry *device_name_proc_entry;
-enum DEV_NAME_E {
-	CPU = 0,
-	LCM,
-	TP,
-	CAM,
-	CAM2,
-	DEV_MAX_NUM
-};
-static char v_dev_name[DEV_MAX_NUM][32];
-
-static int mt_mtkdev_show(struct seq_file *m, void *v)
-{
-    seq_printf(m, "Boardinfo:\nCPU:\t%s\nLCM:\t%s\nTP:\t%s\nCAM:\t%s\nCAM2:\t%s\n\n", &v_dev_name[CPU][0], &v_dev_name[LCM][0], &v_dev_name[TP][0], &v_dev_name[CAM][0], &v_dev_name[CAM2][0]);   
-    return 0;
-}
-
-static int mt_mtkdev_open(struct inode *inode, struct file *file)
-{
-    return single_open(file, mt_mtkdev_show, inode->i_private);
-}
-
-void v_set_dev_name(int id, char *name)
-{
-	if(id<DEV_MAX_NUM && strlen(name)){
-		memcpy(&v_dev_name[id][0], name, strlen(name)>31?31:strlen(name));
-	}
-}
-EXPORT_SYMBOL(v_set_dev_name);
-
-static const struct file_operations mtkdev_fops = {
-	.open = mt_mtkdev_open,
-    .read = seq_read
-};
-#endif
-// End of Vanzo:maxiaojun
 
 #ifndef CONFIG_MTK_FPGA
 #ifdef CONFIG_OF
@@ -702,27 +659,6 @@ static int __init mt_gpio_init(void)
 {
 	int ret = 0;
 	GPIOLOG("version: %s\n", VERSION);
-/* Vanzo:maxiaojun on: Mon, 26 Aug 2013 17:04:18 +0800
- * board device name support.
- */
-#ifdef VANZO_DEVICE_NAME_SUPPORT
-    v_set_dev_name(0, "MT6752");
-
-#if 0
-	device_name_proc_entry = create_proc_entry("mtkdev", 0666, NULL);
-	if (NULL != device_name_proc_entry) {
-		device_name_proc_entry->read_proc = mtkdev_read;
-		device_name_proc_entry->write_proc = NULL;
-	}
-#else
-    device_name_proc_entry = proc_create("mtkdev", 0666, NULL, &mtkdev_fops);
-	if(NULL == device_name_proc_entry)
-	{
-        GPIOLOG("create_proc_entry mtkdev failed");
-    }
-#endif	
-#endif
-// End of Vanzo:maxiaojun
 
 	ret = platform_driver_register(&gpio_driver);
 	return ret;
@@ -731,20 +667,6 @@ static int __init mt_gpio_init(void)
 /*---------------------------------------------------------------------------*/
 static void __exit mt_gpio_exit(void)
 {
-/* Vanzo:maxiaojun on: Mon, 26 Aug 2013 17:04:18 +0800
- * board device name support.
- */
-#ifdef VANZO_DEVICE_NAME_SUPPORT
-	if(device_name_proc_entry){
-	#if 0
-		remove_proc_entry("mtkdev", NULL);
-	#else
-		proc_remove(device_name_proc_entry);
-	#endif
-		device_name_proc_entry = NULL;
-	}
-#endif
-// End of Vanzo:maxiaojun
 	platform_driver_unregister(&gpio_driver);
 	return;
 }

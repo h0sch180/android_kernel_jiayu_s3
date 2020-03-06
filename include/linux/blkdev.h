@@ -89,7 +89,7 @@ static inline void clear_metadata_rw_status(int mmc_index)
 //#if !defined(FEATURE_STORAGE_PID_LOGGER)
 //#if !defined(CONFIG_MTK_LM_MODE)
 #define FEATURE_STORAGE_PID_LOGGER
-#define CONFIG_MTK_MORE_PID_LOGGER_COUNT
+/*#define CONFIG_MTK_MORE_PID_LOGGER_COUNT*/
 //#endif
 struct page_pid_logger {
         unsigned short pid1;
@@ -119,7 +119,24 @@ struct struct_pid_logger {
 
 #define PAGE_LOCKER_SHIFT	0
 #define PID_ID_CNT 		10
-
+#define WORKLOAD_OFFSET 0
+#define WORKLOAD_LOG_LENGTH 64
+#define WRITE_DIVERSITY_OFFSET (WORKLOAD_OFFSET+WORKLOAD_LOG_LENGTH)
+#define WRITE_DIVERSITY_LOG_LENGTH 54
+#define READ_DIVERSITY_OFFSET (WRITE_DIVERSITY_OFFSET+WRITE_DIVERSITY_LOG_LENGTH)
+#define READ_DIVERSITY_LOG_LENGTH 54
+#define WRITE_THROUGHPUT_OFFSET (READ_DIVERSITY_OFFSET+READ_DIVERSITY_LOG_LENGTH)
+#define WRITE_THROUGHPUT_LOG_LENGTH 44
+#define READ_THROUGHPUT_OFFSET (WRITE_THROUGHPUT_OFFSET+WRITE_THROUGHPUT_LOG_LENGTH)
+#define READ_THROUGHPUT_LOG_LENGTH 44
+#define VMSTAT_OFFSET (READ_THROUGHPUT_OFFSET+READ_THROUGHPUT_LOG_LENGTH)
+#define VMSTAT_LOG_LENGTH 54
+#define CPUSTAT_LOG_LENGTH 145
+#define PID_OFFSET (VMSTAT_OFFSET+VMSTAT_LOG_LENGTH)
+#define PID_LOG_LENGTH (PID_BUFFER_SIZE + 8)
+/*log size+header size 18*/
+#define BLOCK_IO_BUFFER_SIZE (64 + 54 + 54 + 44 + 44 + 54 + 145 + PID_LOG_LENGTH + 18)
+extern unsigned long long system_dram_size;
 #endif /* FEATURE_STORAGE_PID_LOGGER */
 /*
  * Maximum number of blkcg policies allowed to be registered concurrently.
@@ -182,7 +199,7 @@ struct request {
 
 	struct request_queue *q;
 
-	unsigned int cmd_flags;
+	u64 cmd_flags;
 	enum rq_cmd_type_bits cmd_type;
 	unsigned long atomic_flags;
 
@@ -242,8 +259,6 @@ struct request {
 #endif
 
 	unsigned short ioprio;
-
-	int ref_count;
 
 	void *special;		/* opaque pointer available for LLD use */
 	char *buffer;		/* kaddr of the current segment if available */
@@ -557,7 +572,7 @@ struct request_queue {
 #define QUEUE_FLAG_DEFAULT	((1 << QUEUE_FLAG_IO_STAT) |		\
 				 (1 << QUEUE_FLAG_STACKABLE)	|	\
 				 (1 << QUEUE_FLAG_SAME_COMP)	|	\
-				 (1 << QUEUE_FLAG_ADD_RANDOM))
+				 (0 << QUEUE_FLAG_ADD_RANDOM))
 
 static inline void queue_lockdep_assert_held(struct request_queue *q)
 {
@@ -656,7 +671,7 @@ static inline void queue_flag_clear(unsigned int flag, struct request_queue *q)
 
 #define list_entry_rq(ptr)	list_entry((ptr), struct request, queuelist)
 
-#define rq_data_dir(rq)		((rq)->cmd_flags & 1)
+#define rq_data_dir(rq)		(((rq)->cmd_flags & 1) != 0)
 
 static inline unsigned int blk_queue_cluster(struct request_queue *q)
 {
@@ -823,6 +838,7 @@ extern void __blk_put_request(struct request_queue *, struct request *);
 extern struct request *blk_get_request(struct request_queue *, int, gfp_t);
 extern struct request *blk_make_request(struct request_queue *, struct bio *,
 					gfp_t);
+extern void blk_rq_set_block_pc(struct request *);
 extern void blk_requeue_request(struct request_queue *, struct request *);
 extern int blk_reinsert_request(struct request_queue *q, struct request *rq);
 extern bool blk_reinsert_req_sup(struct request_queue *q);
@@ -1600,6 +1616,7 @@ static inline bool blk_integrity_is_initialized(struct gendisk *g)
 struct block_device_operations {
 	int (*open) (struct block_device *, fmode_t);
 	void (*release) (struct gendisk *, fmode_t);
+	int (*rw_page)(struct block_device *, sector_t, struct page *, int rw);
 	int (*ioctl) (struct block_device *, fmode_t, unsigned, unsigned long);
 	int (*compat_ioctl) (struct block_device *, fmode_t, unsigned, unsigned long);
 	int (*direct_access) (struct block_device *, sector_t,
@@ -1618,6 +1635,9 @@ struct block_device_operations {
 
 extern int __blkdev_driver_ioctl(struct block_device *, fmode_t, unsigned int,
 				 unsigned long);
+extern int bdev_read_page(struct block_device *, sector_t, struct page *);
+extern int bdev_write_page(struct block_device *, sector_t, struct page *,
+						struct writeback_control *);
 #else /* CONFIG_BLOCK */
 /*
  * stubs for when the block layer is configured out

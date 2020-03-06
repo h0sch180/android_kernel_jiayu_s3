@@ -2277,6 +2277,12 @@ void usb_disconnect(struct usb_device **pdev)
 	}
 #endif
 
+	/*
+	 * Ensure that the pm runtime code knows that the USB device
+	 * is in the process of being disconnected.
+	 */
+	pm_runtime_barrier(&udev->dev);
+
 	usb_lock_device(udev);
 
 	/* Free up all the children before we remove this device */
@@ -3407,25 +3413,6 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
 		}
 	}
 
-#if defined(CONFIG_USB_MTK_OTG) && defined(CONFIG_USBIF_COMPLIANCE)
-	if (!udev->bus->is_b_host && udev->bus->hnp_support &&
-		udev->portnum == udev->bus->otg_port) {
-		status = usb_control_msg(udev, usb_sndctrlpipe(udev, 0),
-				USB_REQ_SET_FEATURE, 0,
-				USB_DEVICE_B_HNP_ENABLE,
-				0, NULL, 0, USB_CTRL_SET_TIMEOUT);
-		if (status < 0) {
-			send_otg_event(OTG_EVENT_NO_RESP_FOR_HNP_ENABLE);
-			skip_unsupported = true;
-			dev_err(&udev->dev, "can't enable HNP on port %d, "
-					"status %d\n", port1, status);
-					goto err_wakeup;
-		} else {
-			udev->bus->b_hnp_enable = 1;
-		}
-	}
-#endif
-
 	/* disable USB2 hardware LPM */
 	if (udev->usb2_hw_lpm_enabled == 1)
 		usb_set_usb2_hardware_lpm(udev, 0);
@@ -3708,7 +3695,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	struct usb_port *port_dev = hub->ports[udev->portnum  - 1];
 	int		port1 = udev->portnum;
 	int		status;
-	u16		portchange, portstatus;
+	u16		portchange = 0, portstatus = 0;
 
 #if defined(CONFIG_USB_MTK_OTG) && defined(CONFIG_USBIF_COMPLIANCE)
 	status = hub_port_status(hub, port1, &portstatus, &portchange);

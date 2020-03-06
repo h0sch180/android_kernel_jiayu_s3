@@ -54,34 +54,33 @@ static long monitor_hang_ioctl(struct file *file, unsigned int cmd, unsigned lon
  *****************************************************************************/
 static int monitor_hang_open(struct inode *inode, struct file *filp)
 {
-	LOGD("%s\n", __func__);
+/*	LOGD("%s\n", __func__); */
 //	aee_kernel_RT_Monitor_api (600) ;
 	return 0;
 }
 
 static int monitor_hang_release(struct inode *inode, struct file *filp)
 {
-	LOGD("%s\n", __func__);
+/*	LOGD("%s\n", __func__); */
 	return 0;
 }
 
 static unsigned int monitor_hang_poll(struct file *file, struct poll_table_struct *ptable)
 {
-	LOGD("%s\n", __func__);
+/*	LOGD("%s\n", __func__); */
 	return 0;
 }
 
 static ssize_t monitor_hang_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
-	LOGD("%s\n", __func__);
+/*	LOGD("%s\n", __func__); */
 	return 0;
 }
 
 static ssize_t monitor_hang_write(struct file *filp, const char __user *buf, size_t count,
 				  loff_t *f_pos)
 {
-
-	LOGD("%s\n", __func__);
+/*	LOGD("%s\n", __func__); */
 	return 0;
 }
 
@@ -449,8 +448,18 @@ void aee_kernel_RT_Monitor_api(int lParam)
 		hang_detect_counter = hd_timeout;
 		LOGE("[Hang_Detect] hang_detect disabled\n");
 	} else if (lParam > 0) {
-		hd_detect_enabled = 1;
-		hang_detect_counter = hd_timeout = ((long)lParam + HD_INTER - 1) / (HD_INTER);
+		/* lParem=0x1000|timeout,only set in aee call when NE in system_server
+		*  so only change hang_detect_counter when call from AEE
+		*  Others ioctl, will change hd_detect_enabled & hang_detect_counter
+		*/
+		if (lParam & 0x1000) {
+			hang_detect_counter =
+			hd_timeout = ((long)(lParam & 0x0fff) + HD_INTER - 1) / (HD_INTER);
+		} else {
+			hd_detect_enabled = 1;
+			hang_detect_counter =
+				hd_timeout = ((long)lParam + HD_INTER - 1) / (HD_INTER);
+		}
 		LOGE("[Hang_Detect] hang_detect enabled %d\n", hd_timeout);
 	}
 }

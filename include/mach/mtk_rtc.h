@@ -3,7 +3,9 @@
 
 #include <linux/ioctl.h>
 #include <linux/rtc.h>
+#ifdef CONFIG_ARM64
 #include <mach/mt_typedefs.h>
+#endif
 
 typedef enum {
 	RTC_GPIO_USER_WIFI = 8,
@@ -51,6 +53,12 @@ extern int set_rtc_spare_fg_value(int val);
 extern void rtc_irq_handler(void);
 
 extern bool crystal_exist_status(void);
+//lenovo-sw mahj2 modify for timezone at 20141204 Begin
+#ifdef CONFIG_LENOVO_RTC_SAVE_TIMEZONE_SUPPORT
+extern void set_rtc_spare_timezone_value(int val);
+extern int get_rtc_spare_timezone_value(void);
+#endif
+//lenovo-sw mahj2 modify for timezone at 20141204 End
 
 #else
 #define rtc_read_hw_time()              ({ 0; })

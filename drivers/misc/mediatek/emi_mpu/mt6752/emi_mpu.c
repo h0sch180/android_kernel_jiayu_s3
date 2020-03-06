@@ -745,6 +745,8 @@ int emi_mpu_set_region_protection(unsigned int start, unsigned int end, int regi
 
 	return ret;
 }
+EXPORT_SYMBOL(emi_mpu_set_region_protection);
+
 
 /*
  * emi_mpu_notifier_register: register a notifier.
@@ -1708,7 +1710,7 @@ static int __init emi_mpu_mod_init(void)
 	emi_axi_vio_timer.data = ((unsigned long) 0 );
 #endif //#ifdef ENABLE_EMI_CHKER
 
-#if !defined(USER_BUILD_KERNEL)
+#if 0 //!defined(USER_BUILD_KERNEL)
 #ifdef ENABLE_EMI_CHKER
 	/* Enable AXI 4KB boundary violation monitor timer */
 	//emi_axi_set_chker(1 << AXI_ADR_CHK_EN);
@@ -1764,5 +1766,48 @@ static void __exit emi_mpu_mod_exit(void)
 module_init(emi_mpu_mod_init);
 module_exit(emi_mpu_mod_exit);
 
-EXPORT_SYMBOL(emi_mpu_set_region_protection);
-//EXPORT_SYMBOL(start_mm_mau_protect);
+#ifdef CONFIG_MTK_LM_MODE
+static void __iomem *INFRA_BASE_ADDR = NULL;
+static void __iomem *PERISYS_BASE_ADDR = NULL;
+static unsigned int enable_4gb;
+static int __init dram_4GB_init(void)
+{
+        struct device_node *node;
+        unsigned int infra_4g_sp, perisis_4g_sp;
+        printk(KERN_CRIT "%s \n",__func__);
+        node = of_find_compatible_node(NULL, NULL, "mediatek,INFRACFG_AO");
+        if(!node)
+                printk(KERN_CRIT "find INFRACFG_AO node failed\n");
+        INFRA_BASE_ADDR = of_iomap(node, 0);
+
+        if(!INFRA_BASE_ADDR)
+                printk(KERN_CRIT "INFRACFG_AO ioremap failed\n");
+        node = of_find_compatible_node(NULL, NULL, "mediatek,PERICFG");
+        if(!node)
+                printk(KERN_CRIT "find PERICFG node failed\n");
+        PERISYS_BASE_ADDR = of_iomap(node, 0);
+        if(!PERISYS_BASE_ADDR)
+                printk(KERN_CRIT "PERISYS_BASE_ADDR ioremap failed\n");
+
+        infra_4g_sp = readl(IOMEM(INFRA_BASE_ADDR + 0xf00)) & (1 << 13);
+        perisis_4g_sp = readl(IOMEM(PERISYS_BASE_ADDR + 0x208)) & (1 << 15);
+
+        pr_err(KERN_CRIT "infra = 0x%x   perisis = 0x%x   resutle = %d\n", infra_4g_sp, perisis_4g_sp, (infra_4g_sp && perisis_4g_sp));
+        if (infra_4g_sp && perisis_4g_sp){
+                enable_4gb = 1 ;
+        }
+        else
+        {
+                enable_4gb = 0;
+        }
+
+
+        return 0;
+}
+core_initcall(dram_4GB_init);
+
+unsigned int enable_4G(void)
+{
+        return enable_4gb;
+}
+#endif

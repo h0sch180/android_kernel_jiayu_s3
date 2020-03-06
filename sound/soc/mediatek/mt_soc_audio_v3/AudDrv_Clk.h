@@ -32,9 +32,6 @@
  *   Chipeng Chang (mtk02308)
  *
  *------------------------------------------------------------------------------
- * $Revision: #1 $
- * $Modtime:$
- * $Log:$
  *
  *
  *******************************************************************************/
@@ -69,43 +66,15 @@
  *****************************************************************************/
 #if !defined(CONFIG_MTK_LEGACY)
 #include <linux/clk.h>
-#include <linux/platform_device.h>
-#endif /* !defined(CONFIG_MTK_LEGACY) */
 
-#if !defined(CONFIG_MTK_LEGACY)
-typedef struct mt_aud_clk_t
-{
-   struct clk *aud_afe_clk;           /* main clock for AFE */
-   struct clk *aud_i2s_clk;           /* main clock for I2S */
-   struct clk *aud_adc_clk;           /* main clock for ADC */
-   struct clk *aud_apll22m_clk;       /* main clock for APLL22M */
-   struct clk *aud_apll24m_clk;       /* main clock for APLL24M */
-   struct clk *aud_apll1_tuner_clk;       /* main clock for apll1_tuner */
-   struct clk *aud_apll2_tuner_clk;       /* main clock for apll1_tuner */
-   struct clk *aud_dac_clk;           /* main clock for DAC */
-   struct clk *aud_dac_predis_clk;    /* main clock for dac_predis */
-   struct clk *aud_tml_clk;           /* main clock for TML */
-   struct clk *aud_infra_clk;         /* Audio Infra clock */   
-   kal_int32 aud_afe_clk_status;        
-   kal_int32 aud_i2s_clk_status;        
-   kal_int32 aud_adc_clk_status;
-   kal_int32 aud_apll22m_clk_status;        
-   kal_int32 aud_apll24m_clk_status;   
-   kal_int32 aud_apll1_tuner_clk_status;   
-   kal_int32 aud_apll2_tuner_clk_status;   
-   kal_int32 aud_dac_clk_status;   
-   kal_int32 aud_dac_predis_clk_status;   
-   kal_int32 aud_tml_clk_status;      
-   kal_int32 aud_infra_clk_status;
-}mt_aud_clk;
+extern void AudDrv_Clk_probe(void *dev);
+extern void AudDrv_Clk_Deinit(void *dev);
 
-struct platform_device;
-extern void AudDrv_Clk_probe(struct platform_device *pdev);
 #endif
 
 void AudDrv_Clk_AllOn(void);
 
-void Auddrv_Bus_Init( void);
+void Auddrv_Bus_Init(void);
 
 void AudDrv_Clk_Power_On(void);
 void AudDrv_Clk_Power_Off(void);
@@ -150,4 +119,3 @@ void AudDrv_Emi_Clk_Off(void);
 
 
 #endif
-

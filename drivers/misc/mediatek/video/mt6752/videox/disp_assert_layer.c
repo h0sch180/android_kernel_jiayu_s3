@@ -45,16 +45,17 @@ do {                                                                    \
 
 #define DAL_UNLOCK()  up(&dal_sem)
 
-#define DAL_CHECK_MFC_RET(expr)                                             \
-do {                                                                    \
-	MFC_STATUS ret = (expr);                                            \
-	if (MFC_STATUS_OK != ret) {                                         \
+#define DAL_CHECK_MFC_RET(expr)								\
+	do {										\
+		MFC_STATUS ret = (expr);						\
+		if (MFC_STATUS_OK != ret) {						\
 			pr_debug("DISP/DAL " "Warning: call MFC_XXX function failed "	\
-		   "in %s(), line: %d, ret: %x\n",                          \
-		   __func__, __LINE__, ret);                            \
-	    return ret;                                                     \
-	}                                                                   \
-} while (0)
+				"in %s(), line: %d, ret: %x\n",				\
+				__func__, __LINE__, ret);				\
+			return ret;							\
+		}									\
+	} while (0)
+
 
 
 #define DAL_CHECK_DISP_RET(expr)                                            \
@@ -87,7 +88,7 @@ static unsigned int dal_bg_color = RGB888_To_RGB565(DAL_COLOR_RED);
 /* DECLARE_MUTEX(dal_sem); */
 DEFINE_SEMAPHORE(dal_sem);
 
-static char dal_print_buffer[1024];
+static char dal_print_buffer[2048];
 /* --------------------------------------------------------------------------- */
 
 
@@ -321,9 +322,6 @@ DAL_STATUS DAL_Printf(const char *fmt, ...)
 	DAL_STATUS ret = DAL_STATUS_OK;
 	disp_session_input_config session_input;
 	disp_input_config *input;
-
-	/* pr_debug("[MTKFB_DAL] DAL_Printf mfc_handle=0x%08X, fmt=0x%08X\n",
-	mfc_handle, fmt); */
 
 	DISPFUNC();
 

@@ -47,4 +47,15 @@ extern void charging_ic_deactive(void);
 extern void rt9536_charging_enable(unsigned int set_current, unsigned int enable);
 extern unsigned char rt9536_check_eoc_status(void);
 
+extern kal_uint32 upmu_get_reg_value(kal_uint32 reg);
+extern bool mt_usb_is_device(void);
+extern void Charger_Detect_Init(void);
+extern void Charger_Detect_Release(void);
+extern int hw_charging_get_charger_type(void);
+extern void mt_power_off(void);
+extern kal_uint32 mt6311_get_chip_id(void);
+extern int is_mt6311_exist(void);
+extern int is_mt6311_sw_ready(void);
+
+
 #endif /* __LINUX_MAX8971_CHARGER_H */

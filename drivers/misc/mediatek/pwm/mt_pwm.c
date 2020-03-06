@@ -1714,6 +1714,12 @@ PWMDBG("pwm base: 0x%p\n", pwm_base);
 #else
 //	request_irq(69, mt_pwm_irq, IRQF_TRIGGER_LOW, "mt6589_pwm", NULL);
 #endif
+	mt_pwm_power_on(PWM1, false);
+	mt_pwm_power_on(PWM2, false);
+	mt_pwm_power_on(PWM3, false);
+	mt_pwm_power_off(PWM1, false);
+	mt_pwm_power_off(PWM2, false);
+	mt_pwm_power_off(PWM3, false);
 
 	return RSUCCESS;
 }

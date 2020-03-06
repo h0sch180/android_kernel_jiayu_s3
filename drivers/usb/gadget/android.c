@@ -71,15 +71,31 @@ static const char longname[] = "Gadget Android";
 #define VENDOR_ID		0x0BB4
 #define PRODUCT_ID		0x0001
 
-/* Default manufacturer and product string , overridden by userspace */
-#define MANUFACTURER_STRING "Jiayu"
-#define PRODUCT_STRING "S3"
+/* f_midi configuration */
+#define MIDI_INPUT_PORTS    1
+#define MIDI_OUTPUT_PORTS   1
+#define MIDI_BUFFER_SIZE    256
+#define MIDI_QUEUE_LENGTH   32
+
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+#include <mach/mt_boot_common.h>
+#define KPOC_USB_FUNC "mtp"
+#define KPOC_USB_VENDOR_ID 0x0E8D
+#define KPOC_USB_PRODUCT_ID 0x2008
+extern BOOTMODE g_boot_mode;
+#endif
 
 /* f_midi configuration */
 #define MIDI_INPUT_PORTS    1
 #define MIDI_OUTPUT_PORTS   1
 #define MIDI_BUFFER_SIZE    256
 #define MIDI_QUEUE_LENGTH   32
+
+/* Default manufacturer and product string , overridden by userspace */
+#define MANUFACTURER_STRING "MediaTek"
+#define PRODUCT_STRING "MT65xx Android Phone"
+
+//#define USB_LOG "USB"
 
 struct android_usb_function {
 	char *name;
@@ -1549,6 +1565,10 @@ static int mass_storage_function_init(struct android_usb_function *f,
 
 static void mass_storage_function_cleanup(struct android_usb_function *f)
 {
+	struct mass_storage_function_config *config;
+
+	config = f->config;
+	fsg_common_put(config->common);
 	kfree(f->config);
 	f->config = NULL;
 }
@@ -1882,6 +1902,7 @@ static struct android_usb_function *supported_functions[] = {
 	&mass_storage_function,
 	&accessory_function,
 	&audio_source_function,
+	&midi_function,
 #ifdef CONFIG_MTK_C2K_SUPPORT
 	&rawbulk_modem_function,
 	&rawbulk_ets_function,
@@ -1892,7 +1913,6 @@ static struct android_usb_function *supported_functions[] = {
 #ifdef CONFIG_USB_F_LOOPBACK
 	&loopback_function,
 #endif
-	&midi_function,
 	NULL
 };
 
@@ -2073,8 +2093,20 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 
 	INIT_LIST_HEAD(&dev->enabled_functions);
 
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	if (g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+		pr_notice("[USB]KPOC, func%s\n", KPOC_USB_FUNC);
+		err = android_enable_function(dev, KPOC_USB_FUNC);
+		if (err)
+			pr_err("android_usb: Cannot enable '%s' (%d)",
+					KPOC_USB_FUNC, err);
+		mutex_unlock(&dev->mutex);
+		return size;
+	}
+#endif
+
 	/* Added for USB Develpment debug, more log for more debuging help */
-	pr_notice("[USB]%s: \n", __func__);
+	pr_notice("[USB]%s\n", __func__);
 	/* Added for USB Develpment debug, more log for more debuging help */
 
 	strlcpy(buf, buff, sizeof(buf));
@@ -2168,6 +2200,13 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		 */
 		cdev->desc.idVendor = device_desc.idVendor;
 		cdev->desc.idProduct = device_desc.idProduct;
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	if (g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+			pr_notice("[USB]KPOC, vid:%d, pid:%d\n", KPOC_USB_VENDOR_ID, KPOC_USB_PRODUCT_ID);
+			cdev->desc.idVendor = __constant_cpu_to_le16(KPOC_USB_VENDOR_ID);
+			cdev->desc.idProduct = __constant_cpu_to_le16(KPOC_USB_PRODUCT_ID);
+		}
+#endif
 		cdev->desc.bcdDevice = device_desc.bcdDevice;
 		cdev->desc.bDeviceClass = device_desc.bDeviceClass;
 		cdev->desc.bDeviceSubClass = device_desc.bDeviceSubClass;

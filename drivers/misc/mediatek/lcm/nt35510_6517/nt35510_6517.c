@@ -422,7 +422,7 @@ void lcm_setbacklight(unsigned int level)
         printf("%s,lcm_setbacklight level=%d\n", __func__,level);
 	MDELAY(50);
 #else
-	printk("lcm_setbacklight level=%d\n",level);
+	pr_debug("lcm_setbacklight level=%d\n",level);
 #endif
 
 	if(level > 255) 

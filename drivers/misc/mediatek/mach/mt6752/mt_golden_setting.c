@@ -86,20 +86,15 @@
 #define TAG     "[Power/clkmgr] "
 
 #define clk_err(fmt, args...)       \
-    printk(KERN_ERR TAG);           \
-    printk(KERN_CONT fmt, ##args)
+    pr_debug(fmt, ##args)
 #define clk_warn(fmt, args...)      \
-    printk(KERN_WARNING TAG);       \
-    printk(KERN_CONT fmt, ##args)
+    pr_debug(fmt, ##args)
 #define clk_info(fmt, args...)      \
-    printk(KERN_NOTICE TAG);        \
-    printk(KERN_CONT fmt, ##args)
+    pr_debug(fmt, ##args)
 #define clk_dbg(fmt, args...)       \
-    printk(KERN_INFO TAG);          \
-    printk(KERN_CONT fmt, ##args)
+    pr_debug(fmt, ##args)
 #define clk_ver(fmt, args...)       \
-    printk(KERN_DEBUG TAG);         \
-    printk(KERN_CONT fmt, ##args)
+    pr_debug(fmt, ##args)
 
 #endif
 
@@ -113,8 +108,8 @@
 #define FUNC_LV_MASK        (FUNC_LV_API | FUNC_LV_LOCKED | FUNC_LV_BODY | FUNC_LV_OP | FUNC_LV_REG_ACCESS | FUNC_LV_DONT_CARE)
 
 #if defined(CONFIG_CLKMGR_SHOWLOG)
-#define ENTER_FUNC(lv)      do { if (lv & FUNC_LV_MASK) pr_debug(">> %s()\n", __FUNCTION__); } while(0)
-#define EXIT_FUNC(lv)       do { if (lv & FUNC_LV_MASK) pr_debug("<< %s():%d\n", __FUNCTION__, __LINE__); } while(0)
+#define ENTER_FUNC(lv)      do { if (lv & FUNC_LV_MASK) pr_debug(">> %s()\n", __func__); } while(0)
+#define EXIT_FUNC(lv)       do { if (lv & FUNC_LV_MASK) pr_debug("<< %s():%d\n", __func__, __LINE__); } while(0)
 #else
 #define ENTER_FUNC(lv)
 #define EXIT_FUNC(lv)
@@ -129,30 +124,30 @@
 #if defined(CONFIG_CLKMGR_EMULATION)   // XXX: NOT ACCESS REGISTER
 
 #define clk_readl(addr) \
-    ((FUNC_LV_REG_ACCESS & FUNC_LV_MASK) ? pr_debug("clk_readl("HEX_FMT") @ %s():%d\n", (addr), __FUNCTION__, __LINE__) : 0, 0)
+    ((FUNC_LV_REG_ACCESS & FUNC_LV_MASK) ? pr_debug("clk_readl("HEX_FMT") @ %s():%d\n", (addr), __func__, __LINE__) : 0, 0)
 
 #define clk_writel(addr, val)   \
-    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_writel("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __FUNCTION__, __LINE__); } while(0)
+    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_writel("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __func__, __LINE__); } while(0)
 
 #define clk_setl(addr, val) \
-    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_setl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __FUNCTION__, __LINE__); } while(0)
+    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_setl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __func__, __LINE__); } while(0)
 
 #define clk_clrl(addr, val) \
-    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_clrl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __FUNCTION__, __LINE__); } while(0)
+    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_clrl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __func__, __LINE__); } while(0)
 
 #else                           // XXX: ACCESS REGISTER
 
 #define clk_readl(addr) \
-    ((FUNC_LV_REG_ACCESS & FUNC_LV_MASK) ? pr_debug("clk_readl("HEX_FMT") @ %s():%d\n", (addr), __FUNCTION__, __LINE__) : 0, DRV_Reg32(addr))
+    ((FUNC_LV_REG_ACCESS & FUNC_LV_MASK) ? pr_debug("clk_readl("HEX_FMT") @ %s():%d\n", (addr), __func__, __LINE__) : 0, DRV_Reg32(addr))
 
 #define clk_writel(addr, val)   \
-    do { unsigned int value; if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_writel("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (value = val), __FUNCTION__, __LINE__); mt65xx_reg_sync_writel((value), (addr)); } while(0)
+    do { unsigned int value; if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_writel("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (value = val), __func__, __LINE__); mt65xx_reg_sync_writel((value), (addr)); } while(0)
 
 #define clk_setl(addr, val) \
-    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_setl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __FUNCTION__, __LINE__); mt65xx_reg_sync_writel(clk_readl(addr) | (val), (addr)); } while(0)
+    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_setl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __func__, __LINE__); mt65xx_reg_sync_writel(clk_readl(addr) | (val), (addr)); } while(0)
 
 #define clk_clrl(addr, val) \
-    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_clrl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __FUNCTION__, __LINE__); mt65xx_reg_sync_writel(clk_readl(addr) & ~(val), (addr)); } while(0)
+    do { if (FUNC_LV_REG_ACCESS & FUNC_LV_MASK) pr_debug("clk_clrl("HEX_FMT", "HEX_FMT") @ %s():%d\n", (addr), (val), __func__, __LINE__); mt65xx_reg_sync_writel(clk_readl(addr) & ~(val), (addr)); } while(0)
 
 #endif // defined(CONFIG_CLKMGR_EMULATION)
 
@@ -294,7 +289,7 @@ static void __iomem *_golden_io_phys_to_virt(unsigned int addr)
     unsigned int base = addr & (~(unsigned long)REMAP_SIZE_MASK);
     unsigned int offset = addr & (unsigned long)REMAP_SIZE_MASK;
 
-    //clk_dbg("%s: addr=0x%x, base=0x%x, offset=0x%x\n", __FUNCTION__, addr, base, offset);
+    //clk_dbg("%s: addr=0x%x, base=0x%x, offset=0x%x\n", __func__, addr, base, offset);
 
     if (!_golden.phy_base || _golden.phy_base != base)
     {
@@ -321,7 +316,7 @@ static void __iomem *_golden_io_phys_to_virt(unsigned int addr)
 
 static void _golden_write_reg(unsigned int addr, unsigned int mask, unsigned int reg_val)
 {
-	printk(KERN_ALERT "@%s:%d(addr = %X, mask = %X, reg_val = %X)\n", __func__, __LINE__, addr, mask, reg_val);
+	pr_debug("@%s:%d(addr = %X, mask = %X, reg_val = %X)\n", __func__, __LINE__, addr, mask, reg_val);
 
 	if (_is_pmic_addr(addr))
 		pmic_config_interface(addr, reg_val, mask, 0x0);
@@ -676,14 +671,14 @@ static int golden_test_proc_show(struct seq_file *m, void *v)
 			static struct snapshot *snapshot;
 
 			if (0 == 0 // off    // buf_golden_setting_idx
-			    && !strcmp(_golden.func, __FUNCTION__) && (_golden.line == 0)) {
-				snapshot_golden_setting(__FUNCTION__, 0);
+			    && !strcmp(_golden.func, __func__) && (_golden.line == 0)) {
+				snapshot_golden_setting(__func__, 0);
 			}
 
 			while ((0 != buf_golden_setting_idx) || (NULL != (snapshot = _snapshot_consume(&_golden)))) {
 				if (0 == buf_golden_setting_idx) {
 					seq_printf(m, "// @ %s():%d\n", snapshot->func, snapshot->line);
-					printk(KERN_ALERT "// @ %s():%d\n", snapshot->func, snapshot->line);
+					pr_debug("// @ %s():%d\n", snapshot->func, snapshot->line);
 				}
 
 
@@ -704,7 +699,7 @@ static int golden_test_proc_show(struct seq_file *m, void *v)
 								   snapshot->reg_val[i],
 								   _gen_color_str(_golden.buf_golden_setting[i].mask, _golden.buf_golden_setting[i].golden_val, snapshot->reg_val[i])
 								  );
-							printk(KERN_ALERT HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
+							pr_debug(HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
 								   _golden.buf_golden_setting[i].addr,
 								   _golden.buf_golden_setting[i].mask,
 								   snapshot->reg_val[i],
@@ -717,7 +712,7 @@ static int golden_test_proc_show(struct seq_file *m, void *v)
 								   snapshot->reg_val[i],
 								   _gen_mask_str(_golden.buf_golden_setting[i].mask, snapshot->reg_val[i])
 								  );
-							printk(KERN_ALERT HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
+							pr_debug(HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
 								   _golden.buf_golden_setting[i].addr,
 								   _golden.buf_golden_setting[i].mask,
 								   snapshot->reg_val[i],
@@ -730,7 +725,7 @@ static int golden_test_proc_show(struct seq_file *m, void *v)
 								   _golden.buf_golden_setting[i].golden_val,
 								   _gen_diff_str(_golden.buf_golden_setting[i].mask, _golden.buf_golden_setting[i].golden_val, snapshot->reg_val[i])
 								  );
-							printk(KERN_ALERT HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
+							pr_debug(HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\t%s\n",
 								   _golden.buf_golden_setting[i].addr,
 								   _golden.buf_golden_setting[i].mask,
 								   _golden.buf_golden_setting[i].golden_val,
@@ -738,7 +733,7 @@ static int golden_test_proc_show(struct seq_file *m, void *v)
 								  );
 						} else
 							seq_printf(m, HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\n", _golden.buf_golden_setting[i].addr, _golden.buf_golden_setting[i].mask, snapshot->reg_val[i]);
-							printk(KERN_ALERT HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\n", _golden.buf_golden_setting[i].addr, _golden.buf_golden_setting[i].mask, snapshot->reg_val[i]);
+							pr_debug(HEX_FMT"\t"HEX_FMT"\t"HEX_FMT"\n", _golden.buf_golden_setting[i].addr, _golden.buf_golden_setting[i].mask, snapshot->reg_val[i]);
 						}
 
 					if (0) { // ((p - start_p) + (p - page) >= PAGE_SIZE) {

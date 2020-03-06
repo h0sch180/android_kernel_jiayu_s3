@@ -7,7 +7,13 @@ extern struct tpd_device *tpd;
 /* static int tpd_keys_dim[TPD_KEY_COUNT][4] = TPD_KEYS_DIM; */
 static unsigned int tpd_keycnt;
 static int tpd_keys[TPD_VIRTUAL_KEY_MAX] = { 0 };
+#if !defined(CONFIG_LENOVO_CTP_FEATURE)
+#ifdef CONFIG_LENOVO_GESTURE_WAKEUP
+extern int get_array_flag(void);
+#endif
 
+static tpd_suspend_status_flag = 0; //[TSP:jxc add for deleting CONFIG_LENOVO_GESTURE_WAKEUP no error]
+#endif
 static int tpd_keys_dim[TPD_VIRTUAL_KEY_MAX][4];	/* = {0}; */
 static ssize_t mtk_virtual_keys_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -28,9 +34,91 @@ static struct kobj_attribute mtk_virtual_keys_attr = {
 		 },
 	.show = &mtk_virtual_keys_show,
 };
+#if !defined(CONFIG_LENOVO_CTP_FEATURE)
+void set_tpd_suspend_status(int mode)
+{
+	tpd_suspend_status_flag = mode;
+}
+EXPORT_SYMBOL(set_tpd_suspend_status);
 
+int get_tpd_suspend_status(void)
+{
+	return tpd_suspend_status_flag;
+}
+EXPORT_SYMBOL(get_tpd_suspend_status);
+
+static ssize_t lenovo_tpd_suspend_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%d.\n", get_tpd_suspend_status());
+}
+
+static ssize_t lenovo_tpd_suspend_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t size)
+{
+	int mode;
+	int res = sscanf(buf, "%d", &mode);
+	if (res != 1)
+	{
+		printk("%s: [wj]expect 1 numbers\n", __func__);
+	}
+	else
+	{
+		set_tpd_suspend_status(mode);
+	}
+}
+
+static struct kobj_attribute lenovo_tpd_suspend_attr = {
+    .attr = {
+        .name = "tpd_suspend_status",
+        .mode = S_IRUGO | S_IWUSR,
+    },
+    .show = &lenovo_tpd_suspend_show,
+	.store = &lenovo_tpd_suspend_store,
+};
+
+#ifdef CONFIG_LENOVO_READ_FW_ID
+static ssize_t lenovo_tpd_info_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+
+    if(!have_correct_setting)	
+        return sprintf(buf,"[wj]Have not right setting.\n");	
+    else	
+        return sprintf(buf,"name=%s;types=%d;fw_num=0x%08x;\n",tpd_info_t->name,tpd_info_t->types,tpd_info_t->fw_num);
+}
+
+static struct kobj_attribute lenovo_tpd_info_attr = {
+    .attr = {
+        .name = "lenovo_tpd_info",	
+        .mode = S_IRUGO,
+    },
+    .show = &lenovo_tpd_info_show,
+};
+#endif
+#ifdef CONFIG_LENOVO_GESTURE_WAKEUP
+static ssize_t lenovo_flag_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{	
+    return sprintf(buf,"%d\n", get_array_flag());
+}
+
+static struct kobj_attribute lenovo_tpd_flag_attr = {
+    .attr = {
+        .name = "lenovo_flag",
+        .mode = S_IRUGO,
+    },
+    .show = &lenovo_flag_show,
+};
+#endif
+#endif
 static struct attribute *mtk_properties_attrs[] = {
 	&mtk_virtual_keys_attr.attr,
+#if !defined(CONFIG_LENOVO_CTP_FEATURE)
+	&lenovo_tpd_suspend_attr.attr,
+#ifdef CONFIG_LENOVO_READ_FW_ID
+    &lenovo_tpd_info_attr,
+#endif
+#ifdef CONFIG_LENOVO_GESTURE_WAKEUP
+    &lenovo_tpd_flag_attr, 
+#endif
+#endif
 	NULL
 };
 
@@ -69,10 +157,26 @@ void tpd_button_init(void)
 	for (i = 0; i < tpd_keycnt; i++)
 		__set_bit(tpd_keys[i], tpd->dev->keybit);
 	properties_kobj = kobject_create_and_add("board_properties", NULL);
+#if !defined(CONFIG_LENOVO_CTP_FEATURE)
 	if (properties_kobj)
 		ret = sysfs_create_group(properties_kobj, &mtk_properties_attr_group);
 	if (!properties_kobj || ret)
 		printk("failed to create board_properties\n");
+#else
+	if (!properties_kobj) {
+		printk("failed to create board_properties\n");
+		return;
+	}
+
+	ret = sysfs_create_group(properties_kobj, &mtk_properties_attr_group);
+	if (ret)
+		printk("failed to create tpd virtualkeys sys\n");
+
+	ret = le_add_feature_attrs(properties_kobj);
+	if (ret)
+		printk("failed to create tpd feature sys\n");
+
+#endif
 }
 
 void tpd_button(unsigned int x, unsigned int y, unsigned int down)

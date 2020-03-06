@@ -44,6 +44,9 @@
 
 #include "ubi-media.h"
 
+#ifdef CONFIG_MTK_HIBERNATION
+#define IPOH_VOLUME_NANE "ipoh"
+#endif
 //#define MTK_TMP_DEBUG_LOG
 
 /* Maximum number of supported UBI devices */
@@ -593,8 +596,10 @@ struct ubi_device {
 	int max_write_size;
 	struct mtd_info *mtd;
 
+/*
 	void *peb_buf;
 	struct mutex buf_mutex;
+*/
 	struct mutex ckvol_mutex;
 
 	struct ubi_debug_info dbg;
@@ -606,7 +611,7 @@ struct ubi_device {
 	void *oobbuf;
 	int scaning;
 #endif
-#ifdef MTK_IPOH_SUPPORT
+#ifdef CONFIG_MTK_HIBERNATION
 	int ipoh_ops;
 #endif
 
@@ -951,7 +956,7 @@ ubi_zalloc_vid_hdr(const struct ubi_device *ubi, gfp_t gfp_flags)
 {
 	void *vid_hdr;
 
-	vid_hdr = kzalloc(ubi->vid_hdr_alsize, gfp_flags);
+	vid_hdr = vzalloc(ubi->vid_hdr_alsize);
 	if (!vid_hdr)
 		return NULL;
 
@@ -975,7 +980,7 @@ static inline void ubi_free_vid_hdr(const struct ubi_device *ubi,
 	if (!p)
 		return;
 
-	kfree(p - ubi->vid_hdr_shift);
+	vfree(p - ubi->vid_hdr_shift);
 }
 
 /*

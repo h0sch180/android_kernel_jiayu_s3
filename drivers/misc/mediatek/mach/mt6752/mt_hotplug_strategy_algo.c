@@ -433,7 +433,7 @@ void hps_algo_hmp(void)
                         cpumask_clear_cpu(cpu, &little_online_cpumask);
                         --little_num_online;
                         --val;
-						if ((val == 0) || (little_num_online == little_num_base))
+                        if ((val == 0) || (little_num_online == little_num_base))
                             break;
                     }
                 }
@@ -687,7 +687,7 @@ void hps_algo_smp(void)
                         cpu_up(cpu);
                         cpumask_set_cpu(cpu, &little_online_cpumask);
                         ++little_num_online;
-					    --val;
+                        --val;
                         if ((val == 0) || (little_num_online == little_num_limit))
                             break;
                     }
@@ -788,7 +788,7 @@ void hps_algo_smp(void)
                         cpumask_clear_cpu(cpu, &little_online_cpumask);
                         --little_num_online;
                         --val;
-					    if ((val == 0) || (little_num_online == little_num_base))
+                        if ((val == 0) || (little_num_online == little_num_base))
                             break;
                     }
                 }

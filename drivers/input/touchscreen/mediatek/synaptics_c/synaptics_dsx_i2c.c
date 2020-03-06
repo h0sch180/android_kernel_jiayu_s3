@@ -33,14 +33,14 @@
 #include <mach/mt_boot.h>
 #include "cust_gpio_usage.h"
 #include "tpd.h"
-
+#include <vibrator_hal.h>
 #include "synaptics_dsx_i2c.h"
 #include "synaptics_dsx.h"
 #include "tpd_custom_synaptics.h"
-
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#define VANZO_TOUCHPANEL_GESTURES_SUPPORT 
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
 static bool _is_enter_gestures_mode = false;
-static int _is_gestures_wakup_enable = 0;
+static int _is_gestures_wakup_enable = 1;
 static int tpd_gestrue_keys[] = {KEY_RIGHT,KEY_LEFT,KEY_UP,KEY_DOWN,KEY_U,KEY_O,KEY_W,KEY_M,KEY_E,KEY_C};
 #define TPD_GESTRUE_KEY_CNT (sizeof( tpd_gestrue_keys )/sizeof( tpd_gestrue_keys[0] ))
 #endif
@@ -77,7 +77,7 @@ static int tpd_gestrue_keys[] = {KEY_RIGHT,KEY_LEFT,KEY_UP,KEY_DOWN,KEY_U,KEY_O,
 #define RPT_WY (1 << 7)
 #define RPT_DEFAULT (RPT_TYPE | RPT_X_LSB | RPT_X_MSB | RPT_Y_LSB | RPT_Y_MSB)
 
-#define EXP_FN_WORK_DELAY_MS 1000 /* ms */
+#define EXP_FN_WORK_DELAY_MS 200 /* ms */
 #define SYN_I2C_RETRY_TIMES 10
 #define MAX_F11_TOUCH_WIDTH 15
 
@@ -414,7 +414,7 @@ struct synaptics_rmi4_exp_fn_data {
 
 static struct synaptics_rmi4_exp_fn_data exp_data;
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
 static ssize_t gtp_gesture_wakeup_show(struct device *dev,struct device_attribute *attr,char *buf)
 {
     ssize_t num_read_chars = 0;
@@ -478,11 +478,9 @@ static struct device_attribute attrs[] = {
     __ATTR(suspend, S_IWUGO,
             synaptics_rmi4_show_error,
             synaptics_rmi4_suspend_store),
-#if 0 //def CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
     __ATTR(gesture, (S_IWUGO| S_IRUGO),
             gtp_gesture_wakeup_show,
             gtp_gesture_wakeup_store),
-#endif
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -924,7 +922,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
     int temp;
     int is_insivible_area = -1; // up
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT		
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT		
     u8 data6 = 0x00;
     unsigned char data7[8] = {0};
     u8 data8 = 0x00;
@@ -941,18 +939,19 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
         switch(data6)
         {
             case 0x01:
-                /*
                    input_report_key(rmi4_data->input_dev, KEY_POWER, 1);
                    input_sync(rmi4_data->input_dev);
+                vibr_Enable_HW();
+                msleep(50);
+                vibr_Disable_HW();
                    input_report_key(rmi4_data->input_dev, KEY_POWER, 0);
                    input_sync(rmi4_data->input_dev);
-                 */
                 key_value = KEY_U;
                 break;			
             case 0x40:
 
                 synaptics_rmi4_i2c_read(rmi4_data, 0x4c, data7, 8);
-                printk("%s data7[]=[%x]\n", __func__,data7);
+                printk("%s data7[]=[%s]\n", __func__,data7);
                 data9=data7[6];
                 printk("%s data9=[%x]\n", __func__,data9);
                 switch (data9)
@@ -1188,7 +1187,7 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
     static unsigned char fingers_already_present;
 #endif
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT		
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT		
 	unsigned char data6[5]={0};
 
 	if(_is_gestures_wakup_enable && _is_enter_gestures_mode)
@@ -1351,7 +1350,7 @@ static void synaptics_rmi4_f1a_report(struct synaptics_rmi4_data *rmi4_data,
     static bool while_2d_status[MAX_NUMBER_OF_BUTTONS];
 #endif
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT		
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT		
     if(_is_gestures_wakup_enable && _is_enter_gestures_mode)
         return;
 #endif
@@ -3027,7 +3026,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
     }
     synaptics_rmi4_i2c_read(rmi4_data, rmi4_data->f01_query_base_addr+12, &data20, 1);
     printk("%s data20=[%x]\n", __func__,data20);
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
     input_set_capability(rmi4_data->input_dev, EV_KEY, KEY_POWER);
 
     for(attr_count=0; attr_count<TPD_GESTRUE_KEY_CNT; attr_count++)
@@ -3125,7 +3124,7 @@ static int synaptics_rmi4_remove(struct i2c_client *client)
  */
 static void synaptics_rmi4_sensor_sleep(struct synaptics_rmi4_data *rmi4_data)
 {
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
     if (!_is_gestures_wakup_enable)
 #endif        
     {
@@ -3233,7 +3232,7 @@ static void synaptics_rmi4_early_suspend(struct early_suspend *h)
         rmi4_data->staying_awake = false;
     }
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
     if(_is_gestures_wakup_enable){
         rmi4_data->touch_stopped = false;
         synaptics_rmi4_irq_enable(rmi4_data, true);
@@ -3324,7 +3323,7 @@ static int synaptics_rmi4_suspend(struct device *dev)
 {
     struct synaptics_rmi4_exp_fhandler *exp_fhandler;
     struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(g_dev);
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
     u8 data1 = 0x0c;
     u8 data2 = 0;
 	u8 data[3] ={0};
@@ -3394,7 +3393,7 @@ static int synaptics_rmi4_resume(struct device *dev)
     struct synaptics_rmi4_exp_fhandler *exp_fhandler;
     struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(g_dev);
 
-#ifdef CONFIG_VANZO_TOUCHPANEL_GESTURES_SUPPORT
+#ifdef VANZO_TOUCHPANEL_GESTURES_SUPPORT
     unsigned char data3 =0x00;
     unsigned char data4 =0x00;
     unsigned char data5 = 0x01;

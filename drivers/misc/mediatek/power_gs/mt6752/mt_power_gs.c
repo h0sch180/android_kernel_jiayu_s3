@@ -68,12 +68,12 @@ static void mt_power_gs_compare_pll(void)
 
 	for (i = 0; i < NR_PLLS; i++) {
 		if (pll_is_on(i))
-			printk("%s: on\n", plls[i].name);
+			pr_err("%s: on\n", plls[i].name);
 	}
 
 	for (i = 0; i < NR_SYSS; i++) {
 		if (subsys_is_on(i))
-			printk("%s: on\n", subsyss[i].name);
+			pr_err("%s: on\n", subsyss[i].name);
 	}
 }
 */
@@ -83,13 +83,14 @@ void mt_power_gs_diff_output(unsigned int val1, unsigned int val2)
 	unsigned int diff = val1 ^ val2;
 
 	while (diff != 0) {
-		if ((diff % 2) != 0) printk("%d ", i);
+		if ((diff % 2) != 0)
+			pr_err("%d ", i);
 
 		diff /= 2;
 		i++;
 	}
 
-	printk("\n");
+	pr_err("\n");
 }
 
 void mt_power_gs_compare(char *scenario, \
@@ -104,7 +105,7 @@ void mt_power_gs_compare(char *scenario, \
 		val2 = pmic_6325_gs[i + 2] & pmic_6325_gs[i + 1];
 
 		if (val1 != val2) {
-			printk("%s - 6325 - 0x%x - 0x%x - 0x%x - 0x%x - ", \
+			pr_err("%s - 6325 - 0x%x - 0x%x - 0x%x - 0x%x - ", \
 			       scenario, pmic_6325_gs[i], gs6325_pmic_read(pmic_6325_gs[i]),
 			       pmic_6325_gs[i + 1], pmic_6325_gs[i + 2]);
 			mt_power_gs_diff_output(val1, val2);
@@ -125,7 +126,7 @@ static int __init mt_power_gs_init(void)
 	mt_power_gs_dir = proc_mkdir("mt_power_gs", NULL);
 
 	if (!mt_power_gs_dir)
-		printk("[%s]: mkdir /proc/mt_power_gs failed\n", __FUNCTION__);
+		pr_err("[%s]: mkdir /proc/mt_power_gs failed\n", __func__);
 
 	return 0;
 }

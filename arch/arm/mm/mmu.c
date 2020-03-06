@@ -49,8 +49,6 @@ EXPORT_SYMBOL(empty_zero_page);
  */
 pmd_t *top_pmd;
 
-pmdval_t user_pmd_table = _PAGE_USER_TABLE;
-
 #define CPOLICY_UNCACHED	0
 #define CPOLICY_BUFFERED	1
 #define CPOLICY_WRITETHROUGH	2
@@ -461,25 +459,6 @@ static void __init build_mem_type_table(void)
 	s2_pgprot = cp->pte_s2;
 	hyp_device_pgprot = s2_device_pgprot = mem_types[MT_DEVICE].prot_pte;
 
-#ifndef CONFIG_ARM_LPAE
-	/*
-	 * We don't use domains on ARMv6 (since this causes problems with
-	 * v6/v7 kernels), so we must use a separate memory type for user
-	 * r/o, kernel r/w to map the vectors page.
-	 */
-	if (cpu_arch == CPU_ARCH_ARMv6)
-		vecs_pgprot |= L_PTE_MT_VECTORS;
-
-	/*
-	 * Check is it with support for the PXN bit
-	 * in the Short-descriptor translation table format descriptors.
-	 */
-	if (cpu_arch == CPU_ARCH_ARMv7 &&
-		(read_cpuid_ext(CPUID_EXT_MMFR0) & 0xF) >= 4) {
-		user_pmd_table |= PMD_PXNTABLE;
-	}
-#endif
-
 	/*
 	 * We don't use domains on ARMv6 (since this causes problems with
 	 * v6/v7 kernels), so we must use a separate memory type for user
@@ -554,11 +533,6 @@ static void __init build_mem_type_table(void)
 	}
 	kern_pgprot |= PTE_EXT_AF;
 	vecs_pgprot |= PTE_EXT_AF;
-
-	/*
-	 * Set PXN for user mappings
-	 */
-	user_pgprot |= PTE_EXT_PXN;
 #endif
 
 	for (i = 0; i < 16; i++) {
@@ -734,7 +708,7 @@ static void __init alloc_init_pmd(pud_t *pud, unsigned long addr,
 }
 
 static void __init alloc_init_pud(pgd_t *pgd, unsigned long addr,
-	unsigned long end, unsigned long phys, const struct mem_type *type,
+	unsigned long end, phys_addr_t phys, const struct mem_type *type,
 	bool force_pages)
 {
 	pud_t *pud = pud_offset(pgd, addr);
@@ -1357,7 +1331,6 @@ static void __init map_lowmem(void)
 	struct memblock_region *reg;
 	phys_addr_t start;
 	phys_addr_t end;
-	phys_addr_t limit = 0;
 	struct map_desc map;
 
 	/* Map all the lowmem memory banks. */
@@ -1379,11 +1352,9 @@ static void __init map_lowmem(void)
 		map.length = end - start;
 		map.type = MT_MEMORY;
 
-		if (!limit && !(end & ~SECTION_MASK)) {
-			/* take first section-size aligned memblock */
-			limit = end;
-			memblock_set_current_limit(limit);
-		}
+		if (!(end & ~SECTION_MASK))
+			memblock_set_current_limit(end);
+
                 printk(KERN_ALERT"creating mapping start pa: 0x%08llx @ 0x%08llx "
                         ", end pa: 0x%08llx @ 0x%08llx\n",
                        (unsigned long long)start, (unsigned long long)map.virtual,

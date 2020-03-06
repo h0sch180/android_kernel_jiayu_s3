@@ -63,6 +63,16 @@ static inline suspend_state_t pm_autosleep_state(void)
 /* kernel/power/wakelock.c */
 extern int pm_wake_lock(const char *buf);
 extern int pm_wake_unlock(const char *buf);
+#else
+int pm_wake_lock(const char *buf)
+{
+	return 0;
+}
+
+int pm_wake_unlock(const char *buf)
+{
+	return 0;
+}
 #endif				/* !CONFIG_PM_WAKELOCKS */
 
 /* HOTPLUG */

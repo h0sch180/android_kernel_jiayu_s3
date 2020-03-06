@@ -34,6 +34,7 @@
 #include <linux/random.h>
 #include <linux/scatterlist.h>
 #include <linux/spinlock_types.h>
+#include <linux/namei.h>
 
 #include "ext4_extents.h"
 #include "xattr.h"
@@ -393,7 +394,7 @@ int ext4_encrypted_zeroout(struct inode *inode, struct ext4_extent *ex)
 	struct ext4_crypto_ctx	*ctx;
 	struct page		*ciphertext_page = NULL;
 	struct bio		*bio;
-	ext4_lblk_t		lblk = ex->ee_block;
+	ext4_lblk_t		lblk = le32_to_cpu(ex->ee_block);
 	ext4_fsblk_t		pblk = ext4_ext_pblock(ex);
 	unsigned int		len = ext4_ext_get_actual_len(ex);
 	int			ret, err = 0;
@@ -484,6 +485,9 @@ static int ext4_d_revalidate(struct dentry *dentry, unsigned int flags)
 	struct dentry *dir;
 	struct ext4_crypt_info *ci;
 	int dir_has_key, cached_with_key;
+
+	if (flags & LOOKUP_RCU)
+		return -ECHILD;
 
 	dir = dget_parent(dentry);
 	if (!ext4_encrypted_inode(d_inode(dir))) {

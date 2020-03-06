@@ -96,14 +96,18 @@ static void StopAudioI2S0AWBHardware(struct snd_pcm_substream *substream)
 {
     printk("StopAudioI2S0AWBHardware \n");
 
+#if 0 /* for 4-pin I2S control, implemented in Audio_i2s0_SideGen_Set */
     SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2, false);
+#endif
     SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_AWB, false);
 
     // here to set interrupt
     SetIrqEnable(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, false);
 
+#if 0 /* for 4-pin I2S control, implemented in Audio_i2s0_SideGen_Set */
     // stop I2S
     Afe_Set_Reg(AFE_I2S_CON, 0x0, 0x1);
+#endif
 
     // here to turn off digital part
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I00, Soc_Aud_InterConnectionOutput_O05);
@@ -116,14 +120,17 @@ static void StartAudioI2S0AWBHardware(struct snd_pcm_substream *substream)
 {
     struct snd_pcm_runtime *runtime = substream->runtime;
 
+#if 0 /* for 4-pin I2S control, implemented in Audio_i2s0_SideGen_Set */
     uint32 Audio_I2S_Dac = 0;
     uint32 MclkDiv0 = 0;
 
     const bool bEnablePhaseShiftFix = true;
+#endif
 
     printk("StartAudioI2S0AWBHardware \n");
 
 
+#if 0 /* for 4-pin I2S control, implemented in Audio_i2s0_SideGen_Set */
     MclkDiv0 = SetCLkMclk(Soc_Aud_I2S0, runtime->rate); //select I2S
     SetCLkBclk(MclkDiv0,  runtime->rate, runtime->channels, Soc_Aud_I2S_WLEN_WLEN_32BITS);
     
@@ -137,15 +144,18 @@ static void StartAudioI2S0AWBHardware(struct snd_pcm_substream *substream)
     Audio_I2S_Dac |= (Soc_Aud_I2S_FORMAT_I2S << 3);
     Audio_I2S_Dac |= (Soc_Aud_I2S_WLEN_WLEN_32BITS << 1);
     Afe_Set_Reg(AFE_I2S_CON, Audio_I2S_Dac | 0x1, MASK_ALL);
+#endif
 
     // here to set interrupt
-    SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, substream->runtime->period_size >> 1);
+	SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, substream->runtime->period_size >> 1);
     SetIrqMcuSampleRate(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, substream->runtime->rate);
     SetIrqEnable(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, true);
 
     SetSampleRate(Soc_Aud_Digital_Block_MEM_AWB, substream->runtime->rate);
     SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_AWB, true);
+#if 0 /* for 4-pin I2S control, implemented in Audio_i2s0_SideGen_Set */
     SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2, true);
+#endif
 
     // here to turn off digital part
     SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I00, Soc_Aud_InterConnectionOutput_O05);
@@ -174,14 +184,14 @@ static snd_pcm_uframes_t mtk_i2s0_awb_pcm_pointer(struct snd_pcm_substream *subs
 {
     kal_int32 HW_memory_index = 0;
     kal_int32 HW_Cur_ReadIdx = 0;
-    kal_uint32 Frameidx =0;
+	kal_uint32 Frameidx = 0;
     AFE_BLOCK_T *Awb_Block = &(I2S0_AWB_Control_context->rBlock);
-    PRINTK_AUD_AWB("mtk_i2s0_awb_pcm_pointer Awb_Block->u4WriteIdx;= 0x%x \n",Awb_Block->u4WriteIdx);
+	PRINTK_AUD_AWB("mtk_i2s0_awb_pcm_pointer Awb_Block->u4WriteIdx;= 0x%x\n", Awb_Block->u4WriteIdx);
     if (GetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_AWB) == true)
     {
         // get total bytes to copysinewavetohdmi
-        Frameidx =audio_bytes_to_frame(substream , Awb_Block->u4WriteIdx);
-        return Frameidx;
+		Frameidx = audio_bytes_to_frame(substream , Awb_Block->u4WriteIdx);
+		return Frameidx;
 #if 0
         HW_Cur_ReadIdx = Align64ByteSize(Afe_Get_Reg(AFE_AWB_CUR));
         if (HW_Cur_ReadIdx == 0)
@@ -241,6 +251,7 @@ static int mtk_i2s0_awb_pcm_hw_params(struct snd_pcm_substream *substream,
         runtime->dma_bytes = params_buffer_bytes(hw_params);
         runtime->dma_area = Awb_Capture_dma_buf->area;
         runtime->dma_addr = Awb_Capture_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_AWB,true);
     }
     else
     {
@@ -325,6 +336,7 @@ static int mtk_i2s0_awb_pcm_open(struct snd_pcm_substream *substream)
 
 static int mtk_i2s0_awb_pcm_close(struct snd_pcm_substream *substream)
 {
+    AudDrv_Clk_Off();
     return 0;
 }
 

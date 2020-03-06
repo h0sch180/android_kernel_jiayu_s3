@@ -165,7 +165,7 @@ do{ \
       memcpy(log_info+total_msg_size, autok_single, autok_size);    \
       total_msg_size += autok_size; \
     }   \
-    printk(KERN_ERR "[AUTO_K]" _fmt, ## args);   \
+	pr_debug("[AUTO_K]" _fmt, ## args);   \
 }while(0)
 #endif
 
@@ -576,8 +576,8 @@ int autok_start_rw(struct msdc_host *host, u8 *value, unsigned size, unsigned bl
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        printk("[%s][SD%d] register abnormal,please check!\n",__func__, host->id);
-        msdc_reset_hw(host->id);
+		pr_err("[%s][SD%d] register abnormal,please check!\n", __func__, host->id);
+		msdc_reset_hw(host->id);
     }
     
     if((ret = msdc_do_command(host, cmd, 0, CMD_TIMEOUT)) != 0)
@@ -614,14 +614,14 @@ int autok_io_rw_extended(struct msdc_host *host, unsigned int u4Addr, unsigned i
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        printk("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
-        return -1;
+		pr_err("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+		return -1;
     }
     
     if( u4Len < 4 )
     {
-        printk("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
-        return -1;
+		pr_err("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
+		return -1;
     }
     
     /* Setup mrq */
@@ -704,14 +704,14 @@ int autok_io_rw_direct(struct msdc_host *host, unsigned int u4Addr, unsigned int
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        printk("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
-        return -1;
+		pr_err("[%s] [ERR] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+		return -1;
     }
     
     if( u4Len > 1 )
     {
-        printk("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
-        return -1;
+		pr_err("[%s] [ERR] u4Len = %d\n", __func__, u4Len);
+		return -1;
     }
     
     /* Setup mrq */
@@ -734,8 +734,8 @@ int autok_io_rw_direct(struct msdc_host *host, unsigned int u4Addr, unsigned int
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        printk("[%s][SD%d] register abnormal,please check!\n",__func__, host->id);
-        msdc_reset_hw(host->id);
+		pr_err("[%s][SD%d] register abnormal,please check!\n", __func__, host->id);
+		msdc_reset_hw(host->id);
     }
     
     if((ret = msdc_do_command(host, &cmd, 0, CMD_TIMEOUT)) != 0)
@@ -831,15 +831,15 @@ int msdc_autok_read(struct msdc_host *host, unsigned int u4Addr, unsigned int u4
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        printk("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
-        return -1;
+		pr_err("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+		return -1;
     }
         
     if( ((u4Cmd == CMD_53) && (u4Len < 4)) ||
         ((u4Cmd == CMD_52) && (u4Len > 1)) )
     {
-        printk("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
-        return -1;
+		pr_err("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
+		return -1;
     }
     
     if(u4Cmd == CMD_53)
@@ -848,8 +848,8 @@ int msdc_autok_read(struct msdc_host *host, unsigned int u4Addr, unsigned int u4
         ret = autok_io_rw_direct(host, u4Addr, u4Func, pBuffer, u4Len, 0);
     else
     {
-        printk("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
-        ret = -1;
+		pr_err("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
+		ret = -1;
     }
     
     return ret;
@@ -879,15 +879,15 @@ int msdc_autok_write(struct msdc_host *host, unsigned int u4Addr, unsigned int u
     
     if((pBuffer==NULL) || (host==NULL))
     {
-        printk("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
-        return -1;
+		pr_err("[%s] pBuffer = %p, host = %p\n", __func__, pBuffer, host);
+		return -1;
     }
         
     if( ((u4Cmd == CMD_53) && (u4Len < 4)) ||
         ((u4Cmd == CMD_52) && (u4Len > 1)) )
     {
-        printk("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
-        return -1;
+		pr_err("[%s] u4Cmd = %d, u4Len = %d\n", __func__, u4Cmd, u4Len);
+		return -1;
     }
 
     if(u4Cmd == CMD_53)
@@ -896,8 +896,8 @@ int msdc_autok_write(struct msdc_host *host, unsigned int u4Addr, unsigned int u
         ret = autok_io_rw_direct(host, u4Addr, u4Func, pBuffer, u4Len, 1);
     else
     {
-        printk("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
-        ret = -1;
+		pr_err("[%s] Doesn't support u4Cmd = %d\n", __func__, u4Cmd);
+		ret = -1;
     }
 
     return ret;
@@ -933,8 +933,8 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for CMD_EDGE is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CMD_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		return -1;
             }
             reg = (ulong)(MSDC_IOCON);
             field = (u32)(MSDC_IOCON_RSPL);
@@ -942,8 +942,8 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case RDATA_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for RDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for RDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		return -1;
             }
             reg = (ulong)(MSDC_IOCON);
             field = (u32)(MSDC_IOCON_R_D_SMPL);
@@ -951,8 +951,8 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WDATA_EDGE:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for WDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for WDATA_EDGE is out of range, it should be [0~1]\n", __func__, *value);
+		return -1;
             }
             reg = (ulong)(MSDC_IOCON);
             field = (u32)(MSDC_IOCON_W_D_SMPL);
@@ -961,14 +961,14 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CLK_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for CLK_DRV is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CLK_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		return -1;
             }
                 
             if(host->id != 2)
             {
-                printk("[%s] MSDC%d doesn't support AUTO K\n", __func__, host->id);
-                return -1;
+		pr_err("[%s] MSDC%d doesn't support AUTO K\n", __func__, host->id);
+		return -1;
             }
 
             reg = (ulong)(MSDC2_GPIO_CLK_BASE);
@@ -977,14 +977,14 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for CMD_DRV is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CMD_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		return -1;
             }
             
             if(host->id != 2)
             {
-                printk("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
-                return -1;
+		pr_err("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
+		return -1;
             }
 
             reg = (ulong)(MSDC2_GPIO_CMD_BASE);
@@ -993,14 +993,14 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_DRV:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for DAT_DRV is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT_DRV is out of range, it should be [0~7]\n", __func__, *value);
+		return -1;
             }
             
             if(host->id != 2)
             {
-                printk("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
-                return -1;
+		pr_err("[%s] MSDC%d doesn't support on AUTO K\n", __func__, host->id);
+		return -1;
             }
 
             reg = (ulong)(MSDC2_GPIO_DAT_BASE);
@@ -1010,8 +1010,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT0_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT0_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT0_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_DAT_RDDLY0);
@@ -1020,8 +1021,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT1_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT1_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT1_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_DAT_RDDLY0);
@@ -1030,8 +1032,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT2_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT2_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT2_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_DAT_RDDLY0);
@@ -1040,8 +1043,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT3_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT3_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT3_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_DAT_RDDLY0);
@@ -1050,8 +1054,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_WRD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT_WRD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT_WRD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PAD_TUNE);
@@ -1060,8 +1065,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DAT_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for DAT_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DAT_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PAD_TUNE);
@@ -1070,8 +1076,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RESP_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for CMD_RESP_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CMD_RESP_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PAD_TUNE);
@@ -1080,8 +1087,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RD_DLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for CMD_RD_DLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CMD_RD_DLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PAD_TUNE);
@@ -1090,8 +1098,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case DATA_DLYLINE_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for DATA_DLYLINE_SEL is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for DATA_DLYLINE_SEL is out of range, it should be [0~1]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_IOCON);
@@ -1100,8 +1109,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case READ_DATA_SMPL_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for READ_DATA_SMPL_SEL is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for READ_DATA_SMPL_SEL is out of range, it should be [0~1]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_IOCON);
@@ -1110,8 +1120,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WRITE_DATA_SMPL_SEL:
             if((rw == AUTOK_WRITE) && (*value > 1))
             {
-                printk("[%s] Input value(%d) for WRITE_DATA_SMPL_SEL is out of range, it should be [0~1]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for WRITE_DATA_SMPL_SEL is out of range, it should be [0~1]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_IOCON);
@@ -1120,8 +1131,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case INT_DAT_LATCH_CK:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for INT_DAT_LATCH_CK is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for INT_DAT_LATCH_CK is out of range, it should be [0~7]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PATCH_BIT0);
@@ -1130,8 +1142,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CKGEN_MSDC_DLY_SEL:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for CKGEN_MSDC_DLY_SEL is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CKGEN_MSDC_DLY_SEL is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PATCH_BIT0);
@@ -1140,8 +1153,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case CMD_RSP_TA_CNTR:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for CMD_RSP_TA_CNTR is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for CMD_RSP_TA_CNTR is out of range, it should be [0~7]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PATCH_BIT1);
@@ -1150,8 +1164,9 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case WRDAT_CRCS_TA_CNTR:
             if((rw == AUTOK_WRITE) && (*value > 7))
             {
-                printk("[%s] Input value(%d) for WRDAT_CRCS_TA_CNTR is out of range, it should be [0~7]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for WRDAT_CRCS_TA_CNTR is out of range, it should be [0~7]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PATCH_BIT1);
@@ -1160,16 +1175,17 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
         case PAD_CLK_TXDLY:
             if((rw == AUTOK_WRITE) && (*value > 31))
             {
-                printk("[%s] Input value(%d) for PAD_CLK_TXDLY is out of range, it should be [0~31]\n", __func__, *value);
-                return -1;
+		pr_err("[%s] Input value(%d) for PAD_CLK_TXDLY is out of range, it should be [0~31]\n",
+			__func__, *value);
+		return -1;
             }
             
             reg = (ulong)(MSDC_PAD_TUNE);
             field = (u32)(MSDC_PAD_TUNE_CLKTXDLY);
             break;
         default:
-            printk("[%s] Value of [enum AUTOK_PARAM param] is wrong\n", __func__);
-            return -1;
+		pr_err("[%s] Value of [enum AUTOK_PARAM param] is wrong\n", __func__);
+		return -1;
     }
 
     if(rw == AUTOK_READ)
@@ -1187,8 +1203,8 @@ int msdc_autok_adjust_param(struct msdc_host *host, enum AUTOK_PARAM param, u32 
     }
     else
     {
-        printk("[%s] Value of [int rw] is wrong\n", __func__);
-        return -1;
+		pr_err("[%s] Value of [int rw] is wrong\n", __func__);
+		return -1;
     }
 
     return 0;
@@ -1321,7 +1337,7 @@ static E_RESULT_TYPE autok_read_test(struct msdc_host *host)
 
         if(memcmp(g_test_read_pattern, &g_test_write_pattern[i*TUNING_TEST_TIME], 4*TUNING_TEST_TIME) != 0) {
             res = E_RESULT_CMP_ERR;
-            printk("[%s] E_RESULT_CMP_ERR\n", __func__);
+		pr_err("[%s] E_RESULT_CMP_ERR\n", __func__);
             goto end;
         }
     }
@@ -1376,7 +1392,7 @@ static E_RESULT_TYPE autok_cmd_test(struct msdc_host *host)
 
         if(g_test_read_pattern[0] != tuning_data[i]) {
         #ifdef AUTOK_DEBUG
-            printk("write: 0x%x read: 0x%x\r\n", tuning_data[i], g_test_read_pattern[0]);
+		pr_err("write: 0x%x read: 0x%x\r\n", tuning_data[i], g_test_read_pattern[0]);
         #endif
             res = E_RESULT_CMP_ERR;
             goto end;

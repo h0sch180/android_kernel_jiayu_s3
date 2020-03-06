@@ -605,7 +605,8 @@ static int Audio_Irqcnt1_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
     uint32 irq1_cnt =  ucontrol->value.integer.value[0];
     printk("%s(), irq1_cnt = %u\n", __func__, irq1_cnt);
     AudDrv_Clk_On();
-    Afe_Set_Reg(AFE_IRQ_MCU_CNT1, irq1_cnt, 0xffffffff);
+	/* Afe_Set_Reg(AFE_IRQ_MCU_CNT1, irq1_cnt, 0xffffffff); */
+	SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ1_MCU_MODE, irq1_cnt);
     AudDrv_Clk_Off();
     return 0;
 }
@@ -625,7 +626,8 @@ static int Audio_Irqcnt2_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_
     uint32 irq1_cnt =  ucontrol->value.integer.value[0];
     printk("%s()\n", __func__);
     AudDrv_Clk_On();
-    Afe_Set_Reg(AFE_IRQ_MCU_CNT2, irq1_cnt, 0xffffffff);
+	/* Afe_Set_Reg(AFE_IRQ_MCU_CNT2, irq1_cnt, 0xffffffff); */
+	SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ2_MCU_MODE, irq1_cnt);
     AudDrv_Clk_Off();
     return 0;
 }
@@ -842,7 +844,8 @@ static const struct snd_kcontrol_new Audio_snd_routing_controls[] =
 
 void EnAble_Anc_Path(int state)
 {
-    printk("%s not supported!!!\n ", __func__);
+    //K2 todo?
+    printk("%s not supported in K2!!!\n ", __func__);
 
 }
 

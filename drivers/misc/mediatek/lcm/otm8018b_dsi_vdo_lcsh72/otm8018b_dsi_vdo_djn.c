@@ -739,7 +739,7 @@ static unsigned int lcm_esd_check(void)
     unsigned int array[16];
 
 #ifdef ESD_DEBUG
-    printk("lcm_esd_check <<<\n");
+    pr_debug("lcm_esd_check <<<\n");
 #endif
     for (i = 0; i < 12; i++)
         buffer[i] = 0x00;
@@ -756,12 +756,12 @@ static unsigned int lcm_esd_check(void)
     read_reg_v2(0x0A, buffer, 7);
 
 #ifdef ESD_DEBUG
-    printk("lcm_esd_check : read(0x0A)\n");
+    pr_debug("lcm_esd_check : read(0x0A)\n");
 #endif
 
 #ifdef ESD_DEBUG
     for (i = 0; i < 7; i++)
-        printk("buffer[%d] : 0x%x \n", i, buffer[i]);
+        pr_debug("buffer[%d] : 0x%x \n", i, buffer[i]);
 #endif
 
     //---------------------------------
@@ -780,7 +780,7 @@ static unsigned int lcm_esd_check(void)
     }
 
 #ifdef ESD_DEBUG
-    printk("lcm_esd_check err_count = %d\n", err_count);
+    pr_debug("lcm_esd_check err_count = %d\n", err_count);
 #endif
     if ((buffer[0] != 0x9C) || (err_count >= 2))
     {
@@ -788,14 +788,14 @@ static unsigned int lcm_esd_check(void)
         uncount++;
 
 #ifndef BUILD_LK
-        printk("lcm_esd_check failed, err_count = %d\n", err_count);
+        pr_debug("lcm_esd_check failed, err_count = %d\n", err_count);
         for (i = 0; i < 7; i++)
-	        printk("buffer[%d] : 0x%x \n", i, buffer[i]);
+	        pr_debug("buffer[%d] : 0x%x \n", i, buffer[i]);
 #endif
 
 #ifdef ESD_DEBUG
-        printk("lcm_esd_check unnormal uncount = %d\n", uncount);
-        printk("lcm_esd_check >>>\n");
+        pr_debug("lcm_esd_check unnormal uncount = %d\n", uncount);
+        pr_debug("lcm_esd_check >>>\n");
 #endif
         fResult = 1;
     }
@@ -803,8 +803,8 @@ static unsigned int lcm_esd_check(void)
     {
         count ++;
 #ifdef ESD_DEBUG
-        printk("lcm_esd_check normal count = %d\n", count);
-        printk("lcm_esd_check >>>\n");
+        pr_debug("lcm_esd_check normal count = %d\n", count);
+        pr_debug("lcm_esd_check >>>\n");
 #endif
         fResult = 0;
     }
@@ -822,12 +822,12 @@ static unsigned int lcm_esd_check(void)
     read_reg_v2(0xBC, buffer, 12);
 
 #ifdef ESD_DEBUG
-    printk("lcm_esd_check : read(0xBC)\n");
+    pr_debug("lcm_esd_check : read(0xBC)\n");
 #endif
 
 #ifdef ESD_DEBUG
     for (i = 0; i < 12; i++)                 		
-        printk("buffer[%d] : 0x%x \n", i, buffer[i]); 
+        pr_debug("buffer[%d] : 0x%x \n", i, buffer[i]); 
 #endif
 
     if (fResult)
@@ -841,14 +841,14 @@ static unsigned int lcm_esd_recover(void)
     static int recount = 0;
 
 #ifdef ESD_DEBUG
-    printk("lcm_esd_recover\n");
+    pr_debug("lcm_esd_recover\n");
 #endif
 
     lcm_init();
     recount ++;
 
 #ifndef BUILD_LK
-    printk("lcm_esd_recover recover recount = %d\n", recount);
+    pr_debug("lcm_esd_recover recover recount = %d\n", recount);
 #endif
     return TRUE;
 }

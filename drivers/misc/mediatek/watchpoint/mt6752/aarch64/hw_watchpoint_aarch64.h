@@ -1,37 +1,8 @@
-#ifndef __HW_BREAKPOINT_H
-#define __HW_BREAKPOINT_H
+#ifndef __HW_BREAKPOINT_64_H
+#define __HW_BREAKPOINT_64_H
 #include <mach/sync_write.h>
 #include <asm/io.h>
-typedef int (*wp_handler)(unsigned long addr);
-
-struct wp_event
-{
-    unsigned long virt;
-    unsigned long phys;
-    int type;
-    wp_handler handler;
-    int in_use;
-    int auto_disable;
-};
-
-#define WP_EVENT_TYPE_READ 1
-#define WP_EVENT_TYPE_WRITE 2
-#define WP_EVENT_TYPE_ALL 3
-
-#define init_wp_event(__e, __v, __p, __t, __h)   \
-        do {    \
-            (__e)->virt = (__v);    \
-            (__e)->phys = (__p);    \
-            (__e)->type = (__t);    \
-            (__e)->handler = (__h);    \
-            (__e)->auto_disable = 0;    \
-        } while (0)
-
-#define auto_disable_wp(__e)   \
-        do {    \
-            (__e)->auto_disable = 1;    \
-        } while (0)
-
+#include <mach/hw_watchpoint.h>
 
 #define MAX_NR_WATCH_POINT 4  
 struct wp_trace_context_t
@@ -158,9 +129,7 @@ void smp_read_MDSCR_EL1_callback(void *info);
 void smp_write_MDSCR_EL1_callback(void *info);
 void smp_read_OSLSR_EL1_callback(void *info);
 int register_wp_context(struct wp_trace_context_t **wp_tracer_context );
-extern int add_hw_watchpoint(struct wp_event *wp_event);
-extern int del_hw_watchpoint(struct wp_event *wp_event);
 void __iomem* get_wp_base(void);
 
+#endif  /* !__HW_BREAKPOINT_64_H */
 
-#endif  /* !__HW_BREAKPOINT_H */

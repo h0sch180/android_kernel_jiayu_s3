@@ -263,7 +263,7 @@ static int gluebi_erase(struct mtd_info *mtd, struct erase_info *instr)
 	count = mtd_div_by_eb(instr->len, mtd);
 	gluebi = container_of(mtd, struct gluebi_device, mtd);
 
-#ifdef MTK_IPOH_SUPPORT
+#ifdef CONFIG_MTK_HIBERNATION
 	for (i = 0; i < count; i++) {
 		err = ubi_leb_unmap(gluebi->desc, lnum + i);
 		if (err)

@@ -95,8 +95,33 @@ static int is_targeted(struct usb_device *dev)
 		return 1;
 
 	/* Mouse */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x045E &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x0737))
+		return 1;
+
+	/* Mouse */
 	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x046D &&
 	     le16_to_cpu(dev->descriptor.idProduct) == 0xC05A))
+		return 1;
+
+	/* Mouse */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x046D &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0xC064))
+		return 1;
+
+	/* Mouse */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x046D &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0xC001))
+		return 1;
+
+	/* Mouse */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x413C &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x3200))
+		return 1;
+
+	/* Mouse */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x04B3 &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x310B))
 		return 1;
 
 	/*USB Keyboard Hub*/
@@ -153,6 +178,11 @@ static int is_targeted(struct usb_device *dev)
 	/*USBIF lab Storage */
 	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x0781 &&
 	     le16_to_cpu(dev->descriptor.idProduct) == 0x5406))
+		return 1;
+
+	/*USBIF lab full-speed Storage */
+	if ((le16_to_cpu(dev->descriptor.idVendor) == 0x0C45 &&
+	     le16_to_cpu(dev->descriptor.idProduct) == 0x1060))
 		return 1;
 
 	/* HUB */

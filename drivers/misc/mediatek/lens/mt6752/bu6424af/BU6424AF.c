@@ -20,7 +20,7 @@
 
 
 #define LENS_I2C_BUSNUM 3
-static struct i2c_board_info kd_lens_dev __initdata = { I2C_BOARD_INFO("BU6424AF", 0x24) };
+static struct i2c_board_info kd_lens_dev __initdata = { I2C_BOARD_INFO("BU6424AF", 0x18) };
 
 
 #define BU6424AF_DRVNAME "BU6424AF"
@@ -393,8 +393,6 @@ static int BU6424AF_i2c_probe(struct i2c_client *client, const struct i2c_device
 
 	/* Kirby: add new-style driver { */
 	g_pstBU6424AF_I2Cclient = client;
-
-        g_pstBU6424AF_I2Cclient->addr = BU6424AF_VCM_WRITE_ID;
 
 	g_pstBU6424AF_I2Cclient->addr = g_pstBU6424AF_I2Cclient->addr >> 1;
 

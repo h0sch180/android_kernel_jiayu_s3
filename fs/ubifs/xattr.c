@@ -498,17 +498,26 @@ ssize_t ubifs_listxattr(struct dentry *dentry, char *buffer, size_t size)
 static int remove_xattr(struct ubifs_info *c, struct inode *host,
 			struct inode *inode, const struct qstr *nm)
 {
-	int err;
+	int err, budgeted = 1;
 	struct ubifs_inode *host_ui = ubifs_inode(host);
 	struct ubifs_inode *ui = ubifs_inode(inode);
 	struct ubifs_budget_req req = { .dirtied_ino = 2, .mod_dent = 1,
 				.dirtied_ino_d = ALIGN(host_ui->data_len, 8) };
 
+	/*
+	 * Budget request settings: deletion direntry, deletion inode and
+	 * changing the parent inode. If budgeting fails, go ahead anyway
+	 * because we have extra space reserved for deletions.
+	 */
+
 	ubifs_assert(ui->data_len == inode->i_size);
 
 	err = ubifs_budget_space(c, &req);
-	if (err)
-		return err;
+	if (err) {
+		if (err != -ENOSPC)
+			return err;
+		budgeted = 0;
+	}
 
 	mutex_lock(&host_ui->ui_mutex);
 	host->i_ctime = ubifs_current_time(host);
@@ -522,7 +531,13 @@ static int remove_xattr(struct ubifs_info *c, struct inode *host,
 		goto out_cancel;
 	mutex_unlock(&host_ui->ui_mutex);
 
-	ubifs_release_budget(c, &req);
+	if (budgeted)
+		ubifs_release_budget(c, &req);
+	else {
+		/* We've deleted something - clean the "no space" flags */
+		c->bi.nospace = c->bi.nospace_rp = 0;
+		smp_wmb();
+	}
 	return 0;
 
 out_cancel:
@@ -531,7 +546,8 @@ out_cancel:
 	host_ui->xattr_size += CALC_XATTR_BYTES(ui->data_len);
 	host_ui->xattr_names += nm->len;
 	mutex_unlock(&host_ui->ui_mutex);
-	ubifs_release_budget(c, &req);
+	if (budgeted)
+		ubifs_release_budget(c, &req);
 	make_bad_inode(inode);
 	return err;
 }

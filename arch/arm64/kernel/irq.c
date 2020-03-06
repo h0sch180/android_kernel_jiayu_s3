@@ -29,7 +29,7 @@
 #include <linux/seq_file.h>
 #include <linux/ratelimit.h>
 
-#include <linux/mt_sched_mon.h>
+#include "mt_sched_mon.h"
 unsigned long irq_err_count;
 
 int arch_show_interrupts(struct seq_file *p, int prec)
@@ -152,7 +152,7 @@ void migrate_irqs(void)
 		raw_spin_unlock(&desc->lock);
 
 		if (affinity_broken)
-			pr_warn_ratelimited("IRQ%u no longer affine to CPU%u\n",
+			pr_debug("IRQ%u no longer affine to CPU%u\n",
 					    i, smp_processor_id());
 	}
 

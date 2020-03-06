@@ -35,7 +35,9 @@
 #include <linux/hwmsen_dev.h>
 #include <linux/sensors_io.h>
 #include <asm/io.h>
+#ifdef CONFIG_MTK_LEGACY
 #include <cust_eint.h>
+#endif
 #include <cust_alsps.h>
 #include "cm36652.h"
 #include <linux/sched.h>
@@ -57,8 +59,8 @@
 #define CM36652_DEV_NAME     "cm36652"
 /*----------------------------------------------------------------------------*/
 #define APS_TAG                  "[ALS/PS] "
-#define APS_FUN(f)               printk(KERN_INFO 	APS_TAG"%s\n", __FUNCTION__)
-#define APS_ERR(fmt, args...)    printk(KERN_ERR  	APS_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define APS_FUN(f)               printk(KERN_INFO 	APS_TAG"%s\n", __func__)
+#define APS_ERR(fmt, args...)    printk(KERN_ERR  	APS_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define APS_LOG(fmt, args...)    printk(KERN_NOTICE	APS_TAG fmt, ##args)
 #define APS_DBG(fmt, args...)    printk(KERN_ERR 	APS_TAG fmt, ##args)    
 
@@ -156,6 +158,13 @@ struct cm36652_priv {
 };
 /*----------------------------------------------------------------------------*/
 
+#ifdef CONFIG_OF
+static const struct of_device_id alsps_of_match[] = {
+        {.compatible = "mediatek,ALSPS"},
+        {},
+};
+#endif
+
 static struct i2c_driver cm36652_i2c_driver = {	
 	.probe      = cm36652_i2c_probe,
 	.remove     = cm36652_i2c_remove,
@@ -165,6 +174,9 @@ static struct i2c_driver cm36652_i2c_driver = {
 	.id_table   = cm36652_i2c_id,
 	.driver = {
 		.name = CM36652_DEV_NAME,
+#ifdef CONFIG_OF
+        .of_match_table = alsps_of_match,
+#endif
 	},
 };
 
@@ -1678,7 +1690,7 @@ static long cm36652_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned
 			/*------------------------------------------------------------------------------------------*/
 			
 			default:
-				APS_ERR("%s not supported = 0x%04x", __FUNCTION__, cmd);
+				APS_ERR("%s not supported = 0x%04x", __func__, cmd);
 				err = -ENOIOCTLCMD;
 				break;
 		}
@@ -2022,6 +2034,8 @@ static int als_get_data(int* value, int* status)
 	else
 	{
 		*value = cm36652_get_als_value(obj, obj->als);
+		if (*value < 0)
+			err = -1;
 		*status = SENSOR_STATUS_ACCURACY_MEDIUM;
 	}
 #endif //#ifdef CUSTOM_KERNEL_SENSORHUB
@@ -2149,11 +2163,13 @@ static int ps_get_data(int* value, int* status)
     else
     {
         *value = cm36652_get_ps_value(cm36652_obj, cm36652_obj->ps);
+		if (*value < 0)
+			err = -1;
         *status = SENSOR_STATUS_ACCURACY_MEDIUM;
     }
 #endif //#ifdef CUSTOM_KERNEL_SENSORHUB
     
-	return 0;
+	return err;
 }
 
 
@@ -2366,13 +2382,46 @@ static int cm36652_i2c_detect(struct i2c_client *client, struct i2c_board_info *
 
 static int cm36652_i2c_suspend(struct i2c_client *client, pm_message_t msg)
 {
-	APS_FUN();
+	struct cm36652_priv *obj = i2c_get_clientdata(client);
+	int err;
+	APS_FUN();	  
+	
+	if(!obj)
+	{
+		APS_ERR("null pointer!!\n");
+		return;
+	}
+	
+	atomic_set(&obj->als_suspend, 1);
+	if((err = cm36652_enable_als(obj->client, 0)))
+	{
+		APS_ERR("disable als fail: %d\n", err); 
+	}
 	return 0;
 }
 
 static int cm36652_i2c_resume(struct i2c_client *client)
 {
+    struct cm36652_priv *obj = i2c_get_clientdata(client);
+	int err;
+	hwm_sensor_data sensor_data;
+	memset(&sensor_data, 0, sizeof(sensor_data));
 	APS_FUN();
+	if(!obj)
+	{
+		APS_ERR("null pointer!!\n");
+		return;
+	}
+	
+	atomic_set(&obj->als_suspend, 0);
+	if(test_bit(CMC_BIT_ALS, &obj->enable))
+	{
+		if((err = cm36652_enable_als(obj->client, 1)))
+		{
+			APS_ERR("enable als fail: %d\n", err);		  
+	
+		}
+	}
 	return 0;
 }
 
@@ -2416,9 +2465,11 @@ static int __init cm36652_init(void)
     hw =   get_alsps_dts_func(name, hw);
 	if (!hw)
 	    hw = get_cust_alsps_hw();
+#ifdef CONFIG_MTK_LEGACY
 	struct i2c_board_info i2c_cm36652={ I2C_BOARD_INFO(CM36652_DEV_NAME,hw->i2c_addr[0] )};
 	APS_LOG("%s: i2c_number=%d, i2c_addr: 0x%x\n", __func__, hw->i2c_num, hw->i2c_addr[0]);
 	i2c_register_board_info(hw->i2c_num, &i2c_cm36652, 1);
+#endif
 	alsps_driver_add(&cm36652_init_info);
 	return 0;
 }

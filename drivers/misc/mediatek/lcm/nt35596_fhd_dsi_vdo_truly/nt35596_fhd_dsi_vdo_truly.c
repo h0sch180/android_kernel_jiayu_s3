@@ -70,7 +70,7 @@ void TC358768_DCS_write_1A_1P(unsigned char cmd, unsigned char para)
 		read_reg_v2(cmd, &buffer, 1);
 
 		if(buffer != para)
-			printk("%s, data_array = 0x%08x, (cmd, para, back) = (0x%02x, 0x%02x, 0x%02x)\n", __func__, data_array[0], cmd, para, buffer);	
+			pr_debug("%s, data_array = 0x%08x, (cmd, para, back) = (0x%02x, 0x%02x, 0x%02x)\n", __func__, data_array[0], cmd, para, buffer);	
 
 		MDELAY(1);
 
@@ -800,7 +800,7 @@ static void init_lcm_registers(void)
 
 		read_reg_v2(0xF4, &buffer[3], 1);
 
-		printk("%s, ID = (0x%02x, 0x%02x, 0x%02x, 0x%02x)\n", __func__, buffer[0], buffer[1], buffer[2], buffer[3]);	
+		pr_debug("%s, ID = (0x%02x, 0x%02x, 0x%02x, 0x%02x)\n", __func__, buffer[0], buffer[1], buffer[2], buffer[3]);	
 #endif
 
 }
@@ -902,7 +902,7 @@ static void lcm_suspend(void)
 	dsi_set_cmdq(data_array, 1, 1);
 	
 	read_reg_v2(0xFE, buffer, 1);
-	printk("%s, kernel nt35596 horse debug: nt35596 id = 0x%08x\n", __func__, buffer[0]);
+	pr_debug("%s, kernel nt35596 horse debug: nt35596 id = 0x%08x\n", __func__, buffer[0]);
 #endif
 
 	data_array[0]=0x00280500; // Display Off
@@ -932,7 +932,7 @@ static void lcm_resume(void)
 	dsi_set_cmdq(data_array, 1, 1);
 	
 	read_reg_v2(0xFE, buffer, 1);
-	printk("%s, kernel nt35596 horse debug: nt35596 id = 0x%08x\n", __func__, buffer[0]);
+	pr_debug("%s, kernel nt35596 horse debug: nt35596 id = 0x%08x\n", __func__, buffer[0]);
 #endif
 
 	//TC358768_DCS_write_1A_0P(0x11); // Sleep Out
@@ -1002,7 +1002,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s, LK nt35590 debug: nt35590 id = 0x%08x\n", __func__, id);
     #else
-		printk("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
     #endif
 
     if(id == LCM_ID_NT35590)

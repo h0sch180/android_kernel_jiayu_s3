@@ -75,7 +75,6 @@ static int mtk_pcm_I2S0dl1_close(struct snd_pcm_substream *substream);
 static int mtk_asoc_pcm_I2S0dl1_new(struct snd_soc_pcm_runtime *rtd);
 static int mtk_afe_I2S0dl1_probe(struct snd_soc_platform *platform);
 
-static int mI2S0dl1_hdoutput_control = false;
 static bool mPrepareDone = false;
 
 static struct device *mDev = NULL;
@@ -91,52 +90,29 @@ static const struct soc_enum Audio_I2S0dl1_Enum[] =
 static int Audio_I2S0dl1_hdoutput_Get(struct snd_kcontrol *kcontrol,
                                       struct snd_ctl_elem_value *ucontrol)
 {
-    printk("Audio_AmpR_Get = %d\n", mI2S0dl1_hdoutput_control);
-    ucontrol->value.integer.value[0] = mI2S0dl1_hdoutput_control;
+	pr_debug("Audio_AmpR_Get = %d\n", get_low_jitter_mode());
+	ucontrol->value.integer.value[0] = get_low_jitter_mode();
     return 0;
 }
 
 static int Audio_I2S0dl1_hdoutput_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    printk("%s()\n", __func__);
-    if (ucontrol->value.enumerated.item[0] > ARRAY_SIZE(I2S0dl1_HD_output))
-    {
-        printk("return -EINVAL\n");
-        return -EINVAL;
-    }
+	pr_debug("%s()\n", __func__);
 
-    mI2S0dl1_hdoutput_control = ucontrol->value.integer.value[0];
+	if (ucontrol->value.enumerated.item[0] > ARRAY_SIZE(I2S0dl1_HD_output)) {
+		pr_debug("return -EINVAL\n");
+		return -EINVAL;
+	}
 
-    if (GetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_HDMI) == true )
-    {
-        printk("return HDMI enabled\n");
-    
-        return 0;
-    }  
+	if (GetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_HDMI) == true) {
+		pr_debug("return HDMI enabled\n");
 
-    if (mI2S0dl1_hdoutput_control)
-    {
-        // set APLL clock setting
-        AudDrv_Clk_On();
-        EnableApll1(true);
-        EnableApll2(true);
-        EnableI2SDivPower(AUDIO_APLL1_DIV0, true);
-        EnableI2SDivPower(AUDIO_APLL2_DIV0, true);
-        AudDrv_APLL1Tuner_Clk_On();
-        AudDrv_APLL2Tuner_Clk_On();
-    }
-    else
-    {  
-        // set APLL clock setting
-        EnableApll1(false);
-        EnableApll2(false);
-        EnableI2SDivPower(AUDIO_APLL1_DIV0, false);
-        EnableI2SDivPower(AUDIO_APLL2_DIV0, false);
-        AudDrv_APLL1Tuner_Clk_Off();
-        AudDrv_APLL2Tuner_Clk_Off();
-        AudDrv_Clk_Off();
-    }
-    return 0;
+		return 0;
+	}
+
+	set_low_jitter_mode(ucontrol->value.integer.value[0]);
+
+	return 0;
 }
 
 
@@ -276,6 +252,7 @@ static int mtk_pcm_I2S0dl1_hw_params(struct snd_pcm_substream *substream,
         //substream->runtime->dma_bytes = AFE_INTERNAL_SRAM_SIZE;
         substream->runtime->dma_area = (unsigned char *)Get_Afe_SramBase_Pointer();
         substream->runtime->dma_addr = AFE_INTERNAL_SRAM_PHY_BASE;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,false);
         AudDrv_Allocate_DL1_Buffer(mDev, substream->runtime->dma_bytes);
     }
     else
@@ -283,6 +260,7 @@ static int mtk_pcm_I2S0dl1_hw_params(struct snd_pcm_substream *substream,
         substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
         substream->runtime->dma_area = Dl1_Playback_dma_buf->area;
         substream->runtime->dma_addr = Dl1_Playback_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_DL1,true);
         SetDL1Buffer(substream, hw_params);
     }
 #else //old
@@ -453,8 +431,7 @@ static int mtk_pcm_I2S0dl1_prepare(struct snd_pcm_substream *substream)
         u32AudioI2S |= Soc_Aud_I2S_FORMAT_I2S << 3; // us3 I2s format
         u32AudioI2S |= Soc_Aud_I2S_WLEN_WLEN_32BITS << 1; //32bit
 
-        if (mI2S0dl1_hdoutput_control == true)
-        {
+		if (get_low_jitter_mode() == true) {
             MclkDiv3 = SetCLkMclk(Soc_Aud_I2S1, runtime->rate); //select I2S
             MclkDiv3 = SetCLkMclk(Soc_Aud_I2S3, runtime->rate); //select I2S
             SetCLkBclk(MclkDiv3,  runtime->rate, runtime->channels, Soc_Aud_I2S_WLEN_WLEN_32BITS);
@@ -479,7 +456,7 @@ static int mtk_pcm_I2S0dl1_prepare(struct snd_pcm_substream *substream)
         if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC) == false)
         {
             SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, true);
-            SetI2SDacOut(substream->runtime->rate, mI2S0dl1_hdoutput_control, mI2SWLen);
+			SetI2SDacOut(substream->runtime->rate, get_low_jitter_mode(), mI2SWLen);
             SetI2SDacEnable(true);
         }
         else
@@ -560,6 +537,8 @@ static int mtk_pcm_I2S0dl1_copy(struct snd_pcm_substream *substream,
         printk(" u4BufferSize=0 Error");
         return 0;
     }
+
+	AudDrv_checkDLISRStatus();
 
     spin_lock_irqsave(&auddrv_I2S0dl1_lock, flags);
     copy_size = Afe_Block->u4BufferSize - Afe_Block->u4DataRemained;  //  free space of the buffer

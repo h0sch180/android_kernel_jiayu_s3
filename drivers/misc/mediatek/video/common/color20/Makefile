@@ -20,6 +20,3 @@ else ifeq ($(strip $(MTK_PQ_COLOR_MODE)),DISP)
     ccflags-y += -DDISP_COLOR_ON
 endif
 
-ifeq ($(MTK_MIRAVISION_SUPPORT), yes)
-    ccflags-y += -DCONFIG_FOR_SOURCE_PQ
-endif

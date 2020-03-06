@@ -32,14 +32,18 @@
 #include <linux/sched.h>
 #include <linux/syscalls.h>
 
+#include <asm/arch_timer.h>
 #include <asm/atomic.h>
+#include <asm/barrier.h>
 #include <asm/debug-monitors.h>
+#include <asm/esr.h>
 #include <asm/traps.h>
 #include <asm/stacktrace.h>
 #include <asm/exception.h>
 #include <asm/system_misc.h>
 #include <asm/cacheflush.h>
 
+#include <mach/mt_hooks.h>
 static const char *handler[]= {
 	"Synchronous Abort",
 	"IRQ",
@@ -136,7 +140,7 @@ static void dump_backtrace(struct pt_regs *regs, struct task_struct *tsk)
 	struct stackframe frame;
 	const register unsigned long current_sp asm ("sp");
 
-	pr_debug("%s(regs = %p tsk = %p)\n", __func__, regs, tsk);
+	pr_debug("%s(regs = %pP tsk = %pP)\n", __func__, regs, tsk);
 
 	if (!tsk)
 		tsk = current;
@@ -205,7 +209,7 @@ static int __die(const char *str, int err, struct thread_info *thread,
 
 	print_modules();
 	__show_regs(regs);
-	pr_emerg("Process %.*s (pid: %d, stack limit = 0x%p)\n",
+	pr_emerg("Process %.*s (pid: %d, stack limit = 0x%pP)\n",
 		 TASK_COMM_LEN, tsk->comm, task_pid_nr(tsk), thread + 1);
 
 	if (!user_mode(regs) || in_interrupt()) {
@@ -276,7 +280,7 @@ void register_undef_hook(struct undef_hook *hook)
 static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 {
 	struct undef_hook *hook;
-	int (*fn)(struct pt_regs *regs, unsigned int instr) = NULL;
+	int (*fn)(struct pt_regs *regs, unsigned int instr) = arm_undefinstr_retry;
 
 	list_for_each_entry(hook, &undef_hook, node)
 		if ((instr & hook->instr_mask) == hook->instr_val &&
@@ -285,9 +289,6 @@ static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 
 	return fn ? fn(regs, instr) : 1;
 }
-
-static DEFINE_PER_CPU(void *, __prev_undefinstr_pc) = 0;
-static DEFINE_PER_CPU(int, __prev_undefinstr_counter) = 0;
 
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
@@ -329,68 +330,44 @@ die_sig:
 		dump_instr(KERN_INFO, regs);
 	}
 
-	/* Place the SIGILL ICache Invalidate after the Debugger Undefined-Instruction Solution. */
-	if ((user_mode(regs)) || processor_mode(regs) == PSR_MODE_EL1h) {
-		void **prev_undefinstr_pc = &get_cpu_var(__prev_undefinstr_pc);
-		int *prev_undefinstr_counter = &get_cpu_var(__prev_undefinstr_counter);
-
-                /* Only do it for User-Space Application. */
-		pr_alert("USR_MODE / SVC_MODE Undefined Instruction Address curr:%p pc=%p:%p, instr: 0x%x compat: %s\n",
-			(void *)current, (void *)pc, (void *)*prev_undefinstr_pc, instr,
-			is_compat_task() ? "yes" : "no");
-		if ((*prev_undefinstr_pc != pc)) {
-			/* If the current process or program counter is changed......renew the counter. */
-			pr_alert("First Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc, (void *)*prev_undefinstr_pc);
-			*prev_undefinstr_pc = pc;
-			*prev_undefinstr_counter = 0;
-			put_cpu_var(__prev_undefinstr_pc);
-			put_cpu_var(__prev_undefinstr_counter);
-			__flush_icache_all();
-			flush_cache_all();
-			/* 
-			 * undo cpu_excp to cancel nest_panic code, see entry.S
-			 */
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		else if(*prev_undefinstr_counter < 1) {
-			pr_alert("2nd Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc,
-				(void *)*prev_undefinstr_pc);
-			*prev_undefinstr_counter += 1;
-			put_cpu_var(__prev_undefinstr_pc);
-			put_cpu_var(__prev_undefinstr_counter);
-			__flush_icache_all();
-			flush_cache_all();
-			/* 
-			 * undo cpu_excp to cancel nest_panic code, see entry.S
-			 */
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		*prev_undefinstr_counter += 1;
-		if(*prev_undefinstr_counter >= 4) {
-			/* 2=first time SigILL,3=2nd time NE-SigILL,4=3rd time CoreDump-SigILL */
-			*prev_undefinstr_pc = 0;
-			*prev_undefinstr_counter = 0;
-		}
-		put_cpu_var(__prev_undefinstr_pc);
-		put_cpu_var(__prev_undefinstr_counter);
-		pr_alert("Go to ARM Notify Die curr:%p pc=%p:%p\n",
-			(void *)current, (void *)pc, (void *)*prev_undefinstr_pc);
-	}
-
 	info.si_signo = SIGILL;
 	info.si_errno = 0;
 	info.si_code  = ILL_ILLOPC;
 	info.si_addr  = pc;
 
 	arm64_notify_die("Oops - undefined instruction", regs, &info, 0);
+}
+
+static void cntvct_read_handler(unsigned int esr, struct pt_regs *regs)
+{
+	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK) >> ESR_ELx_SYS64_ISS_RT_SHIFT;
+
+	isb();
+	if (rt != 31)
+		regs->regs[rt] = arch_counter_get_cntvct();
+	regs->pc += 4;
+}
+
+static void cntfrq_read_handler(unsigned int esr, struct pt_regs *regs)
+{
+	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK) >> ESR_ELx_SYS64_ISS_RT_SHIFT;
+
+	if (rt != 31)
+		asm volatile("mrs %0, cntfrq_el0" : "=r" (regs->regs[rt]));
+	regs->pc += 4;
+}
+
+asmlinkage void __exception do_sysinstr(unsigned int esr, struct pt_regs *regs)
+{
+	if ((esr & ESR_ELx_SYS64_ISS_SYS_OP_MASK) == ESR_ELx_SYS64_ISS_SYS_CNTVCT) {
+		cntvct_read_handler(esr, regs);
+		return;
+	} else if ((esr & ESR_ELx_SYS64_ISS_SYS_OP_MASK) == ESR_ELx_SYS64_ISS_SYS_CNTFRQ) {
+		cntfrq_read_handler(esr, regs);
+		return;
+	}
+
+	do_undefinstr(regs);
 }
 
 long compat_arm_syscall(struct pt_regs *regs);

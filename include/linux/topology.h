@@ -58,7 +58,8 @@ int arch_update_cpu_topology(void);
 /*
  * If the distance between nodes in a system is larger than RECLAIM_DISTANCE
  * (in whatever arch specific measurement units returned by node_distance())
- * then switch on zone reclaim on boot.
+ * and zone_reclaim_mode is enabled then the VM will only call zone_reclaim()
+ * on nodes within this distance.
  */
 #define RECLAIM_DISTANCE 30
 #endif
@@ -88,7 +89,7 @@ int arch_update_cpu_topology(void);
 #define SD_SIBLING_INIT (struct sched_domain) {				\
 	.min_interval		= 1,					\
 	.max_interval		= 2,					\
-	.busy_factor		= 64,					\
+	.busy_factor		= 1,					\
 	.imbalance_pct		= 110,					\
 									\
 	.flags			= 1*SD_LOAD_BALANCE			\

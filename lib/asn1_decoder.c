@@ -142,7 +142,7 @@ error:
  * @decoder: The decoder definition (produced by asn1_compiler)
  * @context: The caller's context (to be passed to the action functions)
  * @data: The encoded data
- * @datasize: The size of the encoded data
+ * @datalen: The size of the encoded data
  *
  * Decode BER/DER/CER encoded ASN.1 data according to a bytecode pattern
  * produced by asn1_compiler.  Action functions are called on marked tags to
@@ -210,8 +210,9 @@ next_op:
 		unsigned char tmp;
 
 		/* Skip conditional matches if possible */
-		if ((op & ASN1_OP_MATCH__COND && flags & FLAG_MATCHED) ||
-			(op & ASN1_OP_MATCH__SKIP && dp == datalen)) {
+		if ((op & ASN1_OP_MATCH__COND &&
+		     flags & FLAG_MATCHED) ||
+		    dp == datalen) {
 			pc += asn1_op_lengths[op];
 			goto next_op;
 		}
@@ -276,6 +277,9 @@ next_op:
 				if (unlikely(len > datalen - dp))
 					goto data_overrun_error;
 			}
+		} else {
+			if (unlikely(len > datalen - dp))
+				goto data_overrun_error;
 		}
 
 		if (flags & FLAG_CONS) {
@@ -302,38 +306,43 @@ next_op:
 
 	/* Decide how to handle the operation */
 	switch (op) {
-	case ASN1_OP_MATCH_ANY_ACT:
-	case ASN1_OP_COND_MATCH_ANY_ACT:
-		ret = actions[machine[pc + 1]](context, hdr, tag, data + dp, len);
-		if (ret < 0)
-			return ret;
-		goto skip_data;
-
-	case ASN1_OP_MATCH_ACT:
-	case ASN1_OP_MATCH_ACT_OR_SKIP:
-	case ASN1_OP_COND_MATCH_ACT_OR_SKIP:
-		ret = actions[machine[pc + 2]](context, hdr, tag, data + dp, len);
-		if (ret < 0)
-			return ret;
-		goto skip_data;
-
 	case ASN1_OP_MATCH:
 	case ASN1_OP_MATCH_OR_SKIP:
+	case ASN1_OP_MATCH_ACT:
+	case ASN1_OP_MATCH_ACT_OR_SKIP:
 	case ASN1_OP_MATCH_ANY:
+	case ASN1_OP_MATCH_ANY_ACT:
 	case ASN1_OP_COND_MATCH_OR_SKIP:
+	case ASN1_OP_COND_MATCH_ACT_OR_SKIP:
 	case ASN1_OP_COND_MATCH_ANY:
-	skip_data:
+	case ASN1_OP_COND_MATCH_ANY_ACT:
+
 		if (!(flags & FLAG_CONS)) {
 			if (flags & FLAG_INDEFINITE_LENGTH) {
+				size_t tmp = dp;
+
 				ret = asn1_find_indefinite_length(
-					data, datalen, &dp, &len, &errmsg);
+					data, datalen, &tmp, &len, &errmsg);
 				if (ret < 0)
 					goto error;
-			} else {
-				dp += len;
 			}
 			pr_debug("- LEAF: %zu\n", len);
 		}
+
+		if (op & ASN1_OP_MATCH__ACT) {
+			unsigned char act;
+
+			if (op & ASN1_OP_MATCH__ANY)
+				act = machine[pc + 1];
+			else
+				act = machine[pc + 2];
+			ret = actions[act](context, hdr, tag, data + dp, len);
+			if (ret < 0)
+				return ret;
+		}
+
+		if (!(flags & FLAG_CONS))
+			dp += len;
 		pc += asn1_op_lengths[op];
 		goto next_op;
 

@@ -917,4 +917,6 @@ byte siHdmiTx_TPI_Init(void);
 void siHdmiTx_TPI_Poll(void);
 void siHdmiTx_VideoSel(byte vmode);
 void siHdmiTx_AudioSel(byte Afs);
+
+extern void hdmi_invoke_cable_callbacks(HDMI_STATE state);
 #endif

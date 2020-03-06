@@ -448,8 +448,8 @@ static unsigned int lcm_compare_id(void)
 		//printf("OTM8018B uboot %s \n", __func__);
 		//printf("%s id = 0x%08x \n", __func__, id);
 	#else
-		//printk("OTM8018B kernel %s \n", __func__);
-		//printk("%s id = 0x%08x \n", __func__, id);
+		//pr_debug("OTM8018B kernel %s \n", __func__);
+		//pr_debug("%s id = 0x%08x \n", __func__, id);
 	#endif
 
 	return (LCM_ID_OTM8018B == id)?1:0;

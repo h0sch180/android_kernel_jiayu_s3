@@ -351,39 +351,8 @@ static void disp_debug_api(unsigned int enable, char *buf)
 		sprintf(buf, "bypass PQ: %d\n", gDDPError);
 		DDPMSG("bypass PQ: %d\n", gDDPError);
 	} else if (enable == 6) {
-		unsigned int i = 0;
-		int *modules = ddp_get_scenario_list(DDP_SCENARIO_PRIMARY_DISP);
-		int module_num = ddp_get_module_num(DDP_SCENARIO_PRIMARY_DISP);
-
-		pr_debug("dump path status:");
-		for (i = 0; i < module_num; i++)
-			pr_debug("%s-", ddp_get_module_name(modules[i]));
-
-		pr_debug("\n");
-
-		ddp_dump_analysis(DISP_MODULE_CONFIG);
-		ddp_dump_analysis(DISP_MODULE_MUTEX);
-		for (i = 0; i < module_num; i++)
-			ddp_dump_analysis(modules[i]);
-
-		if (primary_display_is_decouple_mode()) {
-			ddp_dump_analysis(DISP_MODULE_OVL0);
-			ddp_dump_analysis(DISP_MODULE_OVL1);
-			ddp_dump_analysis(DISP_MODULE_WDMA0);
-		}
-
-		ddp_dump_reg(DISP_MODULE_CONFIG);
-		ddp_dump_reg(DISP_MODULE_MUTEX);
-
-		if (primary_display_is_decouple_mode()) {
-			ddp_dump_reg(DISP_MODULE_OVL0);
-			ddp_dump_reg(DISP_MODULE_OVL1);
-			ddp_dump_reg(DISP_MODULE_WDMA0);
-		}
-
-		for (i = 0; i < module_num; i++)
-			ddp_dump_reg(modules[i]);
-
+		/*ddp_dump_analysis(DISP_MODULE_DSI0);*/
+		ddp_dump_reg(DISP_MODULE_DSI0);
 	} else if (enable == 7) {
 		if (dbg_log_level < 3)
 			dbg_log_level++;
@@ -825,15 +794,45 @@ static void disp_debug_api(unsigned int enable, char *buf)
 #endif
 	} else if (enable == 40) {
 		sprintf(buf, " version :  %d, %s\n ", 12, __TIME__);
-	} else if (enable==59)
-	{
+	} else if (enable==59) {
         extern void ddp_reset_test(void);
         ddp_reset_test();
         sprintf(buf, " dp_reset_test called. \n ");
+	} else if (enable == 60) {
+		unsigned int i = 0;
+		int *modules = ddp_get_scenario_list(DDP_SCENARIO_PRIMARY_DISP);
+		int module_num = ddp_get_module_num(DDP_SCENARIO_PRIMARY_DISP);
+
+		pr_debug("dump path status:");
+		for (i = 0; i < module_num; i++)
+			pr_debug("%s-", ddp_get_module_name(modules[i]));
+
+		pr_debug("\n");
+
+		ddp_dump_analysis(DISP_MODULE_CONFIG);
+		ddp_dump_analysis(DISP_MODULE_MUTEX);
+		for (i = 0; i < module_num; i++)
+			ddp_dump_analysis(modules[i]);
+
+		if (primary_display_is_decouple_mode()) {
+			ddp_dump_analysis(DISP_MODULE_OVL0);
+			ddp_dump_analysis(DISP_MODULE_OVL1);
+			ddp_dump_analysis(DISP_MODULE_WDMA0);
+		}
+
+		ddp_dump_reg(DISP_MODULE_CONFIG);
+		ddp_dump_reg(DISP_MODULE_MUTEX);
+
+		if (primary_display_is_decouple_mode()) {
+			ddp_dump_reg(DISP_MODULE_OVL0);
+			ddp_dump_reg(DISP_MODULE_OVL1);
+			ddp_dump_reg(DISP_MODULE_WDMA0);
+		}
+
+		for (i = 0; i < module_num; i++)
+			ddp_dump_reg(modules[i]);
 	}
-
 }
-
 static void process_dbg_opt(const char *opt)
 {
 	char *buf = dbg_buf + strlen(dbg_buf);
@@ -847,7 +846,8 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         }
-		if (is_reg_addr_valid(1, addr) == 1) {/* (addr >= 0xf0000000U && addr <= 0xff000000U) */
+        
+		if (is_reg_addr_valid(1, addr) == 1) {
 			unsigned int regVal = DISP_REG_GET(addr);
 			DDPMSG(" regr : 0x%lx = 0x%08x\n ", addr, regVal);
 			sprintf(buf, " regr : 0x%lx = 0x%08x\n ", addr, regVal);
@@ -856,19 +856,17 @@ static void process_dbg_opt(const char *opt)
 			goto Error;
 		}
 	} else if (0 == strncmp(opt, "regw:", 5)) {
-		/*char *p = (char *)opt + 5;*/
 		unsigned long addr;
 		unsigned int val;
 		unsigned int ret;
-		/*kstrtoul(p, 16, &addr);*/
-		/*kstrtouint(p + 1, 16, &val);*/
+        
 		ret = sscanf(opt, "regw: 0x%lx,0x%08x\n", &addr, &val);
 		if (ret != 2) {
 			pr_err("error to parse cmd %s\n", opt);
 			return;
 		}
 
-		if (is_reg_addr_valid(1, addr) == 1) {/* (addr >= 0xf0000000U && addr <= 0xff000000U) */
+		if (is_reg_addr_valid(1, addr) == 1) {
 			unsigned int regVal;
 			DISP_CPU_REG_SET(addr, val);
 			regVal = DISP_REG_GET(addr);
@@ -886,6 +884,7 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         } 
+        
 		DISP_CPU_REG_SET(DISP_REG_RDMA_MEM_GMC_SETTING_0, gRDMAUltraSetting);
 		sprintf(buf, " rdma_ultra, gRDMAUltraSetting = 0x%x, reg = 0x%x\n ", gRDMAUltraSetting,
 			DISP_REG_GET(DISP_REG_RDMA_MEM_GMC_SETTING_0));
@@ -897,6 +896,7 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         }
+        
 		DISP_CPU_REG_SET_FIELD(FIFO_CON_FLD_OUTPUT_VALID_FIFO_THRESHOLD,
 				       DISP_REG_RDMA_FIFO_CON, gRDMAFIFOLen);
 		sprintf(buf, " rdma_fifo, gRDMAFIFOLen = 0x%x, reg = 0x%x\n ", gRDMAFIFOLen,
@@ -941,12 +941,13 @@ static void process_dbg_opt(const char *opt)
         
 		if (reg_pa < 0x10000000 || reg_pa > 0x18000000) {
 			sprintf(buf, " g_regw, invalid pa = 0x%lx\n ", reg_pa);
-		} else {
+		} else {           
             ret = sscanf(opt, "g_regw,val: 0x%x\n", &val);
             if (ret != 1) {
 				pr_err("error to parse cmd %s\n", opt);
 				return;
             }
+            
 			reg_va = (unsigned long)ioremap_nocache(reg_pa, sizeof(unsigned long));
 			reg_va_before = DISP_REG_GET(reg_va);
 			DISP_CPU_REG_SET(reg_va, val);
@@ -970,6 +971,7 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         }
+                
 		if (enable)
 			dbg_log_level = 1;
 		else
@@ -985,6 +987,7 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         }
+        
 		if (enable)
 			irq_log_level = 1;
 		else
@@ -992,20 +995,17 @@ static void process_dbg_opt(const char *opt)
 
 		sprintf(buf, " irq_log :  %d\n ", irq_log_level);
 	} else if (0 == strncmp(opt, "met_on:", 7)) {
-		/*char *p = (char *)opt + 7;*/
 		int met_on;
 		int rdma0_mode;
 		int rdma1_mode;
-		/*kstrtoint(p, 10, &met_on);*/
-		/*kstrtoint(p + 1, 10, &rdma0_mode);*/
-		/*kstrtoint(p + 1, 10, &rdma1_mode);*/
 		int ret;
+        
 		ret = sscanf(opt, "met_on : %d,%d,%d\n",
 				&met_on, &rdma0_mode, &rdma1_mode);
-			if (ret != 3) {
-				pr_err("error to parse cmd %s\n", opt);
-				return;
-			}
+		if (ret != 3) {
+			pr_err("error to parse cmd %s\n", opt);
+			return;
+		}
 		ddp_init_met_tag(met_on, rdma0_mode, rdma1_mode);
 		DDPMSG(" process_dbg_opt, met_on = %d, rdma0_mode %d, rdma1 %d\n ", met_on, rdma0_mode,
 		       rdma1_mode);
@@ -1020,6 +1020,7 @@ static void process_dbg_opt(const char *opt)
 				pr_err("error to parse cmd %s\n", opt);
 				return;
         }
+        
 		if (level) {
 			disp_bls_set_backlight(level);
 			sprintf(buf, " backlight :  %d\n ", level);

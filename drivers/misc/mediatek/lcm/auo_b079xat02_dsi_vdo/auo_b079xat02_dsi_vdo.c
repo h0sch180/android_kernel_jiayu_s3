@@ -184,7 +184,7 @@ static void init_lcm_registers(void)
 		#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
     #else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
     #endif
 	  
 	  data_array[0] = 0x00010500;  //software reset					 
@@ -202,7 +202,7 @@ static void lcm_init(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 #else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 #endif
 	#ifdef BUILD_LK
 	 //lcd_bl_en(0);
@@ -239,7 +239,7 @@ static void lcm_suspend(void)
   #ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 #else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 #endif
     data_array[0] = 0x00280500;  //display off                        
 	  dsi_set_cmdq(data_array, 1, 1);
@@ -259,7 +259,7 @@ static void lcm_resume(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 #else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 #endif
     lcd_reset(0);
     //lcd_power_en(0);

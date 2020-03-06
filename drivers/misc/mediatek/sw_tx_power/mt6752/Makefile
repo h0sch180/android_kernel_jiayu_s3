@@ -1,3 +1,3 @@
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
-obj-y += sw_tx_power.o
+obj-$(CONFIG_MTK_SWITCH_TX_POWER) += sw_tx_power.o

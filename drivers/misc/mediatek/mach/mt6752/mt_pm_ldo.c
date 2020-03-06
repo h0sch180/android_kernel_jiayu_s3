@@ -30,15 +30,17 @@ ROOTBUS_HW g_MT_PMIC_BusHW ;
 /**********************************************************************
 * Debug Message Settings
 *****************************************************************/
+#define LDO_DEBUG_ENABLE 0
+
 #if 1
 #define MSG(evt, fmt, args...) \
 do {    \
     if ((DBG_PMAPI_##evt) & DBG_PMAPI_MASK) { \
-        pr_notice(fmt, ##args); \
+				pr_debug(fmt, ##args); \
     } \
 } while(0)
 
-#define MSG_FUNC_ENTRY(f)    MSG(ENTER, "<PMAPI FUNC>: %s\n", __FUNCTION__)
+#define MSG_FUNC_ENTRY(f)    MSG(ENTER, "<PMAPI FUNC>: %s\n", __func__)
 #else
 #define MSG(evt, fmt, args...) do{}while(0)
 #define MSG_FUNC_ENTRY(f)       do{}while(0)
@@ -76,12 +78,14 @@ bool hwPowerOn(MT_POWER powerId, MT_POWER_VOLTAGE powerVolt, char *mode_name)
     }
     for (i = 0; i< MAX_DEVICE; i++)
     {
+#if LDO_DEBUG_ENABLE
         pr_debug("[hwPowerOn] %d,%s,%d\r\n", i, g_MT_PMIC_BusHW.Power[powerId].mod_name[i], g_MT_PMIC_BusHW.Power[powerId].dwPowerCount);
-	
+#endif
+
         if (!strcmp(g_MT_PMIC_BusHW.Power[powerId].mod_name[i], NON_OP))
         {
             MSG(PMIC,"[%s] acquire powerId:%d index:%d mod_name: %s powerVolt:%d\r\n", 
-                __FUNCTION__,powerId, i, mode_name,powerVolt);            
+                __func__,powerId, i, mode_name,powerVolt);            
             sprintf(g_MT_PMIC_BusHW.Power[powerId].mod_name[i] , "%s", mode_name);
             break ;
         }
@@ -102,7 +106,9 @@ bool hwPowerOn(MT_POWER powerId, MT_POWER_VOLTAGE powerVolt, char *mode_name)
     }
 #endif	
     /* Turn on PMU LDO*/
+#if LDO_DEBUG_ENABLE
     MSG(CG,"[%d] PMU LDO Enable\r\n",powerId );            
+#endif
     pr_debug("[hwPowerOn] enable %d by %s \r\n", powerId, mode_name);
 
 #if 1
@@ -143,24 +149,26 @@ bool hwPowerDown(MT_POWER powerId, char *mode_name)
     BOOL bFind = FALSE;    
     if(powerId >= MT65XX_POWER_COUNT_END)
     {
-        MSG(PMIC,"%s:%s:%d powerId:%d is wrong\r\n",__FILE__,__FUNCTION__, 
+        MSG(PMIC,"%s:%s:%d powerId:%d is wrong\r\n",__FILE__,__func__, 
             __LINE__ , powerId);
         return FALSE;
     }    
     if(g_MT_PMIC_BusHW.Power[powerId].dwPowerCount == 0)
     {
         MSG(PMIC,"%s:%s:%d powerId:%d (g_MT_PMIC_BusHW.dwPowerCount[powerId] = 0)\r\n", 
-            __FILE__,__FUNCTION__,__LINE__ ,powerId);
+            __FILE__,__func__,__LINE__ ,powerId);
         return FALSE;
     }
     for (i = 0; i< MAX_DEVICE; i++)
     {
+#if LDO_DEBUG_ENABLE
         pr_debug("[hwPowerDown] %d,%s,%d\r\n", i, g_MT_PMIC_BusHW.Power[powerId].mod_name[i], g_MT_PMIC_BusHW.Power[powerId].dwPowerCount);
-	
+#endif
+
         if (!strcmp(g_MT_PMIC_BusHW.Power[powerId].mod_name[i], mode_name))
         {
             MSG(PMIC,"[%s] powerId:%d index:%d mod_name: %s\r\n", 
-                __FUNCTION__,powerId, i, mode_name);            
+                __func__,powerId, i, mode_name);            
             sprintf(g_MT_PMIC_BusHW.Power[powerId].mod_name[i] , "%s", NON_OP);
             bFind = TRUE;
             break ;
@@ -168,7 +176,7 @@ bool hwPowerDown(MT_POWER powerId, char *mode_name)
     }   
     if(!bFind)
     {
-        MSG(PMIC,"[%s] Cannot find [%d] master is [%s]\r\n",__FUNCTION__,powerId, mode_name);        
+        MSG(PMIC,"[%s] Cannot find [%d] master is [%s]\r\n",__func__,powerId, mode_name);        
         return TRUE;
     }        
     g_MT_PMIC_BusHW.Power[powerId].dwPowerCount--;
@@ -179,7 +187,9 @@ bool hwPowerDown(MT_POWER powerId, char *mode_name)
     }
 #endif	
     /* Turn off PMU LDO*/
+#if LDO_DEBUG_ENABLE
     MSG(CG,"[%d] PMU LDO Disable\r\n",powerId );
+#endif
     pr_debug("[hwPowerDown] disable %d by %s \r\n", powerId, mode_name);
 
     pmic_ldo_enable(powerId, KAL_FALSE);

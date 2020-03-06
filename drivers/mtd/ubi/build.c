@@ -44,8 +44,8 @@
 #include "ubi.h"
 #ifdef CONFIG_MTK_COMBO_NAND_SUPPORT
 #ifdef CONFIG_MTK_MLC_NAND_SUPPORT
-#define COMBO_NAND_BLOCK_SIZE (4*1024*1024)
-#define COMBO_NAND_PAGE_SIZE  (16*1024)
+#define COMBO_NAND_BLOCK_SIZE (ubi->mtd->erasesize)
+#define COMBO_NAND_PAGE_SIZE  (ubi->mtd->writesize)
 #else
 #define COMBO_NAND_BLOCK_SIZE (256*1024)
 #define COMBO_NAND_PAGE_SIZE  (4*1024)
@@ -66,6 +66,9 @@
 #else
 #define ubi_is_module() 0
 #endif
+
+void *ubi_peb_buf = NULL;
+DEFINE_MUTEX(ubi_buf_mutex);
 
 /**
  * struct mtd_dev_param - MTD device parameter description data structure.
@@ -1137,7 +1140,6 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num,
 #else
 	ubi->fm_disabled = 1;
 #endif
-	mutex_init(&ubi->buf_mutex);
 	mutex_init(&ubi->ckvol_mutex);
 	mutex_init(&ubi->device_mutex);
 	spin_lock_init(&ubi->volumes_lock);
@@ -1151,13 +1153,16 @@ int ubi_attach_mtd_dev(struct mtd_info *mtd, int ubi_num,
 		goto out_free;
 
 	err = -ENOMEM;
-	ubi->peb_buf = kmalloc(ubi->peb_size, GFP_KERNEL);
-	if (!ubi->peb_buf)
-		goto out_free;
+	if(ubi_peb_buf == NULL) {
+		ubi_peb_buf = vmalloc(ubi->peb_size);
+		mutex_init(&ubi_buf_mutex);
+		if (!ubi_peb_buf)
+			goto out_free;
+	}
 
 #ifdef CONFIG_MTD_UBI_FASTMAP
 	ubi->fm_size = ubi_calc_fm_size(ubi);
-	ubi->fm_buf = kzalloc(ubi->fm_size, GFP_KERNEL);
+	ubi->fm_buf = vzalloc(ubi->fm_size);
 	if (!ubi->fm_buf)
 		goto out_free;
 #endif
@@ -1236,10 +1241,10 @@ out_detach:
 	ubi_devices[ubi_num] = NULL;
 	ubi_wl_close(ubi);
 	ubi_free_internal_volumes(ubi);
-	kfree(ubi->vtbl);
+	vfree(ubi->vtbl);
 out_free:
-	kfree(ubi->peb_buf);
-	kfree(ubi->fm_buf);
+	//vfree(ubi_peb_buf);
+	vfree(ubi->fm_buf);
 	if (ref)
 		put_device(&ubi->dev);
 	else
@@ -1312,14 +1317,14 @@ int ubi_detach_mtd_dev(int ubi_num, int anyway)
 
 	ubi_wl_close(ubi);
 	ubi_free_internal_volumes(ubi);
-	kfree(ubi->vtbl);
+	vfree(ubi->vtbl);
 	put_mtd_device(ubi->mtd);
 #ifdef CONFIG_BLB
-	kfree(ubi->databuf);
-	kfree(ubi->oobbuf);
+	vfree(ubi->databuf);
+	vfree(ubi->oobbuf);
 #endif
-	kfree(ubi->peb_buf);
-	kfree(ubi->fm_buf);
+	//vfree(ubi_peb_buf);
+	vfree(ubi->fm_buf);
 	ubi_msg("mtd%d is detached from ubi%d", ubi->mtd->index, ubi->ubi_num);
 	put_device(&ubi->dev);
 	return 0;
@@ -1515,6 +1520,7 @@ static void __exit ubi_exit(void)
 	misc_deregister(&ubi_ctrl_cdev);
 	class_remove_file(ubi_class, &ubi_version);
 	class_destroy(ubi_class);
+	vfree(ubi_peb_buf);
 }
 module_exit(ubi_exit);
 

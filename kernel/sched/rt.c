@@ -9,7 +9,9 @@
 #endif
 
 #include <linux/slab.h>
-
+#ifdef CONFIG_MTPROF
+#include "mt_sched_mon.h"
+#endif
 int sched_rr_timeslice = RR_TIMESLICE;
 
 static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun);
@@ -30,6 +32,11 @@ static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 
 		if (!overrun)
 			break;
+#ifdef CONFIG_MTPROF
+		/* mt throttle monitor */
+		mt_rt_mon_switch(MON_RESET);
+		mt_rt_mon_switch(MON_START);
+#endif
 
 		idle = do_sched_rt_period_timer(rt_b, overrun);
 	}
@@ -62,7 +69,7 @@ static void start_rt_bandwidth(struct rt_bandwidth *rt_b)
 	raw_spin_unlock(&rt_b->rt_runtime_lock);
 }
 
-#ifdef CONFIG_PROVE_LOCKING 
+#ifdef CONFIG_PROVE_LOCKING
 DEFINE_RAW_SPINLOCK(rt_rq_runtime_spinlock);
 #define MAX_SPIN_KEY 10
 DEFINE_PER_CPU(struct lock_class_key, spin_key[MAX_SPIN_KEY]);
@@ -72,7 +79,7 @@ void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
 {
 	struct rt_prio_array *array;
 	int i;
-#ifdef CONFIG_PROVE_LOCKING 
+#ifdef CONFIG_PROVE_LOCKING
 	int cpu, idx;
 #endif
 
@@ -97,13 +104,13 @@ void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
 	rt_rq->rt_runtime = 0;
 	/* MTK patch: prevent to continue borrow RT runtime after restore the default value*/
 	rt_rq->rt_disable_borrow = 0;
-#ifdef CONFIG_PROVE_LOCKING 
+#ifdef CONFIG_PROVE_LOCKING
 	raw_spin_lock(&rt_rq_runtime_spinlock);
 	cpu = rq->cpu;
 	idx = per_cpu(spin_key_idx, cpu);
 #endif
 	raw_spin_lock_init(&rt_rq->rt_runtime_lock);
-#ifdef CONFIG_PROVE_LOCKING 
+#ifdef CONFIG_PROVE_LOCKING
 	lockdep_set_class(&rt_rq->rt_runtime_lock, &per_cpu(spin_key[idx], cpu));
 	per_cpu(spin_key_idx, cpu)++;
 	BUG_ON(per_cpu(spin_key_idx, cpu) >= MAX_SPIN_KEY);
@@ -255,7 +262,7 @@ int alloc_rt_sched_group(struct task_group *tg, struct task_group *parent)
 #if defined(CONFIG_MT_RT_SCHED)
 extern struct cpumask hmp_fast_cpu_mask;
 extern struct cpumask hmp_slow_cpu_mask;
-#endif 
+#endif
 
 #ifdef CONFIG_SMP
 
@@ -296,17 +303,17 @@ static inline int has_rt_task_in_little(void)
 {
 	int cpu;
 	struct rq *rq;
-	
-	for_each_cpu(cpu, &hmp_slow_cpu_mask){
+
+	for_each_cpu(cpu, &hmp_slow_cpu_mask) {
 		if (!cpu_online(cpu))
 			continue;
 
 		rq = cpu_rq(cpu);
-		if(rq->rt.rt_nr_running >= 1)
+		if (rq->rt.rt_nr_running >= 1)
 			return 1;
-	}	
+	}
 
-	return 0;				
+	return 0;
 }
 #endif
 
@@ -541,7 +548,8 @@ static inline struct rt_bandwidth *sched_rt_bandwidth(struct rt_rq *rt_rq)
 	return &rt_rq->tg->rt_bandwidth;
 }
 
-void unthrottle_offline_rt_rqs(struct rq *rq) {
+void unthrottle_offline_rt_rqs(struct rq *rq)
+{
 	struct rt_rq *rt_rq;
 
 	for_each_leaf_rt_rq(rt_rq, rq) {
@@ -549,7 +557,7 @@ void unthrottle_offline_rt_rqs(struct rq *rq) {
 		 * clock_task is not advancing so we just need to make sure
 		 * there's some valid quota amount
 		 */
-		if (rt_rq_throttled(rt_rq)){
+		if (rt_rq_throttled(rt_rq)) {
 			rt_rq->rt_throttled = 0;
 			printk_deferred("sched: RT throttling inactivated\n");
 		}
@@ -631,7 +639,7 @@ void unthrottle_offline_rt_rqs(struct rq *rq) { }
 /*
  * We ran out of runtime, see if we can borrow some from our neighbours.
  */
-//#define MTK_DEBUG_CGROUP
+/* #define MTK_DEBUG_CGROUP */
 static int do_balance_runtime(struct rt_rq *rt_rq)
 {
 	struct rt_bandwidth *rt_b = sched_rt_bandwidth(rt_rq);
@@ -643,8 +651,8 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 
 	raw_spin_lock(&rt_b->rt_runtime_lock);
 	raw_spin_lock(&rt_rq->rt_runtime_lock);
-	
-	if (rt_rq->rt_disable_borrow ==1){
+
+	if (rt_rq->rt_disable_borrow == 1) {
 		raw_spin_unlock(&rt_rq->rt_runtime_lock);
 		raw_spin_unlock(&rt_b->rt_runtime_lock);
 		return 0;
@@ -652,7 +660,7 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 	rt_period = ktime_to_ns(rt_b->rt_period);
 
 #ifdef MTK_DEBUG_CGROUP
-	printk(KERN_EMERG " do_balance_runtime curr_cpu=%d, dst_cpu=%d, span=%lu\n",
+	pr_warn(" do_balance_runtime curr_cpu=%d, dst_cpu=%d, span=%lu\n",
 		smp_processor_id(), rt_rq->rq->cpu, rd->span->bits[0]);
 #endif
 	for_each_cpu(i, rd->span) {
@@ -663,13 +671,13 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 			continue;
 
 		/* MTK Patch: use try lock to prevent deadlock */
-		// raw_spin_lock(&iter->rt_runtime_lock); 
+		/* raw_spin_lock(&iter->rt_runtime_lock); */
 #ifdef MTK_DEBUG_CGROUP
-		printk(KERN_EMERG " do_balance_runtime get lock cpu=%d\n", i);
+		pr_warn(" do_balance_runtime get lock cpu=%d\n", i);
 #endif
-		if(!raw_spin_trylock(&iter->rt_runtime_lock)){
+		if (!raw_spin_trylock(&iter->rt_runtime_lock)) {
 #ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG " do_balance_runtime try lock fail cpu=%d\n", i);
+			pr_warn(" do_balance_runtime try lock fail cpu=%d\n", i);
 #endif
 			continue;
 		}
@@ -678,8 +686,8 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 		 * or __disable_runtime() below sets a specific rq to inf to
 		 * indicate its been disabled and disalow stealing.
 		 */
-		if (iter->rt_disable_borrow ==1)
-			goto next;	
+		if (iter->rt_disable_borrow == 1)
+			goto next;
 		if (iter->rt_runtime == RUNTIME_INF)
 			goto next;
 
@@ -690,8 +698,8 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 		diff = iter->rt_runtime - iter->rt_time;
 
 #ifdef MTK_DEBUG_CGROUP
-		printk(KERN_EMERG "borrow, dst_cpu=%d, src_cpu=%d, src_cpu2=%d, src_addr=%x, dst_addr=%x,dst->rt_runtime=%llu, src->rt_runtime=%llu, diff=%lld, span=%lu\n",
-			rt_rq->rq->cpu, i, iter->rq->cpu, iter, 
+		pr_warn("borrow, dst_cpu=%d, src_cpu=%d, src_cpu2=%d, src_addr=%x, dst_addr=%x,dst->rt_runtime=%llu, src->rt_runtime=%llu, diff=%lld, span=%lu\n",
+			rt_rq->rq->cpu, i, iter->rq->cpu, iter,
 			rt_rq, rt_rq->rt_runtime, iter->rt_runtime, diff, rd->span->bits[0]);
 #endif
 		if (diff > 0) {
@@ -702,8 +710,8 @@ static int do_balance_runtime(struct rt_rq *rt_rq)
 			rt_rq->rt_runtime += diff;
 			more = 1;
 #ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG "borrow successfully, dst_cpu=%d, src_cpu=%d, src_cpu2=%d, src_addr=%x, dst_addr=%x,dst->rt_runtime=%llu, src->rt_runtime=%llu, diff=%lld, span=%lu\n",
-				rt_rq->rq->cpu, i, iter->rq->cpu, iter, 
+			pr_warn("borrow successfully, dst_cpu=%d, src_cpu=%d, src_cpu2=%d, src_addr=%x, dst_addr=%x,dst->rt_runtime=%llu, src->rt_runtime=%llu, diff=%lld, span=%lu\n",
+				rt_rq->rq->cpu, i, iter->rq->cpu, iter,
 				rt_rq, rt_rq->rt_runtime, iter->rt_runtime, diff, rd->span->bits[0]);
 #endif
 			if (rt_rq->rt_runtime == rt_period) {
@@ -747,8 +755,8 @@ static void __disable_runtime(struct rq *rq)
 		 * exactly the right amount of runtime to take out.
 		 */
 #ifdef MTK_DEBUG_CGROUP
-		printk(KERN_EMERG "0. disable_runtime, cpu=%d, rd->span=%lu, rt_rq_addr=%x, rt_rq->rt_runtime=%llu, rt_b->rt_runtime=%llu\n",
-			rt_rq->rq->cpu, rd->span->bits[0], 
+		pr_warn("0. disable_runtime, cpu=%d, rd->span=%lu, rt_rq_addr=%x, rt_rq->rt_runtime=%llu, rt_b->rt_runtime=%llu\n",
+			rt_rq->rq->cpu, rd->span->bits[0],
 			rt_rq, rt_rq->rt_runtime, rt_b->rt_runtime);
 #endif
 		if (rt_rq->rt_runtime == RUNTIME_INF ||
@@ -771,16 +779,16 @@ static void __disable_runtime(struct rq *rq)
 			s64 diff;
 
 #ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG "0. disable_runtime, cpu=%d,rt_b->rt_runtime=%llu, rt_rq->rt_runtime=%llu, want=%lld, rd->span=%lu\n",  
+			pr_warn("0. disable_runtime, cpu=%d,rt_b->rt_runtime=%llu, rt_rq->rt_runtime=%llu, want=%lld, rd->span=%lu\n",
 				rt_rq->rq->cpu, rt_b->rt_runtime, rt_rq->rt_runtime, want, rd->span->bits[0]);
 #endif
 
 			/*
 			 * Can't reclaim from ourselves or disabled runqueues.
 			 */
-			if (iter == rt_rq || iter->rt_runtime == RUNTIME_INF || iter->rt_disable_borrow){
+			if (iter == rt_rq || iter->rt_runtime == RUNTIME_INF || iter->rt_disable_borrow) {
 #ifdef MTK_DEBUG_CGROUP
-				printk(KERN_EMERG "1. disable_runtime, cpu=%d, %llu\n",
+				pr_warn("1. disable_runtime, cpu=%d, %llu\n",
 					i, iter->rt_runtime);
 #endif
 				continue;
@@ -788,7 +796,7 @@ static void __disable_runtime(struct rq *rq)
 
 			raw_spin_lock(&iter->rt_runtime_lock);
 #ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG "2-1. disable_runtime cpu=%d, want=%lld, iter->rt_runtime=%llu\n",
+			pr_warn("2-1. disable_runtime cpu=%d, want=%lld, iter->rt_runtime=%llu\n",
 				i, want, iter->rt_runtime);
 #endif
 			if (want > 0) {
@@ -796,14 +804,14 @@ static void __disable_runtime(struct rq *rq)
 				iter->rt_runtime -= diff;
 				want -= diff;
 #ifdef MTK_DEBUG_CGROUP
-				printk(KERN_EMERG "2. disable_runtime, rt_runtime=%llu, diff=%lld, want=%lld\n",
+				pr_warn("2. disable_runtime, rt_runtime=%llu, diff=%lld, want=%lld\n",
 					iter->rt_runtime, diff, want);
 #endif
 			} else {
 				iter->rt_runtime -= want;
 				want -= want;
 #ifdef MTK_DEBUG_CGROUP
-				printk(KERN_EMERG "3. disable_runtime, rt_runtime=%llu, want=%lld\n", iter->rt_runtime, want);
+				pr_warn("3. disable_runtime, rt_runtime=%llu, want=%lld\n", iter->rt_runtime, want);
 #endif
 			}
 			raw_spin_unlock(&iter->rt_runtime_lock);
@@ -817,22 +825,23 @@ static void __disable_runtime(struct rq *rq)
 		 * We cannot be left wanting - that would mean some runtime
 		 * leaked out of the system.
 		 */
-		if(want){
+		if (want) {
 #ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG "4. disable_runtime, want=%lld, rt_rq->rt_runtime=%llu\n",
+			pr_warn("4. disable_runtime, want=%lld, rt_rq->rt_runtime=%llu\n",
 				want, rt_rq->rt_runtime);
 			{
-			struct rt_rq *iter = sched_rt_period_rt_rq(rt_b, 0);
-			printk(KERN_EMERG "4-0. disable_runtime %llu\n", iter->rt_runtime);
-			iter = sched_rt_period_rt_rq(rt_b, 1);
-			printk(KERN_EMERG "4-1. disable_runtime %llu\n", iter->rt_runtime);
-			iter = sched_rt_period_rt_rq(rt_b, 2);
-			printk(KERN_EMERG "4-2. disable_runtime %llu\n", iter->rt_runtime);
-			iter = sched_rt_period_rt_rq(rt_b, 3);
-			printk(KERN_EMERG "4-3. disable_runtime %llu\n", iter->rt_runtime);
+				struct rt_rq *iter = sched_rt_period_rt_rq(rt_b, 0);
+
+				pr_warn("4-0. disable_runtime %llu\n", iter->rt_runtime);
+				iter = sched_rt_period_rt_rq(rt_b, 1);
+				pr_warn("4-1. disable_runtime %llu\n", iter->rt_runtime);
+				iter = sched_rt_period_rt_rq(rt_b, 2);
+				pr_warn("4-2. disable_runtime %llu\n", iter->rt_runtime);
+				iter = sched_rt_period_rt_rq(rt_b, 3);
+				pr_warn("4-3. disable_runtime %llu\n", iter->rt_runtime);
 			}
 #endif
-			
+
 			BUG_ON(want);
 		}
 balanced:
@@ -840,26 +849,27 @@ balanced:
 		 * Disable all the borrow logic by pretending we have inf
 		 * runtime - in which case borrowing doesn't make sense.
 		 */
-		// MTK patch:  prevent normal task could run anymore, use rt_disable_borrow 
-		//rt_rq->rt_runtime = RUNTIME_INF;
+		/* MTK patch:  prevent normal task could run anymore, use rt_disable_borrow */
+		/* rt_rq->rt_runtime = RUNTIME_INF; */
 		rt_rq->rt_runtime = rt_b->rt_runtime;
 		rt_rq->rt_throttled = 0;
 #ifdef MTK_DEBUG_CGROUP
 		{
-		struct rt_rq *iter = sched_rt_period_rt_rq(rt_b, 0);
-		printk(KERN_EMERG "5-0. disable_runtime %llu\n", iter->rt_runtime);
-		iter = sched_rt_period_rt_rq(rt_b, 1);
-		printk(KERN_EMERG "5-1. disable_runtime %llu\n", iter->rt_runtime);
-		iter = sched_rt_period_rt_rq(rt_b, 2);
-		printk(KERN_EMERG "5-2. disable_runtime %llu\n", iter->rt_runtime);
-		iter = sched_rt_period_rt_rq(rt_b, 3);
-		printk(KERN_EMERG "5-3. disable_runtime %llu\n", iter->rt_runtime);
+			struct rt_rq *iter = sched_rt_period_rt_rq(rt_b, 0);
+
+			pr_warn("5-0. disable_runtime %llu\n", iter->rt_runtime);
+			iter = sched_rt_period_rt_rq(rt_b, 1);
+			pr_warn("5-1. disable_runtime %llu\n", iter->rt_runtime);
+			iter = sched_rt_period_rt_rq(rt_b, 2);
+			pr_warn("5-2. disable_runtime %llu\n", iter->rt_runtime);
+			iter = sched_rt_period_rt_rq(rt_b, 3);
+			pr_warn("5-3. disable_runtime %llu\n", iter->rt_runtime);
 		}
 #endif
 		raw_spin_unlock(&rt_rq->rt_runtime_lock);
 		raw_spin_unlock(&rt_b->rt_runtime_lock);
 #ifdef MTK_DEBUG_CGROUP
-		printk(KERN_ERR "disable_runtime after: rt_rq->rt_runtime=%llu rq_rt->rt_throttled=%d\n",
+		pr_warn("disable_runtime after: rt_rq->rt_runtime=%llu rq_rt->rt_throttled=%d\n",
 			rt_rq->rt_runtime, rt_rq->rt_throttled);
 #endif
 	}
@@ -892,10 +902,10 @@ static void __enable_runtime(struct rq *rq)
 
 		raw_spin_lock(&rt_b->rt_runtime_lock);
 		raw_spin_lock(&rt_rq->rt_runtime_lock);
-		if (rt_rq->rt_disable_borrow ){
-			#ifdef MTK_DEBUG_CGROUP
-			printk(KERN_EMERG "enable_runtime %d \n", rq->cpu);
-			#endif
+		if (rt_rq->rt_disable_borrow) {
+#ifdef MTK_DEBUG_CGROUP
+			pr_warn("enable_runtime %d\n", rq->cpu);
+#endif
 			rt_rq->rt_runtime = rt_b->rt_runtime;
 			rt_rq->rt_time = 0;
 			rt_rq->rt_throttled = 0;
@@ -982,7 +992,7 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 #endif
 
 #ifdef MTK_DEBUG_CGROUP
-	printk(KERN_EMERG " do_sched_rt_period_timer curr_cpu=%d \n", smp_processor_id());
+	pr_warn(" do_sched_rt_period_timer curr_cpu=%d \n", smp_processor_id());
 #endif
 	for_each_cpu(i, span) {
 		int enqueue = 0;
@@ -1001,20 +1011,20 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun)
 				rt_time_pre = rt_rq->rt_time;
 			}
 			runtime = rt_rq->rt_runtime;
-			rt_rq->rt_time -= min(rt_rq->rt_time, overrun*runtime);
+			rt_rq->rt_time -= min(rt_rq->rt_time, overrun * runtime);
 			if (rt_rq->rt_throttled) {
 				printk_deferred("sched: cpu=%d, [%llu -> %llu]"
-					     " -= min(%llu, %d*[%llu -> %llu])"
-					     "\n", i, rt_time_pre,
-					     rt_rq->rt_time, rt_time_pre,
-					     overrun, runtime_pre, runtime);
+						" -= min(%llu, %d*[%llu -> %llu])"
+						"\n", i, rt_time_pre,
+						rt_rq->rt_time, rt_time_pre,
+						overrun, runtime_pre, runtime);
 			}
 			if (rt_rq->rt_throttled && rt_rq->rt_time < runtime) {
 				printk_deferred("sched: RT throttling inactivated"
 					     " cpu=%d\n", i);
 				rt_rq->rt_throttled = 0;
-				mt_sched_printf(sched_rt_info, "cpu=%d rt_throttled=%d", 
-					rq_cpu(rq), rq->rt.rt_throttled);
+				mt_sched_printf(sched_rt_info, "cpu=%d rt_throttled=%d",
+						rq_cpu(rq), rq->rt.rt_throttled);
 
 				enqueue = 1;
 
@@ -1084,33 +1094,35 @@ static int sched_rt_runtime_exceeded(struct rt_rq *rt_rq)
 		int cpu = rq_cpu(rt_rq->rq);
 
 		printk_deferred("sched: cpu=%d rt_time %llu <-> runtime"
-			     " [%llu -> %llu], exec_task[%d:%s], prio=%d, exec_delta_time[%llu]"
-			     ", clock_task[%llu], exec_start[%llu]\n",
-			     cpu, rt_rq->rt_time, runtime_pre, runtime,
-			     per_cpu(exec_task, cpu).pid,
-			     per_cpu(exec_task, cpu).comm,
-			     per_cpu(exec_task, cpu).prio,
-			     per_cpu(exec_delta_time, cpu),
-			     per_cpu(clock_task, cpu),
-			     per_cpu(exec_start, cpu));
+				" [%llu -> %llu], exec_task[%d:%s], prio=%d, exec_delta_time[%llu]"
+				", clock_task[%llu], exec_start[%llu]\n",
+				cpu, rt_rq->rt_time, runtime_pre, runtime,
+				per_cpu(exec_task, cpu).pid,
+				per_cpu(exec_task, cpu).comm,
+				per_cpu(exec_task, cpu).prio,
+				per_cpu(exec_delta_time, cpu),
+				per_cpu(clock_task, cpu), per_cpu(exec_start, cpu));
 		/*
 		 * Don't actually throttle groups that have no runtime assigned
 		 * but accrue some time due to boosting.
 		 */
-		/* MTK patch: print rt throttle everytime*/
+		/* MTK patch: print rt throttle everytime */
 		if (likely(rt_b->rt_runtime)) {
-		//	static bool once = false;
+			/* static bool once = false; */
 
 			rt_rq->rt_throttled = 1;
 
-		//	if (!once) {
-		//		once = true;
-				printk_deferred("sched: RT throttling activated cpu=%d\n",
-					cpu);
-		//	}
-			mt_sched_printf(sched_rt_info, "cpu=%d rt_throttled=%d", 
-				cpu, rt_rq->rt_throttled);
-
+			/* if (!once) { */
+			/* once = true; */
+			printk_deferred("sched: RT throttling activated cpu=%d\n", cpu);
+			/* } */
+			mt_sched_printf(sched_rt_info, "cpu=%d rt_throttled=%d",
+					cpu, rt_rq->rt_throttled);
+#ifdef CONFIG_MTPROF
+			/* sched:rt throttle monitor */
+			mt_rt_mon_switch(MON_STOP);
+			mt_rt_mon_print_task();
+#endif
 		} else {
 			/*
 			 * In case we did anyway, make it go away,
@@ -1340,8 +1352,8 @@ static void __enqueue_rt_entity(struct sched_rt_entity *rt_se, bool head)
 	 * get throttled and the current group doesn't have any other
 	 * active members.
 	 */
-//	if (group_rq && (rt_rq_throttled(group_rq) || !group_rq->rt_nr_running))
-	if (group_rq && ( !group_rq->rt_nr_running))
+/* if (group_rq && (rt_rq_throttled(group_rq) || !group_rq->rt_nr_running)) */
+	if (group_rq && (!group_rq->rt_nr_running))
 		return;
 
 	if (!rt_rq->rt_nr_running)
@@ -1519,23 +1531,22 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 	 * This test is optimistic, if we get it wrong the load-balancer
 	 * will have to sort it out.
 	 */
-	if(curr){
-		mt_sched_printf(sched_rt_info, "1 select_task_rq_rt cpu=%d p=%d:%s:prio=%d:0x%x curr=%d:%s:prio=%d:0x%x", 
-			cpu, p->pid, p->comm, p->prio, p->nr_cpus_allowed, 
-			curr->pid, curr->comm, curr->prio, curr->nr_cpus_allowed);
-	}else{
-		mt_sched_printf(sched_rt_info, "1 select_task_rq_rt cpu=%d p=%d:%s:prio=%d:0x%x", 
-			cpu, p->pid, p->comm, p->prio, p->nr_cpus_allowed);
+	if (curr) {
+		mt_sched_printf(sched_rt_info,
+				"1 select_task_rq_rt cpu=%d p=%d:%s:prio=%d:0x%x curr=%d:%s:prio=%d:0x%x",
+				cpu, p->pid, p->comm, p->prio, p->nr_cpus_allowed, curr->pid,
+				curr->comm, curr->prio, curr->nr_cpus_allowed);
+	} else {
+		mt_sched_printf(sched_rt_info, "1 select_task_rq_rt cpu=%d p=%d:%s:prio=%d:0x%x",
+				cpu, p->pid, p->comm, p->prio, p->nr_cpus_allowed);
 	}
 
-#if defined(CONFIG_MT_RT_SCHED)||defined(CONFIG_MT_SCHED_INTEROP)
+#if defined(CONFIG_MT_RT_SCHED) || defined(CONFIG_MT_SCHED_INTEROP)
 	/* if the task is allowed to put more than one CPU. */
-	if ( (p->nr_cpus_allowed > 1) ){
+	if ((p->nr_cpus_allowed > 1)) {
 #else
-	if (curr &&
-            unlikely(rt_task(curr)) &&
-	    (curr->nr_cpus_allowed < 2 || curr->prio <= p->prio)
-		&& (p->nr_cpus_allowed > 1)) {
+	if (curr && unlikely(rt_task(curr)) && (curr->nr_cpus_allowed < 2 || curr->prio <= p->prio)
+	    && (p->nr_cpus_allowed > 1)) {
 #endif
 		int target = find_lowest_rq(p);
 
@@ -1624,21 +1635,21 @@ next_idx:
 	list_for_each_entry(rt_se, array->queue + idx, run_list) {
 		struct task_struct *p;
 
-		if (!rt_entity_is_task(rt_se)){
+		if (!rt_entity_is_task(rt_se)) {
 			next = rt_se;
 			break;
 		}
 
 		p = rt_task_of(rt_se);
-		if ( (!cpu_online(rq->cpu)) || (!test_tsk_need_released(p))) {
+		if ((!cpu_online(rq->cpu)) || (!test_tsk_need_released(p))) {
 			next = rt_se;
 			break;
-		}else{
+		} else {
 			mt_sched_printf(sched_rt_info, "1. pick_next_rt_entity bypass %d %s", p->pid, p->comm);
 		}
 	}
 	if (!next) {
-		idx = find_next_bit(array->bitmap, MAX_RT_PRIO, idx+1);
+		idx = find_next_bit(array->bitmap, MAX_RT_PRIO, idx + 1);
 		if (idx < MAX_RT_PRIO)
 			goto next_idx;
 	}
@@ -1676,15 +1687,15 @@ static struct task_struct *_pick_next_task_rt(struct rq *rq)
 	if (!rt_rq->rt_nr_running)
 		return NULL;
 
-	if (rt_rq_throttled(rt_rq)){
+	if (rt_rq_throttled(rt_rq)) {
 		/* prevent wdt from RT throttle */
 		struct rt_prio_array *array = &rt_rq->active;
-		int idx = 0, prio = MAX_RT_PRIO- 1 - idx;  //WDT priority
+		int idx = 0, prio = MAX_RT_PRIO - 1 - idx;	/* WDT priority */
 
-		if( test_bit(idx, array->bitmap)){
-			list_for_each_entry(rt_se, array->queue + idx, run_list){
+		if (test_bit(idx, array->bitmap)) {
+			list_for_each_entry(rt_se, array->queue + idx, run_list) {
 				p = rt_task_of(rt_se);
-				if( (p->rt_priority == prio) && (0 == strncmp(p->comm, "wdtk", 4)) ){
+				if ((p->rt_priority == prio) && (0 == strncmp(p->comm, "wdtk", 4))) {
 					p->se.exec_start = rq->clock_task;
 					printk_deferred("sched: unthrottle %s\n", p->comm);
 					return p;
@@ -1697,11 +1708,11 @@ static struct task_struct *_pick_next_task_rt(struct rq *rq)
 	do {
 		rt_se = pick_next_rt_entity(rq, rt_rq);
 #ifdef CONFIG_MT_RT_SCHED
-		if(!rt_se){
-			mt_sched_printf(sched_rt_info, "_pick_next_task_rt %d:%s:%d:%d:%d", 
-				rq->curr->pid, rq->curr->comm, rq->curr->prio,
-				test_tsk_need_released(rq->curr), rt_rq->rt_nr_running);
-			return NULL;	
+		if (!rt_se) {
+			mt_sched_printf(sched_rt_info, "_pick_next_task_rt %d:%s:%d:%d:%d",
+					rq->curr->pid, rq->curr->comm, rq->curr->prio,
+					test_tsk_need_released(rq->curr), rt_rq->rt_nr_running);
+			return NULL;
 		}
 #endif
 		BUG_ON(!rt_se);
@@ -1811,24 +1822,24 @@ static int test_has_highest_prio(int this_cpu)
 	int prio = this_rq->curr->prio;
 
 	mt_sched_printf(sched_rt_info, "0. test_has_highest_prio %d:%d:%s:%d %lu",
-		this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio, 
-		tsk_cpus_allowed(this_rq->curr)->bits[0]);
-	if (prio >= MAX_RT_PRIO){
+			this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio,
+			tsk_cpus_allowed(this_rq->curr)->bits[0]);
+	if (prio >= MAX_RT_PRIO) {
 		mt_sched_printf(sched_rt_info, "test_has_highest_prio false %d:%d:%s:%d",
-			this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio);
+				this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio);
 		return 0;
 	}
-	
+
 	for_each_cpu(cpu, &hmp_fast_cpu_mask) {
-		if(!cpu_online(cpu))
+		if (!cpu_online(cpu))
 			continue;
 
-                if (!cpumask_test_cpu(cpu, tsk_cpus_allowed(this_rq->curr)))
-                        continue;
+		if (!cpumask_test_cpu(cpu, tsk_cpus_allowed(this_rq->curr)))
+			continue;
 
 		rq = cpu_rq(cpu);
 
-		if(rq->rt.rt_nr_running == 0){
+		if (rq->rt.rt_nr_running == 0) {
 			mt_sched_printf(sched_rt, "test_has_highest_prio true %d", cpu);
 			return 1;
 		}
@@ -1836,17 +1847,17 @@ static int test_has_highest_prio(int this_cpu)
 		highest_prio = rq->rt.highest_prio.curr;
 
 		mt_sched_printf(sched_rt_info, "1. test_has_highest_prio %d:%d %d",
-			cpu, highest_prio, prio);
-		/* if currenet task's priority is higher than process in big CPU */
-		if(prio < highest_prio){
-			mt_sched_printf(sched_rt, "test_has_highest_prio true %d:%d:%d",
 				cpu, highest_prio, prio);
+		/* if currenet task's priority is higher than process in big CPU */
+		if (prio < highest_prio) {
+			mt_sched_printf(sched_rt, "test_has_highest_prio true %d:%d:%d",
+					cpu, highest_prio, prio);
 			return 1;
 		}
 	}
 
 	mt_sched_printf(sched_rt, "test_has_highest_prio false %d:%d:%s:%d",
-		this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio);
+			this_cpu, this_rq->curr->pid, this_rq->curr->comm, prio);
 
 	return 0;
 }
@@ -1856,20 +1867,21 @@ static void release_task_ipi(void *data)
 	int cpu = smp_processor_id();
 	struct rq *rq = cpu_rq(cpu);
 
-	mt_sched_printf(sched_rt, "1. release_task_ipi %d %lu %d", 
-		cpu, hmp_slow_cpu_mask.bits[0], (int)(long)data);
+	mt_sched_printf(sched_rt, "1. release_task_ipi %d %lu %d",
+			cpu, hmp_slow_cpu_mask.bits[0], (int)(long)data);
 
 	/* check if current process is LITTLE */
 	if (!cpumask_test_cpu(cpu, &hmp_slow_cpu_mask))
 		return;
 
 	/* check if current task is highest_n_tasks? */
-	if ( !test_has_highest_prio(cpu)){
+	if (!test_has_highest_prio(cpu)) {
 		mt_sched_printf(sched_rt_info, "3. release_task_ipi false");
 		return;
 	}
 
-	mt_sched_printf(sched_rt_info, "set_tsk_need_release %d:%s:%d", rq->curr->pid, rq->curr->comm, rq->curr->prio);
+	mt_sched_printf(sched_rt_info, "set_tsk_need_release %d:%s:%d", rq->curr->pid,
+			rq->curr->comm, rq->curr->prio);
 	set_tsk_need_released(rq->curr);
 	set_tsk_need_resched(rq->curr);
 }
@@ -1885,27 +1897,27 @@ static int find_highest_prio_in_LITTLE(struct rq *this_rq, int pull)
 	cpumask_clear(lowest_mask);
 
 	mt_sched_printf(sched_rt_info, "0. find_highest_prio_in_LITTLE %lu %d:%d %d",
-		hmp_slow_cpu_mask.bits[0],
-		this_rq->cpu, this_rq->rt.highest_prio.curr,
-		pull);
-	for_each_cpu(cpu, &hmp_slow_cpu_mask){
-		mt_sched_printf(sched_rt_info, "1. find_highest_prio_in_LITTLE %d %d", cpu, cpu_online(cpu));
+			hmp_slow_cpu_mask.bits[0],
+			this_rq->cpu, this_rq->rt.highest_prio.curr, pull);
+	for_each_cpu(cpu, &hmp_slow_cpu_mask) {
+		mt_sched_printf(sched_rt_info, "1. find_highest_prio_in_LITTLE %d %d", cpu,
+				cpu_online(cpu));
 		if (!cpu_online(cpu))
 			continue;
 
 		rq = cpu_rq(cpu);
-		if(rq->rt.rt_nr_running == 0)
+		if (rq->rt.rt_nr_running == 0)
 			continue;
 
 		prio = rq->rt.highest_prio.curr;
 
-		mt_sched_printf(sched_rt_info, "2. find_highest_prio_in_LITTLE %d %d %d %lu", 
-			cpu, prio, highest_prio, tsk_cpus_allowed(rq->curr)->bits[0]);
+		mt_sched_printf(sched_rt_info, "2. find_highest_prio_in_LITTLE %d %d %d %lu",
+				cpu, prio, highest_prio, tsk_cpus_allowed(rq->curr)->bits[0]);
 
-		/* If the highest priority of LITTLE CPU is smaller and equal than current, 
+		/* If the highest priority of LITTLE CPU is smaller and equal than current,
 		 * then bypass
 		 */
-		if (prio >= this_rq->rt.highest_prio.curr )
+		if (prio >= this_rq->rt.highest_prio.curr)
 			continue;
 
 		/* If the prority of LITTLE CPU is smaller and than highest_prio of LITTLE CPUs */
@@ -1916,9 +1928,10 @@ static int find_highest_prio_in_LITTLE(struct rq *this_rq, int pull)
 		if (!cpumask_test_cpu(this_rq->cpu, tsk_cpus_allowed(rq->curr)))
 			continue;
 
-		if (prio < highest_prio){
-			if ( 0 == pull ){
-				mt_sched_printf(sched_rt_info, "3. find_highest_prio_in_LITTLE find");
+		if (prio < highest_prio) {
+			if (0 == pull) {
+				mt_sched_printf(sched_rt_info,
+						"3. find_highest_prio_in_LITTLE find");
 				return 1;
 			}
 
@@ -1929,27 +1942,27 @@ static int find_highest_prio_in_LITTLE(struct rq *this_rq, int pull)
 		cpumask_set_cpu(cpu, lowest_mask);
 
 		mt_sched_printf(sched_rt_info, "2. find_highest_prio_in_LITTLE %d:%d %d %lu",
-			cpu, prio, highest_prio, lowest_mask->bits[0]);
+				cpu, prio, highest_prio, lowest_mask->bits[0]);
 	}
 
-	if (cpumask_empty(lowest_mask)){
+	if (cpumask_empty(lowest_mask)) {
 		mt_sched_printf(sched_rt_info, "3. find_highest_prio_in_LITTLE not find");
 		return 0;
 	}
 
 	raw_spin_unlock_irq(&this_rq->lock);
 	per_cpu(mt_need_released, this_cpu) = 1;
-	for_each_cpu (cpu, lowest_mask) {
+	for_each_cpu(cpu, lowest_mask) {
 		rq = cpu_rq(cpu);
-		mt_sched_printf(sched_rt_info, "4. find_highest_prio_in_LITTLE %d %d", 
-			cpu, rq->rt.highest_prio.curr);
+		mt_sched_printf(sched_rt_info, "4. find_highest_prio_in_LITTLE %d %d",
+				cpu, rq->rt.highest_prio.curr);
 		if (highest_prio == rq->rt.highest_prio.curr) {
 			/* send IPI release */
-			mt_sched_printf(sched_rt, "send ipi release to cpu=%d prio=%d", 
-				cpu, rq->rt.highest_prio.curr);
+			mt_sched_printf(sched_rt, "send ipi release to cpu=%d prio=%d",
+					cpu, rq->rt.highest_prio.curr);
 			/* the target CPU will execute release_task_ipi  */
-			smp_call_function_single(cpu, release_task_ipi, (void *)this_cpu, 0);
-		 	break;
+			smp_call_function_single(cpu, release_task_ipi, (void *)&this_cpu, 0);
+			break;
 		}
 	}
 
@@ -1964,10 +1977,10 @@ static int find_lowest_rq_in_big(struct task_struct *task, struct cpumask *lowes
 
 	cpumask_clear(lowest_mask);
 	mt_sched_printf(sched_rt_info, "0. find_lowest_rq_in_big %lu %d:%s:%d",
-		(unsigned long)hmp_fast_cpu_mask.bits[0],
-		task->pid, task->comm, task->prio);
+			(unsigned long)hmp_fast_cpu_mask.bits[0],
+			task->pid, task->comm, task->prio);
 
-	for_each_cpu(i, &hmp_fast_cpu_mask){
+	for_each_cpu(i, &hmp_fast_cpu_mask) {
 		int prio;
 
 		if (!cpu_online(i))
@@ -1977,8 +1990,7 @@ static int find_lowest_rq_in_big(struct task_struct *task, struct cpumask *lowes
 		prio = rq->rt.highest_prio.curr;
 
 		mt_sched_printf(sched_rt_info, "1. find_lowest_rq_in_big %d:%d %d:%lu",
-			i, prio,
-			lowest_prio, (unsigned long)lowest_mask->bits[0]);
+				i, prio, lowest_prio, (unsigned long)lowest_mask->bits[0]);
 
 		/* If the highest priority of CPU is higher than lowest_prio
 		 * or higher than the task, then bypass
@@ -1990,7 +2002,7 @@ static int find_lowest_rq_in_big(struct task_struct *task, struct cpumask *lowes
 			continue;
 
 		/* If the priority lower than lowest_prio */
-		if (prio > lowest_prio){
+		if (prio > lowest_prio) {
 			lowest_prio = prio;
 			cpumask_clear(lowest_mask);
 		}
@@ -1998,14 +2010,14 @@ static int find_lowest_rq_in_big(struct task_struct *task, struct cpumask *lowes
 		cpumask_set_cpu(i, lowest_mask);
 	}
 
-	if (cpumask_empty(lowest_mask)){
+	if (cpumask_empty(lowest_mask)) {
 		mt_sched_printf(sched_rt_info, "2. find_lowest_rq_in_big not find");
 		return 0;
 	}
 
 	mt_sched_printf(sched_rt_info, "3. find_lowest_rq_in_big find %d:%s:%d %d:%lu",
-		task->pid, task->comm, task->prio, 
-		lowest_prio, (unsigned long)lowest_mask->bits[0]);
+			task->pid, task->comm, task->prio,
+			lowest_prio, (unsigned long)lowest_mask->bits[0]);
 	return 1;
 }
 
@@ -2015,11 +2027,11 @@ static int find_lowest_rq_in_LITTLE(struct task_struct *task, struct cpumask *lo
 	struct rq *rq = NULL;
 
 	cpumask_clear(lowest_mask);
-	mt_sched_printf(sched_rt_info, "0. find_lowest_rq_in_LITTLE %lu %d:%s:%d", 
-		(unsigned long)hmp_slow_cpu_mask.bits[0],
-		task->pid, task->comm, task->prio);
+	mt_sched_printf(sched_rt_info, "0. find_lowest_rq_in_LITTLE %lu %d:%s:%d",
+			(unsigned long)hmp_slow_cpu_mask.bits[0],
+			task->pid, task->comm, task->prio);
 
-	for_each_cpu(i, &hmp_slow_cpu_mask){
+	for_each_cpu(i, &hmp_slow_cpu_mask) {
 		int prio;
 
 		if (!cpu_online(i))
@@ -2029,11 +2041,10 @@ static int find_lowest_rq_in_LITTLE(struct task_struct *task, struct cpumask *lo
 		prio = rq->rt.highest_prio.curr;
 
 		mt_sched_printf(sched_rt_info, "1. find_lowest_rq_in_LITTLE %d:%d %d:%lu",
-			i, prio,
-			lowest_prio, (unsigned long)lowest_mask->bits[0]);
+				i, prio, lowest_prio, (unsigned long)lowest_mask->bits[0]);
 
-                /* If the highest priority of CPU is higher than lowest_prio
-                 * or higher than the task, then bypass
+		/* If the highest priority of CPU is higher than lowest_prio
+		 * or higher than the task, then bypass
 		 */
 		if ((prio < lowest_prio) || (prio <= task->prio))
 			continue;
@@ -2042,7 +2053,7 @@ static int find_lowest_rq_in_LITTLE(struct task_struct *task, struct cpumask *lo
 			continue;
 
 		/* If the priority lower than lowest_prio */
-		if (prio > lowest_prio){
+		if (prio > lowest_prio) {
 			lowest_prio = prio;
 			cpumask_clear(lowest_mask);
 		}
@@ -2050,14 +2061,14 @@ static int find_lowest_rq_in_LITTLE(struct task_struct *task, struct cpumask *lo
 		cpumask_set_cpu(i, lowest_mask);
 	}
 
-	if (cpumask_empty(lowest_mask)){
+	if (cpumask_empty(lowest_mask)) {
 		mt_sched_printf(sched_rt_info, "2. find_lowest_rq_in_LITTLE not find");
 		return 0;
 	}
 
 	mt_sched_printf(sched_rt_info, "3. find_lowest_rq_in_LITTLE find %d:%s:%d %d:%lu",
-		task->pid, task->comm, task->prio,
-		lowest_prio, (unsigned long)lowest_mask->bits[0]);
+			task->pid, task->comm, task->prio,
+			lowest_prio, (unsigned long)lowest_mask->bits[0]);
 
 	return 1;
 }
@@ -2068,15 +2079,16 @@ static int mt_sched_interop_rt(int cpu, struct cpumask *lowest_mask)
 {
 	int lowest_cpu = -1, lowest_prio = 0;
 
-	mt_sched_printf(sched_interop, "current cpu=%d, find idle cpu from cpumask 0x%lx", 
-		cpu, lowest_mask->bits[0]);
+	mt_sched_printf(sched_interop, "current cpu=%d, find idle cpu from cpumask 0x%lx",
+			cpu, lowest_mask->bits[0]);
 
-	if (cpumask_test_cpu(cpu, lowest_mask)&& idle_cpu(cpu))
+	if (cpumask_test_cpu(cpu, lowest_mask) && idle_cpu(cpu))
 		return cpu;
 
 	for_each_cpu(cpu, lowest_mask) {
-		struct rq *rq;	
+		struct rq *rq;
 		struct task_struct *curr;
+
 		if (idle_cpu(cpu)) {
 			return cpu;
 		}
@@ -2087,12 +2099,12 @@ static int mt_sched_interop_rt(int cpu, struct cpumask *lowest_mask)
 			lowest_prio = curr->prio;
 			lowest_cpu = cpu;
 
-			mt_sched_printf(sched_interop, "lowest_cpu=%d, lowest_prio=%d", 
-				lowest_cpu, lowest_prio);
+			mt_sched_printf(sched_interop, "lowest_cpu=%d, lowest_prio=%d",
+					lowest_cpu, lowest_prio);
 		}
 	}
 
-	if (-1 != lowest_cpu){
+	if (-1 != lowest_cpu) {
 		return lowest_cpu;
 	}
 
@@ -2110,8 +2122,9 @@ static int find_lowest_rq(struct task_struct *task)
 	int interop_cpu;
 #endif
 
-	mt_sched_printf(sched_rt_info, "1 find_lowest_rq lowest_mask=0x%lx, task->cpus_allowed=0x%lx", 
-		lowest_mask->bits[0], task->cpus_allowed.bits[0]);
+	mt_sched_printf(sched_rt_info,
+			"1 find_lowest_rq lowest_mask=0x%lx, task->cpus_allowed=0x%lx",
+			lowest_mask->bits[0], task->cpus_allowed.bits[0]);
 	/* Make sure the mask is initialized first */
 	if (unlikely(!lowest_mask))
 		return -1;
@@ -2120,9 +2133,9 @@ static int find_lowest_rq(struct task_struct *task)
 		return -1; /* No other targets possible */
 
 #ifdef CONFIG_MT_RT_SCHED
-	if (!find_lowest_rq_in_big(task, lowest_mask)){
-		if (!find_lowest_rq_in_LITTLE(task, lowest_mask)){
-			return -1; /* No targets found */
+	if (!find_lowest_rq_in_big(task, lowest_mask)) {
+		if (!find_lowest_rq_in_LITTLE(task, lowest_mask)) {
+			return -1;	/* No targets found */
 		}
 	}
 #else
@@ -2132,7 +2145,7 @@ static int find_lowest_rq(struct task_struct *task)
 
 #ifdef CONFIG_MT_SCHED_INTEROP
 	interop_cpu = mt_sched_interop_rt(cpu, lowest_mask);
-	if (interop_cpu != -1 ){
+	if (interop_cpu != -1) {
 		mt_sched_printf(sched_interop, "find idle cpu=%d", interop_cpu);
 		return interop_cpu;
 	}
@@ -2229,8 +2242,8 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			 * Also make sure that it wasn't scheduled on its rq.
 			 */
 
-			mt_sched_printf(sched_rt_info, "1. find_lock_lowest_rq %d %d %d %s", 
-				lowest_rq->cpu,  rq->cpu, task->pid, task->comm);
+			mt_sched_printf(sched_rt_info, "1. find_lock_lowest_rq %d %d %d %s",
+					lowest_rq->cpu, rq->cpu, task->pid, task->comm);
 			if (unlikely(task_rq(task) != rq ||
 				     !cpumask_test_cpu(lowest_rq->cpu,
 						       tsk_cpus_allowed(task)) ||
@@ -2298,8 +2311,8 @@ static struct rq *find_lock_lowest_rq_mtk(struct task_struct *task, struct rq *r
 		 * migrated already or had its affinity changed.
 		 * Also make sure that it wasn't scheduled on its rq.
 		 */
-		mt_sched_printf(sched_rt_info, "1. find_lock_lowest_rq_mtk %d %d %d %s", 
-			lowest_rq->cpu,  rq->cpu, task->pid, task->comm);
+		mt_sched_printf(sched_rt_info, "1. find_lock_lowest_rq_mtk %d %d %d %s",
+				lowest_rq->cpu, rq->cpu, task->pid, task->comm);
 		if (unlikely(task_rq(task) != rq ||
 			     !cpumask_test_cpu(lowest_rq->cpu,
 					       tsk_cpus_allowed(task)) ||
@@ -2311,7 +2324,7 @@ static struct rq *find_lock_lowest_rq_mtk(struct task_struct *task, struct rq *r
 	}
 
 	/* If this rq is still suitable use it. */
-	if (lowest_rq->rt.highest_prio.curr > task->prio){
+	if (lowest_rq->rt.highest_prio.curr > task->prio) {
 		return lowest_rq;
 	}
 
@@ -2332,7 +2345,7 @@ int push_need_released_rt_task(struct rq *rq, struct task_struct *p)
 		return 0;
 
 	mt_sched_printf(sched_rt_info, "0. push_need_released_task %d:%s %d:%s",
-		p->pid, p->comm, rq->curr->pid, rq->curr->comm);
+			p->pid, p->comm, rq->curr->pid, rq->curr->comm);
 
 	if (unlikely(p == rq->curr)) {
 		WARN_ON(1);
@@ -2346,25 +2359,25 @@ int push_need_released_rt_task(struct rq *rq, struct task_struct *p)
 	lowest_rq = find_lock_lowest_rq_mtk(p, rq);
 	if (!lowest_rq) {
 		mt_sched_printf(sched_rt, "1. push_need_released_task fail %d:%s:%d %d",
-			p->pid, p->comm, p->prio, rq->curr->prio);
+				p->pid, p->comm, p->prio, rq->curr->prio);
 		put_task_struct(p);
 
 		if (likely(p->prio < rq->curr->prio)) {
 			resched_task(rq->curr);
-		}else{
+		} else {
 			mt_sched_printf(sched_rt, "1. push_need_released_task fail %d:%s:%d %d",
-				p->pid, p->comm, p->prio, rq->curr->prio);
+					p->pid, p->comm, p->prio, rq->curr->prio);
 #if 0
-			printk(KERN_ALERT "[sched] push_need_released_task fail %d:%s:%d %d\n",
+			pr_warn("[sched] push_need_released_task fail %d:%s:%d %d\n",
 				p->pid, p->comm, p->prio, rq->curr->prio);
 			WARN_ON(1);
-#endif	
+#endif
 		}
 		return 0;
 	}
 
 	mt_sched_printf(sched_rt, "push_need_released_task task=%d:%s cpu=%d",
-		p->pid, p->comm, lowest_rq->cpu);
+			p->pid, p->comm, lowest_rq->cpu);
 
 	deactivate_task(rq, p, 0);
 	set_task_cpu(p, lowest_rq->cpu);
@@ -2477,7 +2490,8 @@ static void push_rt_tasks(struct rq *rq)
 
 #ifdef CONFIG_MT_RT_SCHED
 /* refer pull_rt_task() */
-static int pick_next_highest_task(struct rq *this_rq){
+static int pick_next_highest_task(struct rq *this_rq)
+{
 	int this_cpu = this_rq->cpu, ret = 0, cpu;
 	struct task_struct *p;
 	struct rq *src_rq;
@@ -2495,8 +2509,7 @@ static int pick_next_highest_task(struct rq *this_rq){
 		 * logically higher, the src_rq will push this task away.
 		 * And if its going logically lower, we do not care
 		 */
-		if (src_rq->rt.highest_prio.next >=
-		    this_rq->rt.highest_prio.curr)
+		if (src_rq->rt.highest_prio.next >= this_rq->rt.highest_prio.curr)
 			continue;
 
 		/*
@@ -2559,18 +2572,19 @@ skip:
 void mt_check_rt_policy(struct rq *this_rq)
 {
 	int this_cpu = this_rq->cpu;
-	if ( cpumask_test_cpu(this_cpu, &hmp_fast_cpu_mask) ){
-		if ( !per_cpu(mt_need_released, this_cpu) )
-			return;
-		mt_sched_printf(sched_rt_info, "0. mt_check_rt_policy %d %d %s", 
-			this_cpu, this_rq->curr->pid, this_rq->curr->comm );
 
-		if ( find_highest_prio_in_LITTLE(this_rq, 0) ){
+	if (cpumask_test_cpu(this_cpu, &hmp_fast_cpu_mask)) {
+		if (!per_cpu(mt_need_released, this_cpu))
+			return;
+		mt_sched_printf(sched_rt_info, "0. mt_check_rt_policy %d %d %s",
+				this_cpu, this_rq->curr->pid, this_rq->curr->comm);
+
+		if (find_highest_prio_in_LITTLE(this_rq, 0)) {
 			set_tsk_need_resched(this_rq->curr);
-			mt_sched_printf(sched_rt_info, "1. mt_check_rt_policy %d %d %s", 
-				this_cpu, this_rq->curr->pid, this_rq->curr->comm );
-		}else{
-			per_cpu(mt_need_released, this_cpu)=0;
+			mt_sched_printf(sched_rt_info, "1. mt_check_rt_policy %d %d %s",
+					this_cpu, this_rq->curr->pid, this_rq->curr->comm);
+		} else {
+			per_cpu(mt_need_released, this_cpu) = 0;
 			mt_sched_printf(sched_rt_info, "2. mt_check_rt_policy %d", this_cpu);
 		}
 	}
@@ -2582,8 +2596,8 @@ int mt_post_schedule(struct rq *rq)
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&rq->lock, flags);
-	if ( cpumask_test_cpu(this_cpu, &hmp_fast_cpu_mask) ) {
-		if ( has_rt_task_in_little() )
+	if (cpumask_test_cpu(this_cpu, &hmp_fast_cpu_mask)) {
+		if (has_rt_task_in_little())
 			ret = find_highest_prio_in_LITTLE(rq, 1);
 	}
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
@@ -2598,9 +2612,9 @@ int pull_rt_task(struct rq *this_rq)
 static int pull_rt_task(struct rq *this_rq)
 #endif
 {
-#if !defined(CONFIG_MT_RT_SCHED)	
+#if !defined(CONFIG_MT_RT_SCHED)
 	int this_cpu = this_rq->cpu;
-#endif	
+#endif
 	int ret = 0;
 #ifndef CONFIG_MT_RT_SCHED
 	int cpu;
@@ -2609,7 +2623,7 @@ static int pull_rt_task(struct rq *this_rq)
 #endif
 
 	mt_sched_printf(sched_rt_info, "0. pull_rt_task %d %d ",
-		rt_overloaded(this_rq), this_rq->cpu);
+			rt_overloaded(this_rq), this_rq->cpu);
 
 #ifdef CONFIG_MT_RT_SCHED
 	if (likely(!rt_overloaded(this_rq)))
@@ -2619,8 +2633,7 @@ static int pull_rt_task(struct rq *this_rq)
 	if (likely(!rt_overloaded(this_rq)))
 		return 0;
 
-	mt_sched_printf(sched_rt_info, "1. pull_rt_task %lu ",
-		this_rq->rd->rto_mask->bits[0]);
+	mt_sched_printf(sched_rt_info, "1. pull_rt_task %lu ", this_rq->rd->rto_mask->bits[0]);
 	for_each_cpu(cpu, this_rq->rd->rto_mask) {
 		if (this_cpu == cpu)
 			continue;
@@ -2635,9 +2648,8 @@ static int pull_rt_task(struct rq *this_rq)
 		 * And if its going logically lower, we do not care
 		 */
 		mt_sched_printf(sched_rt_info, "2. pull_rt_task %d %d ",
-			src_rq->rt.highest_prio.next, this_rq->rt.highest_prio.curr);
-		if (src_rq->rt.highest_prio.next >=
-		    this_rq->rt.highest_prio.curr)
+				src_rq->rt.highest_prio.next, this_rq->rt.highest_prio.curr);
+		if (src_rq->rt.highest_prio.next >= this_rq->rt.highest_prio.curr)
 			continue;
 
 		/*

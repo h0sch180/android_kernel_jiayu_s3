@@ -147,6 +147,7 @@ static int disp_pwm_config_init(DISP_MODULE_ENUM module, disp_ddp_path_config *p
 				* TODO: Apply CCF API, replace clkmux_sel() with
 				* clk_set_parent() if this code block is enabled.
 				*/
+
 				clkmux_sel(MT_MUX_PWM, config_data->clock_source, "DISP_PWM");
 				PWM_MSG("disp_pwm_init : CLK_CFG_1 0x%x => 0x%x", regVal, DISP_REG_GET(CLK_CFG_1));
 			}
@@ -326,6 +327,7 @@ static void disp_pwm_log(int level_1024, int log_type)
 {
 	int i;
 	struct timeval pwm_time;
+
 	char buffer[256] = "";
 	int print_log;
 

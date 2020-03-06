@@ -333,7 +333,7 @@ err_portio:
 	}
 	kobject_put(idev->portio_dir);
 err_map:
-	for (mi--; mi>=0; mi--) {
+	for (mi--; mi >= 0; mi--) {
 		mem = &idev->info->mem[mi];
 		map = mem->map;
 		kobject_put(&map->kobj);
@@ -684,7 +684,7 @@ static int exm_mmap(struct file *filep, struct vm_area_struct *vma)
 
 	requested_pages = (vma->vm_end - vma->vm_start) >> PAGE_SHIFT;
 	actual_pages = ((idev->info->mem[mi].addr & ~PAGE_MASK)
-			+ idev->info->mem[mi].size + PAGE_SIZE -1) >> PAGE_SHIFT;
+			+ idev->info->mem[mi].size + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	if (requested_pages > actual_pages)
 		return -EINVAL;
 
@@ -694,13 +694,13 @@ static int exm_mmap(struct file *filep, struct vm_area_struct *vma)
 	}
 
 	switch (idev->info->mem[mi].memtype) {
-		case EXM_MEM_PHYS:
-			return exm_mmap_physical(vma);
-		case EXM_MEM_LOGICAL:
-		case EXM_MEM_VIRTUAL:
-			return exm_mmap_logical(vma);
-		default:
-			return -EINVAL;
+	case EXM_MEM_PHYS:
+		return exm_mmap_physical(vma);
+	case EXM_MEM_LOGICAL:
+	case EXM_MEM_VIRTUAL:
+		return exm_mmap_logical(vma);
+	default:
+		return -EINVAL;
 	}
 }
 
@@ -768,7 +768,7 @@ static int init_exm_class(void)
 
 	ret = class_register(&exm_class);
 	if (ret) {
-		printk(KERN_ERR "class_register failed for exm\n");
+		pr_err("class_register failed for exm\n");
 		goto err_class_register;
 	}
 	return 0;
@@ -824,7 +824,7 @@ int __exm_register_device(struct module *owner,
 				  MKDEV(exm_major, idev->minor), idev,
 				  "exm%d", idev->minor);
 	if (IS_ERR(idev->dev)) {
-		printk(KERN_ERR "EXM: device register failed\n");
+		pr_err("EXM: device register failed\n");
 		ret = PTR_ERR(idev->dev);
 		goto err_device_create;
 	}

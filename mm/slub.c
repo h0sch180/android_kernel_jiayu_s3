@@ -34,6 +34,7 @@
 #include <linux/stacktrace.h>
 #include <linux/prefetch.h>
 #include <linux/memcontrol.h>
+#include <linux/random.h>
 #include <linux/aee.h>
 
 #include <trace/events/kmem.h>
@@ -214,9 +215,6 @@ static struct notifier_block slab_notifier;
  * Tracking user of a slab.
  */
 
-#ifdef MTK_COMPACT_SLUB_TRACK
-#define LOW_BYTE_MASK 0xffffffff00000000
-#endif
 
 #define TRACK_ADDRS_COUNT 8
 
@@ -224,7 +222,7 @@ static struct notifier_block slab_notifier;
 struct track {
 	unsigned long addr;	/* Called from address */
 #ifdef CONFIG_STACKTRACE
-	u32 addrs[TRACK_ADDRS_COUNT];	/* only lower 32bit for 64bit pointer Called from address */
+	u32 addrs[TRACK_ADDRS_COUNT];	/* we store the offset after MODULES_VADDR for kernel module and kernel text address  */
 #endif
 	int cpu;		/* Was running on cpu */
 	int pid;		/* Pid context */
@@ -298,20 +296,28 @@ static inline int check_valid_pointer(struct kmem_cache *s,
 
 static inline void *get_freepointer(struct kmem_cache *s, void *object)
 {
-	return *(void **)(object + s->offset);
+	unsigned long freepointer_addr = (unsigned long)object + s->offset;
+	return (void *)(*(unsigned long *)freepointer_addr ^ s->random ^ freepointer_addr);
 }
 
 static void prefetch_freepointer(const struct kmem_cache *s, void *object)
 {
-	prefetch(object + s->offset);
+	unsigned long freepointer_addr = (unsigned long)object + s->offset;
+	if (object) {
+		void **freepointer_ptr = (void **)(*(unsigned long *)freepointer_addr ^ s->random ^ freepointer_addr);
+		prefetch(freepointer_ptr);
+	}
 }
 
 static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
 {
+	unsigned long __maybe_unused freepointer_addr;
 	void *p;
 
 #ifdef CONFIG_DEBUG_PAGEALLOC
-	probe_kernel_read(&p, (void **)(object + s->offset), sizeof(p));
+	freepointer_addr = (unsigned long)object + s->offset;
+	probe_kernel_read(&p, (void **)freepointer_addr, sizeof(p));
+	return (void *)((unsigned long)p ^ s->random ^ freepointer_addr);
 #else
 	p = get_freepointer(s, object);
 #endif
@@ -320,7 +326,8 @@ static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
 
 static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
 {
-	*(void **)(object + s->offset) = fp;
+	unsigned long freepointer_addr = (unsigned long)object + s->offset;
+	*(void **)freepointer_addr = (void *)((unsigned long)fp ^ s->random ^ freepointer_addr);
 }
 
 /* Loop over all objects in a slab */
@@ -570,8 +577,13 @@ static void set_track(struct kmem_cache *s, void *object,
 		for (i = trace.nr_entries; i < TRACK_ADDRS_COUNT; i++)
 			addrs[i] = 0;
 
-		for (i = 0; i < TRACK_ADDRS_COUNT; i++)
-		    p->addrs[i] = (u32)addrs[i];
+		for (i = 0; i < TRACK_ADDRS_COUNT; i++){
+            if(addrs[i])
+		        p->addrs[i] = addrs[i] - MODULES_VADDR;
+            else
+                p->addrs[i] = 0;
+        }
+        
 
 #endif
 		p->addr = addr;
@@ -637,14 +649,14 @@ static void print_track(const char *s, struct track *t)
 	    unsigned long addrs[TRACK_ADDRS_COUNT];	/* Called from address */
 		for (i = 0; i < TRACK_ADDRS_COUNT; i++) {
 
-            if(((unsigned int*)t->addrs)[i])
-                /*Assume high 32 bit will never change , text section should never cross _etext*/
-               addrs[i] = ((unsigned long)_etext & LOW_BYTE_MASK) | (t->addrs[i]);
+            if(t->addrs[i])
+                /* we store the offset after MODULES_VADDR for kernel module and kernel text address  */
+               addrs[i] =  MODULES_VADDR + t->addrs[i];
             else
                addrs[i] = 0;
         }
 		for (i = 0; i < TRACK_ADDRS_COUNT; i++) {
-			if (addrs[i])
+			if (addrs[i]) 
 				printk(KERN_ERR "\t%pS\n", (void *)addrs[i]);
 			else
 				break;
@@ -2587,7 +2599,7 @@ redo:
 
 	object = c->freelist;
 	page = c->page;
-	if (unlikely(!object || !node_match(page, node))) {
+	if (unlikely(!object || !page || !node_match(page, node))){
 		object = __slab_alloc(s, gfpflags, node, addr, c);
 		stat(s, ALLOC_SLOWPATH);
 	} else {
@@ -2829,6 +2841,13 @@ static __always_inline void slab_free(struct kmem_cache *s,
 	unsigned long tid;
 
 	slab_free_hook(s, x);
+
+	if (!(s->flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON))) {
+		size_t offset = s->offset ? 0 : sizeof(void *);
+		memset(x + offset, 0, s->object_size - offset);
+		if (s->ctor)
+			s->ctor(x);
+	}
 
 redo:
 	/*
@@ -3249,6 +3268,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
 static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
 {
 	s->flags = kmem_cache_flags(s->size, flags, s->name, s->ctor);
+	s->random = get_random_long();
 	s->reserved = 0;
 
 	if (need_reserve_slab_rcu && (s->flags & SLAB_DESTROY_BY_RCU))
@@ -3533,7 +3553,7 @@ size_t ksize(const void *object)
 	page = virt_to_head_page(object);
 
 	if (unlikely(!PageSlab(page))) {
-		WARN_ON(!PageCompound(page));
+		BUG_ON(!PageCompound(page));
 		return PAGE_SIZE << compound_order(page);
 	}
 
@@ -3966,7 +3986,7 @@ int __kmem_cache_create(struct kmem_cache *s, unsigned long flags)
  * Use the cpu notifier to insure that the cpu slabs are flushed when
  * necessary.
  */
-static int __cpuinit slab_cpuup_callback(struct notifier_block *nfb,
+static int slab_cpuup_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
 {
 	long cpu = (long)hcpu;
@@ -3992,7 +4012,7 @@ static int __cpuinit slab_cpuup_callback(struct notifier_block *nfb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata slab_notifier = {
+static struct notifier_block slab_notifier = {
 	.notifier_call = slab_cpuup_callback
 };
 
@@ -5385,6 +5405,10 @@ static int sysfs_slab_add(struct kmem_cache *s)
 	const char *name;
 	int unmergeable = slab_unmergeable(s);
 
+	if (!unmergeable && disable_higher_order_debug &&
+			(slub_debug & DEBUG_METADATA_FLAGS))
+		unmergeable = 1;
+
 	if (unmergeable) {
 		/*
 		 * Slabcache can never be merged so we can use the name proper.
@@ -5585,13 +5609,12 @@ static int mtk_memcfg_add_location(struct loc_track *t, struct kmem_cache *s,
 
 	start = -1;
 	end = t->count;
-
 	/* find the index of track->addr */
 	for (i = 0; i < TRACK_ADDRS_COUNT; i++) {
 #ifdef MTK_COMPACT_SLUB_TRACK
-        /*Assume high 32 bit will never change , text section should never cross _etext */
-		if ((track->addr == (((unsigned long)_etext & LOW_BYTE_MASK) | (track->addrs[i]))) ||
-			(track->addr - 4 == (((unsigned long)_etext & LOW_BYTE_MASK) | track->addrs[i])))
+        /* we store the offset after MODULES_VADDR for kernel module and kernel text address  */
+		if (track->addr == ((MODULES_VADDR + track->addrs[i])) ||
+			((track->addr - 4) == (MODULES_VADDR + track->addrs[i])))
 #else
 		if ((track->addr == track->addrs[i]) ||
 			(track->addr - 4 == track->addrs[i]))
@@ -5605,8 +5628,11 @@ static int mtk_memcfg_add_location(struct loc_track *t, struct kmem_cache *s,
         unsigned long addrs[TRACK_ADDRS_COUNT];
 
         for(j =0;j < TRACK_ADDRS_COUNT;j++) {
-            /*Assume high 32 bit will never change , text section should never cross _etext */
-            addrs[j] = ((unsigned long)_etext & LOW_BYTE_MASK) | (track->addrs[j]);
+            /* we store the offset after MODULES_VADDR for kernel module and kernel text address  */
+            if(track->addrs[j])
+                addrs[j] = MODULES_VADDR + track->addrs[j];
+            else    
+                addrs[j] = 0;
         }
         memcpy(taddrs, addrs + i, (cnt * sizeof (unsigned long)));
     }

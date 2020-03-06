@@ -26,7 +26,7 @@ extern int tpd_down_status;
 #define TPD_DEBUG_PRINT_INT                                                 \
     do {                                                                    \
 	if (tpd_debug_time) {                                                \
-	    printk("tp_int\n");                                             \
+	    pr_warn("tp_int\n");                                             \
 	}                                                                   \
     } while (0)
 
@@ -34,7 +34,7 @@ extern int tpd_down_status;
     do {                                                                    \
         if (pending == 0 && tpd_debug_time) {                                  \
             tpd_down_status = 0;                                              \
-	    printk("up on %ld ms (+%ld ms)\n",                              \
+	    pr_debug("up on %ld ms (+%ld ms)\n",                              \
 	       (tpd_last_2_int_time[1] - tpd_last_down_time) / 1000,        \
 	       (tpd_last_2_int_time[1] - tpd_last_2_int_time[0]) / 1000);   \
 	}                                                                   \
@@ -42,9 +42,11 @@ extern int tpd_down_status;
 
 #define TPD_DEBUG_PRINT_DOWN                                                    \
     do {                                                                        \
-	if (tpd_debug_time) {                                                    \
-            if (tpd_down_status == 0) printk("down on 0 ms\n");                    \
-	    else printk("move on %ld ms (+%ld ms)\n",                           \
+			if (tpd_debug_time) {						\
+        if (tpd_down_status == 0)	\
+					pr_debug("down on 0 ms\n");  \
+	    	else \
+					pr_debug("move on %ld ms (+%ld ms)\n",   \
 		    (tpd_last_2_int_time[1] - tpd_last_down_time) / 1000,       \
 		    (tpd_last_2_int_time[1] - tpd_last_2_int_time[0]) / 1000);  \
             tpd_down_status = 1;                                                  \

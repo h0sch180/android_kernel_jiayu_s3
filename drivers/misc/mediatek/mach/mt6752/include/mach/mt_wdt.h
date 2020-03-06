@@ -2,6 +2,7 @@
 #define __WDT_HW_H__
 
 #include <mach/mt_reg_base.h>
+#include <mach/mt_typedefs.h>
 #define MTK_WDT_BASE			toprgu_base
 
 #define MTK_WDT_MODE			(MTK_WDT_BASE+0x0000)
@@ -92,7 +93,9 @@
 #define MTK_WDT_REQ_MODE_SPM_SCPSYS		(0x0002)
 #define MTK_WDT_REQ_MODE_THERMAL		(1<<18)
 
-
+/* SW workaround for MT6325, by Peter.Wang*/
+extern S32 pwrap_write_nochk(U32 adr, U32 wdata);
+extern S32 pwrap_read_nochk(U32 adr, U32 *rdata);
 
 
 #endif   /*__WDT_HW_H__*/

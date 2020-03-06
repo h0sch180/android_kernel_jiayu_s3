@@ -43,13 +43,13 @@
 #define DBG_EVT_MASK        (DBG_EVT_ALL)
 
 #define MSG(evt, fmt, args...) \
-do {    \
-    if ((DBG_EVT_##evt) & DBG_EVT_MASK) { \
-        printk("[secwidevine][%s] "fmt, SECWIDEVINE_NAME, ##args); \
-    }   \
-} while(0)
+do { \
+	if ((DBG_EVT_##evt) & DBG_EVT_MASK) { \
+		pr_debug("[secwidevine][%s] "fmt, SECWIDEVINE_NAME, ##args); \
+	} \
+} while (0)
 
-#define MSG_FUNC() MSG(FUNC, "%s\n", __FUNCTION__)
+#define MSG_FUNC() MSG(FUNC, "%s\n", __func__)
 
 typedef struct mc_session_handle mc_session_handle_t;
 

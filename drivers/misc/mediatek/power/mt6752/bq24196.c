@@ -56,7 +56,7 @@ static int bq24196_driver_probe(struct i2c_client *client, const struct i2c_devi
 
 static void bq24196_shutdown(struct platform_device *dev)
 {
-    pr_info("[bq24196_shutdown] driver shutdown \n");
+	battery_log(BAT_LOG_CRTI, "[bq24196_shutdown] driver shutdown\n");
 	bq24196_set_chg_config(0x0); // charger disable
 }
 
@@ -161,14 +161,14 @@ kal_uint32 bq24196_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 M
     kal_uint8 bq24196_reg = 0;
     int ret = 0;
 
-    pr_info("--------------------------------------------------\n");
+	battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n");
 
     ret = bq24196_read_byte(RegNum, &bq24196_reg);
-    pr_info("[bq24196_read_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
+	battery_log(BAT_LOG_CRTI, "[bq24196_read_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
 
     bq24196_reg &= (MASK << SHIFT);
     *val = (bq24196_reg >> SHIFT);
-    pr_info("[bq24196_read_interface] Val=0x%x\n", *val);
+	battery_log(BAT_LOG_CRTI, "[bq24196_read_interface] Val=0x%x\n", *val);
 
     return ret;
 }
@@ -178,20 +178,20 @@ kal_uint32 bq24196_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8 
     kal_uint8 bq24196_reg = 0;
     int ret = 0;
 
-    pr_info("--------------------------------------------------\n");
+	battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n");
 
     ret = bq24196_read_byte(RegNum, &bq24196_reg);
-    pr_info("[bq24196_config_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
+	battery_log(BAT_LOG_CRTI, "[bq24196_config_interface] Reg[%x]=0x%x\n", RegNum, bq24196_reg);
 
     bq24196_reg &= ~(MASK << SHIFT);
     bq24196_reg |= (val << SHIFT);
 
     ret = bq24196_write_byte(RegNum, bq24196_reg);
-    pr_info("[bq24196_config_interface] Write Reg[%x]=0x%x\n", RegNum, bq24196_reg);
+	battery_log(BAT_LOG_CRTI, "[bq24196_config_interface] Write Reg[%x]=0x%x\n", RegNum, bq24196_reg);
 
     // Check
     //bq24196_read_byte(RegNum, &bq24196_reg);
-    //pr_info("[bq24196_config_interface] Check Reg[%x]=0x%x\n", RegNum, bq24196_reg);
+	/*battery_log(BAT_LOG_CRTI, "[bq24196_config_interface] Check Reg[%x]=0x%x\n", RegNum, bq24196_reg);*/
 
     return ret;
 }
@@ -566,20 +566,20 @@ kal_uint32 bq24196_get_vsys_stat(void)
 void bq24196_dump_register(void)
 {
     kal_uint8 i=0;
-    pr_notice("[bq24196] ");
+	battery_log(BAT_LOG_CRTI, "[bq24196] ");
     for (i=0;i<bq24196_REG_NUM;i++)
     {
         bq24196_read_byte(i, &bq24196_reg[i]);
-        pr_notice("[0x%x]=0x%x ", i, bq24196_reg[i]);
+		battery_log(BAT_LOG_CRTI, "[0x%x]=0x%x ", i, bq24196_reg[i]);
     }
-    pr_notice("\n");
+	battery_log(BAT_LOG_CRTI, "\n");
 }
 
 static int bq24196_driver_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
     int err=0;
 
-    pr_notice("[bq24196_driver_probe] \n");
+	battery_log(BAT_LOG_CRTI, "[bq24196_driver_probe]\n");
 
     if (!(new_client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
         err = -ENOMEM;
@@ -607,7 +607,7 @@ exit:
 kal_uint8 g_reg_value_bq24196=0;
 static ssize_t show_bq24196_access(struct device *dev,struct device_attribute *attr, char *buf)
 {
-    pr_notice("[show_bq24196_access] 0x%x\n", g_reg_value_bq24196);
+	battery_log(BAT_LOG_CRTI, "[show_bq24196_access] 0x%x\n", g_reg_value_bq24196);
     return sprintf(buf, "%u\n", g_reg_value_bq24196);
 }
 static ssize_t store_bq24196_access(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
@@ -617,24 +617,24 @@ static ssize_t store_bq24196_access(struct device *dev,struct device_attribute *
     unsigned int reg_value = 0;
     unsigned int reg_address = 0;
 
-    pr_notice("[store_bq24196_access] \n");
+	battery_log(BAT_LOG_CRTI, "[store_bq24196_access]\n");
 
     if(buf != NULL && size != 0)
     {
-        pr_notice("[store_bq24196_access] buf is %s and size is %zu \n",buf,size);
+		battery_log(BAT_LOG_CRTI, "[store_bq24196_access] buf is %s and size is %zu\n", buf, size);
         reg_address = simple_strtoul(buf,&pvalue,16);
 
         if(size > 3)
         {
             reg_value = simple_strtoul((pvalue+1),NULL,16);
-            pr_notice("[store_bq24196_access] write bq24196 reg 0x%x with value 0x%x !\n",reg_address,reg_value);
+			battery_log(BAT_LOG_CRTI, "[store_bq24196_access] write bq24196 reg 0x%x with value 0x%x !\n", reg_address, reg_value);
             ret=bq24196_config_interface(reg_address, reg_value, 0xFF, 0x0);
         }
         else
         {
             ret=bq24196_read_interface(reg_address, &g_reg_value_bq24196, 0xFF, 0x0);
-            pr_notice("[store_bq24196_access] read bq24196 reg 0x%x with value 0x%x !\n",reg_address,g_reg_value_bq24196);
-            pr_notice("[store_bq24196_access] Please use \"cat bq24196_access\" to get value\r\n");
+			battery_log(BAT_LOG_CRTI, "[store_bq24196_access] read bq24196 reg 0x%x with value 0x%x !\n", reg_address, g_reg_value_bq24196);
+			battery_log(BAT_LOG_CRTI, "[store_bq24196_access] Please use \"cat bq24196_access\" to get value\r\n");
         }
     }
     return size;
@@ -645,7 +645,7 @@ static int bq24196_user_space_probe(struct platform_device *dev)
 {
     int ret_device_file = 0;
 
-    pr_notice("******** bq24196_user_space_probe!! ********\n" );
+	battery_log(BAT_LOG_CRTI, "******** bq24196_user_space_probe!! ********\n");
 
     ret_device_file = device_create_file(&(dev->dev), &dev_attr_bq24196_access);
 
@@ -670,28 +670,28 @@ static int __init bq24196_subsys_init(void)
 {
     int ret=0;
 
-    pr_notice("[bq24196_init] init start. ch=%d\n", BQ24196_BUSNUM);
+	battery_log(BAT_LOG_CRTI, "[bq24196_init] init start. ch=%d\n", BQ24196_BUSNUM);
 
     i2c_register_board_info(BQ24196_BUSNUM, &i2c_bq24196, 1);
 
     if(i2c_add_driver(&bq24196_driver)!=0)
     {
-        pr_notice("[bq24196_init] failed to register bq24196 i2c driver.\n");
+		battery_log(BAT_LOG_CRTI, "[bq24196_init] failed to register bq24196 i2c driver.\n");
     }
     else
     {
-        pr_notice("[bq24196_init] Success to register bq24196 i2c driver.\n");
+		battery_log(BAT_LOG_CRTI, "[bq24196_init] Success to register bq24196 i2c driver.\n");
     }
 
     // bq24196 user space access interface
     ret = platform_device_register(&bq24196_user_space_device);
     if (ret) {
-        pr_notice("****[bq24196_init] Unable to device register(%d)\n", ret);
+		battery_log(BAT_LOG_CRTI, "****[bq24196_init] Unable to device register(%d)\n", ret);
         return ret;
     }
     ret = platform_driver_register(&bq24196_user_space_driver);
     if (ret) {
-        pr_notice("****[bq24196_init] Unable to register driver (%d)\n", ret);
+		battery_log(BAT_LOG_CRTI, "****[bq24196_init] Unable to register driver (%d)\n", ret);
         return ret;
     }
 

@@ -37,7 +37,7 @@
 #define FALSE 0
 #endif
 
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 
 /* --------------------------------------------------------------------------- */
 /* Local Variables */

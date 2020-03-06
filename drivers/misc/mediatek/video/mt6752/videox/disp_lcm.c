@@ -10,6 +10,9 @@
 /* for multiple LCM, we should assign I/F Port id in lcm driver, such as DPI0, DSI0/1 */
 static disp_lcm_handle _disp_lcm_driver[MAX_LCM_NUMBER] = { 0 };
 
+//Lenovo-sw wuwl10 add 201401224 for esd recover backlight
+static bool need_esd_recover_backlight = false;
+
 int _lcm_count(void)
 {
 	return lcm_count;
@@ -278,6 +281,23 @@ int disp_lcm_init(disp_lcm_handle *plcm, int force)
 			return -1;
 		}
 
+//Lenovo-sw wuwl10 add 20141224 for esd to recover backlight begin
+		if (need_esd_recover_backlight)
+		{
+			if(lcm_drv->esd_recover_backlight)
+			{
+				if(!disp_lcm_is_inited(plcm) || force)
+				{
+					lcm_drv->esd_recover_backlight();
+				}
+			}
+		}
+		else
+		{
+			need_esd_recover_backlight = true;
+		}
+//Lenovo-sw wuwl10 add 20141224 for esd to recover backlight end
+
 		return 0;
 	} else {
 		DISPERR("plcm is null\n");
@@ -457,8 +477,147 @@ int disp_lcm_set_backlight(disp_lcm_handle *plcm, int level)
 	}
 }
 
+//////lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+int disp_lcm_set_cabc(disp_lcm_handle *plcm, unsigned int mode)
+{
+	DISPFUNC();
+	LCM_DRIVER *lcm_drv = NULL;
+	
+	if(_is_lcm_inited(plcm))
+	{
+		lcm_drv = plcm->drv;
+		if(lcm_drv->set_cabcmode)
+		{
+			lcm_drv->set_cabcmode(mode);
+		}
+		else
+		{
+			DISPERR("FATAL ERROR, lcm_drv->set_cabcmode is null\n");
+			return -1;
+		}
+		
+		return 0;
+	}
+	else
+	{
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+}
 
+int disp_lcm_set_cabc_cmd(disp_lcm_handle *plcm, void* handle, unsigned int mode)
+{
+	DISPFUNC();
+	LCM_DRIVER *lcm_drv = NULL;
+	
+	if(_is_lcm_inited(plcm))
+	{
+		lcm_drv = plcm->drv;
+		if(lcm_drv->set_cabcmode_cmd)
+		{
+			lcm_drv->set_cabcmode_cmd(handle, mode);
+		}
+		else
+		{
+			DISPERR("FATAL ERROR, lcm_drv->set_cabcmode is null\n");
+			return -1;
+		}
+		
+		return 0;
+	}
+	else
+	{
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+}
 
+int disp_lcm_set_inverse(disp_lcm_handle *plcm, unsigned int mode)
+{
+	DISPFUNC();
+	LCM_DRIVER *lcm_drv = NULL;
+	
+	if(_is_lcm_inited(plcm))
+	{
+		lcm_drv = plcm->drv;
+		if(lcm_drv->set_inversemode)
+		{
+			lcm_drv->set_inversemode(mode);
+		}
+		else
+		{
+			DISPERR("FATAL ERROR, lcm_drv->set_inversemode is null\n");
+			return -1;
+		}
+		
+		return 0;
+	}
+	else
+	{
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+}
+#endif
+//////lenovo add end by jixu@lenovo.com
+
+//lenovo wangyq13 add for sre 20150402
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+int disp_lcm_set_sre(disp_lcm_handle *plcm, void* handle, unsigned int mode)
+{
+	DISPFUNC();
+	LCM_DRIVER *lcm_drv = NULL;
+	
+	if(_is_lcm_inited(plcm))
+	{
+		lcm_drv = plcm->drv;
+		if(lcm_drv->set_sremode)
+		{
+			lcm_drv->set_sremode(handle, mode);
+		}
+		else
+		{
+			DISPERR("FATAL ERROR, lcm_drv->set_sremode is null\n");
+			return -1;
+		}
+		
+		return 0;
+	}
+	else
+	{
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+}
+
+int disp_lcm_set_sre_video(disp_lcm_handle *plcm, unsigned int mode)
+{
+	DISPFUNC();
+	LCM_DRIVER *lcm_drv = NULL;
+	
+	if(_is_lcm_inited(plcm))
+	{
+		lcm_drv = plcm->drv;
+		if(lcm_drv->set_sremode_video)
+		{
+			lcm_drv->set_sremode_video(mode);
+		}
+		else
+		{
+			DISPERR("FATAL ERROR, lcm_drv->set_sremode is null\n");
+			return -1;
+		}
+		
+		return 0;
+	}
+	else
+	{
+		DISPERR("lcm_drv is null\n");
+		return -1;
+	}
+}
+#endif
 
 int disp_lcm_ioctl(disp_lcm_handle *plcm, LCM_IOCTL ioctl, unsigned int arg)
 {

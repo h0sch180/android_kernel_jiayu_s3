@@ -400,6 +400,8 @@ static void mtk_xhci_imod_set(u32 imod)
 	xhci_writel(mtk_xhci, temp, &mtk_xhci->ir_set->irq_control);
 }
 
+extern void usb20_pll_settings(bool host, bool forceOn);
+
 static int mtk_xhci_driver_load(void)
 {
 	int ret = 0;
@@ -424,6 +426,10 @@ static int mtk_xhci_driver_load(void)
 #else
 	enableXhciAllPortPower(mtk_xhci);
 #endif
+#endif
+	/* USB PLL Force settings */
+#ifdef CONFIG_PROJECT_PHY
+	usb20_pll_settings(true, true);
 #endif
 
 	return 0;
@@ -505,7 +511,10 @@ void mtk_xhci_mode_switch(struct work_struct *work)
 				mtk_xhci_mtk_log("wait, hub is still active, ep cnt %d !!!\n", mtk_ep_count);
 				return;
 			}
-
+			/* USB PLL Force settings */
+#ifdef CONFIG_PROJECT_PHY
+			usb20_pll_settings(true, false);
+#endif
 			mtk_xhci_driver_unload();
 			is_pwoff = false;
 			is_load = false;

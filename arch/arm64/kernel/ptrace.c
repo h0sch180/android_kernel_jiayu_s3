@@ -564,6 +564,33 @@ static int tls_set(struct task_struct *target, const struct user_regset *regset,
 	return ret;
 }
 
+static int system_call_get(struct task_struct *target,
+			   const struct user_regset *regset,
+			   unsigned int pos, unsigned int count,
+			   void *kbuf, void __user *ubuf)
+{
+	int syscallno = task_pt_regs(target)->syscallno;
+
+	return user_regset_copyout(&pos, &count, &kbuf, &ubuf,
+				   &syscallno, 0, -1);
+}
+
+static int system_call_set(struct task_struct *target,
+			   const struct user_regset *regset,
+			   unsigned int pos, unsigned int count,
+			   const void *kbuf, const void __user *ubuf)
+{
+	int syscallno = task_pt_regs(target)->syscallno;
+	int ret;
+
+	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf, &syscallno, 0, -1);
+	if (ret)
+		return ret;
+
+	task_pt_regs(target)->syscallno = syscallno;
+	return ret;
+}
+
 enum aarch64_regset {
 	REGSET_GPR,
 	REGSET_FPR,
@@ -572,6 +599,7 @@ enum aarch64_regset {
 	REGSET_HW_BREAK,
 	REGSET_HW_WATCH,
 #endif
+	REGSET_SYSTEM_CALL,
 };
 
 static const struct user_regset aarch64_regsets[] = {
@@ -621,6 +649,14 @@ static const struct user_regset aarch64_regsets[] = {
 		.set = hw_break_set,
 	},
 #endif
+	[REGSET_SYSTEM_CALL] = {
+		.core_note_type = NT_ARM_SYSTEM_CALL,
+		.n = 1,
+		.size = sizeof(int),
+		.align = sizeof(int),
+		.get = system_call_get,
+		.set = system_call_set,
+	},
 };
 
 static const struct user_regset_view user_aarch64_view = {
@@ -655,36 +691,35 @@ static int compat_gpr_get(struct task_struct *target,
 
 	for (i = 0; i < num_regs; ++i) {
 		unsigned int idx = start + i;
-		compat_ulong_t reg;
+		void *reg;
 
 		switch (idx) {
 		case 15:
-			reg = task_pt_regs(target)->pc;
+			reg = (void *)&task_pt_regs(target)->pc;
 			break;
 		case 16:
-			reg = task_pt_regs(target)->pstate;
+			reg = (void *)&task_pt_regs(target)->pstate;
 			break;
 		case 17:
-			reg = task_pt_regs(target)->orig_x0;
+			reg = (void *)&task_pt_regs(target)->orig_x0;
 			break;
 		default:
-			reg = task_pt_regs(target)->regs[idx];
+			reg = (void *)&task_pt_regs(target)->regs[idx];
 		}
 
 		if (!ubuf && kbuf) {
 			if (i == 0 && NULL != target && target->pid == current->pid)
 				printk(KERN_WARNING "coredump(%d) copy registers to kbuf\n", current->pid);
-			memcpy(kbuf, &reg, sizeof(reg));
-			kbuf += sizeof(reg);
+			memcpy(kbuf, reg, sizeof(compat_ulong_t));
+			kbuf += sizeof(compat_ulong_t);
 		}
 		else {
-			ret = copy_to_user(ubuf, &reg, sizeof(reg));
-			if (ret) {
-				ret = -EFAULT;
-				break;
-			}
+			ret = copy_to_user(ubuf, reg, sizeof(compat_ulong_t));
 
-			ubuf += sizeof(reg);
+			if (ret)
+				break;
+			else
+				ubuf += sizeof(compat_ulong_t);
 		}
 	}
 
@@ -713,37 +748,28 @@ static int compat_gpr_set(struct task_struct *target,
 
 	for (i = 0; i < num_regs; ++i) {
 		unsigned int idx = start + i;
-		compat_ulong_t reg;
-
-		if (kbuf) {
-			memcpy(&reg, kbuf, sizeof(reg));
-			kbuf += sizeof(reg);
-		} else {
-			ret = copy_from_user(&reg, ubuf, sizeof(reg));
-			if (ret) {
-				ret = -EFAULT;
-				break;
-			}
-
-			ubuf += sizeof(reg);
-		}
-
-		ubuf += sizeof(reg);
+		void *reg;
 
 		switch (idx) {
 		case 15:
-			newregs.pc = reg;
+			reg = (void *)&newregs.pc;
 			break;
 		case 16:
-			newregs.pstate = reg;
+			reg = (void *)&newregs.pstate;
 			break;
 		case 17:
-			newregs.orig_x0 = reg;
+			reg = (void *)&newregs.orig_x0;
 			break;
 		default:
-			newregs.regs[idx] = reg;
+			reg = (void *)&newregs.regs[idx];
 		}
 
+		ret = copy_from_user(reg, ubuf, sizeof(compat_ulong_t));
+
+		if (ret)
+			goto out;
+		else
+			ubuf += sizeof(compat_ulong_t);
 	}
 
 	if (valid_user_regs(&newregs.user_regs))
@@ -751,6 +777,7 @@ static int compat_gpr_set(struct task_struct *target,
 	else
 		ret = -EINVAL;
 
+out:
 	return ret;
 }
 
@@ -1147,13 +1174,13 @@ asmlinkage int syscall_trace_enter(struct pt_regs *regs)
 	unsigned int saved_syscallno = regs->syscallno;
 
 	/* Do the secure computing check first; failures should be fast. */
-	if (secure_computing(regs->syscallno) == -1)
+	if (secure_computing() == -1)
 		return RET_SKIP_SYSCALL_TRACE;
 
-	if (test_thread_flag(TIF_SYSCALL_TRACE))
+	if (test_thread_flag_relaxed(TIF_SYSCALL_TRACE))
 		tracehook_report_syscall(regs, PTRACE_SYSCALL_ENTER);
 
-	if (test_thread_flag(TIF_SYSCALL_TRACEPOINT))
+	if (test_thread_flag_relaxed(TIF_SYSCALL_TRACEPOINT))
 		trace_sys_enter(regs, regs->syscallno);
 
 	if (IS_SKIP_SYSCALL(regs->syscallno)) {
@@ -1184,9 +1211,9 @@ asmlinkage void syscall_trace_exit(struct pt_regs *regs)
 {
 	audit_syscall_exit(regs);
 
-	if (test_thread_flag(TIF_SYSCALL_TRACEPOINT))
+	if (test_thread_flag_relaxed(TIF_SYSCALL_TRACEPOINT))
 		trace_sys_exit(regs, regs_return_value(regs));
 
-	if (test_thread_flag(TIF_SYSCALL_TRACE))
+	if (test_thread_flag_relaxed(TIF_SYSCALL_TRACE))
 		tracehook_report_syscall(regs, PTRACE_SYSCALL_EXIT);
 }

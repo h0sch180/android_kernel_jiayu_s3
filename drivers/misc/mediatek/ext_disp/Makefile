@@ -4,4 +4,3 @@ obj-y += $(PLATFORM)/
 else
 obj-y += dummy/
 endif
-

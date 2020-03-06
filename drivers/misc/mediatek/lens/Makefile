@@ -4,26 +4,8 @@
 include $(srctree)/drivers/misc/mediatek/Makefile.custom
 
 #obj-y += sensordriver/sensordrive_lens.o
-
-# Vanzo:wangfei on: Tue, 10 Mar 2015 15:57:44 +0800
-# add lens framework
-
-project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
-ifneq ($(project_name),)
-platform=$(shell echo $(MTK_PLATFORM) | tr [A-Z] [a-z])
-
-ifneq ($(strip $(CUSTOM_KERNEL_LENS)),)
-CONFIG_CUSTOM_KERNEL_LENS:=$(CUSTOM_KERNEL_LENS)
-endif
-
-custom_kernel_lens:= $(addprefix $(platform)/,$(addsuffix /, $(shell echo $(CONFIG_CUSTOM_KERNEL_LENS))))
-
-$(info "wyl custom_kernel_lens:$(custom_kernel_lens)")
-obj-y += $(custom_kernel_lens)
-
-else
-
-# End of Vanzo: wangfei
+      # obj-$(CONFIG_MTK_LENS_DW9761SUNNYAF_SUPPORT) += mt6752/dw9761sunnyaf/
+      # obj-$(CONFIG_MTK_LENS_DW9761OFILM50AF_SUPPORT) += mt6752/dw9761ofilma50af/
  
 ifeq ($(CONFIG_ARCH_MT8127),y)
 		obj-$(CONFIG_MTK_LENS_FM50AF_SUPPORT)      += mt8127/fm50af/
@@ -63,6 +45,8 @@ else
 				obj-$(CONFIG_MTK_LENS_BU6429AF_SUPPORT) += mt6752/bu6429af/
 				obj-$(CONFIG_MTK_LENS_BU64745GWZAF_SUPPORT) += mt6752/bu64745gwzaf/
 				obj-$(CONFIG_MTK_LENS_DW9714AF_SUPPORT) += mt6752/dw9714af/
+                                obj-$(CONFIG_MTK_LENS_DW9761SUNNYAF_SUPPORT) += mt6752/dw9761sunnyaf/
+                                obj-$(CONFIG_MTK_LENS_DW9761OFILMA50AF_SUPPORT) += mt6752/dw9761ofilma50af/
 				obj-$(CONFIG_MTK_LENS_DW9718AF_SUPPORT) += mt6752/dw9718af/
 				obj-$(CONFIG_MTK_LENS_FM50AF_SUPPORT) += mt6752/fm50af/
 				obj-$(CONFIG_MTK_LENS_MT9P017AF_SUPPORT) += mt6752/mt9p017af/
@@ -133,7 +117,3 @@ endif
 
 
 
-# Vanzo:wangfei on: Wed, 25 Mar 2015 18:01:11 +0800
-# add lens support
-endif
-# End of Vanzo:wangfei

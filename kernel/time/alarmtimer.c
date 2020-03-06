@@ -15,6 +15,11 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+
+#ifdef pr_fmt
+#undef pr_fmt 
+#endif
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/time.h>
 #include <linux/hrtimer.h>
 #include <linux/timerqueue.h>
@@ -137,6 +142,7 @@ void alarm_set_power_on(struct timespec new_pwron_time, bool logo)
 
 	pr_info("alarm set power on\n");
 
+#define RTC_PWRON_SEC -90
 #ifdef RTC_PWRON_SEC
 	/* round down the second */
 	new_pwron_time.tv_sec = (new_pwron_time.tv_sec / 60) * 60;
@@ -158,7 +164,9 @@ void alarm_set_power_on(struct timespec new_pwron_time, bool logo)
 	now = rtc_tm_to_ktime(alm.time);
 	rtc_timer_start(alarm_rtc_dev, &rtctimer, now, ktime_set(0, 0));
 */
+#ifdef CONFIG_ARM64
 	rtc_timer_cancel(alarm_rtc_dev, &rtctimer);
+#endif
 	rtc_set_alarm(alarm_rtc_dev, &alm);
 	rtc_set_alarm_poweron(alarm_rtc_dev, &alm);
 }
@@ -660,6 +668,15 @@ static int alarm_timer_set(struct k_itimer *timr, int flags,
 
 	/* start the timer */
 	timr->it.alarm.interval = timespec_to_ktime(new_setting->it_interval);
+
+	/*
+	 * Rate limit to the tick as a hot fix to prevent DOS. Will be
+	 * mopped up later.
+	 */
+	if (timr->it.alarm.interval.tv64 &&
+			ktime_to_ns(timr->it.alarm.interval) < TICK_NSEC)
+		timr->it.alarm.interval = ktime_set(0, TICK_NSEC);
+
 	exp = timespec_to_ktime(new_setting->it_value);
 	/* Convert (if necessary) to absolute time */
 	if (flags != TIMER_ABSTIME) {

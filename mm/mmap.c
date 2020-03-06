@@ -42,6 +42,10 @@
 #include <asm/tlb.h>
 #include <asm/mmu_context.h>
 
+#ifdef CONFIG_MTK_EXTMEM
+#include <linux/exm_driver.h>
+#endif
+
 #include "internal.h"
 
 #ifndef arch_mmap_check
@@ -904,7 +908,7 @@ again:			remove_next = 1 + (end > next->vm_end);
 		else if (next)
 			vma_gap_update(next);
 		else
-			WARN_ON(mm->highest_vm_end != vm_end_gap(vma));
+			mm->highest_vm_end = end;
 	}
 	if (insert && file)
 		uprobe_mmap(insert);
@@ -2535,13 +2539,6 @@ int split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
  * work.  This now handles partial unmappings.
  * Jeremy Fitzhardinge <jeremy@goop.org>
  */
-#ifdef CONFIG_MTK_EXTMEM
-extern bool extmem_in_mspace(struct vm_area_struct *vma);
-extern void * get_virt_from_mspace(void * pa);
-extern size_t extmem_get_mem_size(unsigned long pgoff);
-extern void extmem_free(void* mem);
-#endif
-
 int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 {
 	unsigned long end;
@@ -2558,31 +2555,13 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	if (!vma)
 		return 0;
 
-#ifdef CONFIG_MT_ENG_BUILD
-//	if (strstr(current->comm, "app_process")){
-	{
-		struct file *file;
-		file=vma->vm_file;
-		if (file) {
-			const char *name=file->f_path.dentry->d_iname;
-			if(name && (strstr(name,".so") || strstr(name,".oat") || strstr(name,".art") || strstr(name,".dex") || strstr(name,".apk")))
-				//pr_debug("unmap:%s 0x%lx - 0x%lx\n", name, vma->vm_start, vma->vm_end);
-				printk(KERN_DEBUG "unmap:%s 0x%lx - 0x%lx\n", name, vma->vm_start, vma->vm_end);
-		} else {
-			const char *name = arch_vma_name(vma);
-			if(name)
-				printk(KERN_DEBUG "unmap arch_vma_name:%s 0x%lx - 0x%lx\n", name, vma->vm_start, vma->vm_end);
-		}
-	}
-#endif
-
 	prev = vma->vm_prev;
 	/* we have  start < vma->vm_end  */
 
 #ifdef CONFIG_MTK_EXTMEM
 	/* get correct mmap size if in mspace. */
-    if (extmem_in_mspace(vma))
-        len = extmem_get_mem_size(vma->vm_pgoff);
+	if (extmem_in_mspace(vma))
+		len = extmem_get_mem_size(vma->vm_pgoff);
 #endif
 
 	/* if it doesn't overlap, we have nothing.. */

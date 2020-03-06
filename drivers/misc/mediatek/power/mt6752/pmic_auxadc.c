@@ -43,9 +43,9 @@
 #include <mach/mt6311.h>
 #include <cust_pmic.h>
 #include <cust_battery_meter.h>
-//==============================================================================
-// Extern
-//==============================================================================
+/* ============================================================================== */
+/* Extern */
+/* ============================================================================== */
 extern int Enable_BATDRV_LOG;
 extern int g_R_BAT_SENSE;
 extern int g_R_I_SENSE;
@@ -54,27 +54,27 @@ extern int g_R_CHARGER_2;
 extern int g_bat_init_flag;
 
 extern void upmu_set_reg_value(kal_uint32 reg, kal_uint32 reg_val);
-//==============================================================================
-// PMIC-AUXADC related define
-//==============================================================================
-#define VOLTAGE_FULL_RANGE     	1800
+/* ============================================================================== */
+/* PMIC-AUXADC related define */
+/* ============================================================================== */
+#define VOLTAGE_FULL_RANGE	1800
 #define VOLTAGE_FULL_RANGE_6311	3200
-#define ADC_PRECISE		32768 	// 15 bits
-#define ADC_PRECISE_CH7		131072 	// 17 bits
-#define ADC_PRECISE_6311	4096 	// 12 bits
+#define ADC_PRECISE		32768	/* 15 bits */
+#define ADC_PRECISE_CH7		131072	/* 17 bits */
+#define ADC_PRECISE_6311	4096	/* 12 bits */
 
-//==============================================================================
-// PMIC-AUXADC global variable
-//==============================================================================
-kal_int32 count_time_out=10000;
+/* ============================================================================== */
+/* PMIC-AUXADC global variable */
+/* ============================================================================== */
+kal_int32 count_time_out = 10000;
 struct wake_lock pmicAuxadc_irq_lock;
-//static DEFINE_SPINLOCK(pmic_adc_lock);
+/* static DEFINE_SPINLOCK(pmic_adc_lock); */
 static DEFINE_MUTEX(pmic_adc_mutex);
-static kal_int32 set_isense_flag = 0;
+static DEFINE_MUTEX(pmic_isense_mutex);
 #if 1
-//==============================================================================
-// PMIC-AUXADC related API
-//==============================================================================
+/* ============================================================================== */
+/* PMIC-AUXADC related API */
+/* ============================================================================== */
 void pmic_auxadc_init(void)
 {
 	kal_int32 adc_busy;
@@ -82,10 +82,13 @@ void pmic_auxadc_init(void)
 
 	mt6325_upmu_set_rg_vref18_enb(0);
 	mutex_lock(&pmic_adc_mutex);
-	//change to suspend/resume
-	pmic_read_interface_nolock(MT6325_AUXADC_ADC19, &adc_busy, MT6325_PMIC_RG_ADC_BUSY_MASK, MT6325_PMIC_RG_ADC_BUSY_SHIFT);
-	if (adc_busy==0) {
-		pmic_config_interface_nolock(MT6325_AUXADC_CON19, 0x0, MT6325_PMIC_RG_ADC_DECI_GDLY_MASK, MT6325_PMIC_RG_ADC_DECI_GDLY_SHIFT);
+	/* change to suspend/resume */
+	pmic_read_interface_nolock(MT6325_AUXADC_ADC19, &adc_busy, MT6325_PMIC_RG_ADC_BUSY_MASK,
+				   MT6325_PMIC_RG_ADC_BUSY_SHIFT);
+	if (adc_busy == 0) {
+		pmic_config_interface_nolock(MT6325_AUXADC_CON19, 0x0,
+					     MT6325_PMIC_RG_ADC_DECI_GDLY_MASK,
+					     MT6325_PMIC_RG_ADC_DECI_GDLY_SHIFT);
 	}
 	mutex_unlock(&pmic_adc_mutex);
 	mt6325_upmu_set_rg_adc_gps_status(1);
@@ -93,36 +96,38 @@ void pmic_auxadc_init(void)
 	mt6325_upmu_set_rg_deci_gdly_vref18_selb(1);
 	mt6325_upmu_set_rg_deci_gdly_sel_mode(1);
 
-	//*set CLK as 26MHz CLK
+	/* *set CLK as 26MHz CLK */
 	mt6325_upmu_set_rg_auxadc_ck_cksel(1);
-	//1. set AUXADC CLK HW control
+	/* 1. set AUXADC CLK HW control */
 	mt6325_upmu_set_rg_auxadc_ck_pdn_hwen(1);
-	//2. turn on AP & MD
+	/* 2. turn on AP & MD */
 	mt6325_upmu_set_rg_clksq_en_aux_ap(1);
 	mt6325_upmu_set_auxadc_ck_aon(1);
 
 	mt6325_upmu_set_strup_auxadc_rstb_sw(1);
 	mt6325_upmu_set_strup_auxadc_rstb_sel(1);
-	upmu_set_reg_value(0x0a08,0x010b);
-	upmu_set_reg_value(0x0f00,0x0005);
-	pr_notice( "****[pmic_auxadc_init] DONE\n");
+	upmu_set_reg_value(0x0a08, 0x010b);
+	upmu_set_reg_value(0x0f00, 0x0005);
+	battery_log(BAT_LOG_CRTI, "****[pmic_auxadc_init] DONE\n");
 }
 
-kal_uint32  pmic_is_auxadc_ready(kal_int32 channel_num, upmu_adc_chip_list_enum chip_num, upmu_adc_user_list_enum user_num)
+kal_uint32 pmic_is_auxadc_ready(kal_int32 channel_num, upmu_adc_chip_list_enum chip_num,
+				upmu_adc_user_list_enum user_num)
 {
 #if 1
-	kal_uint32 ret=0;
-	kal_uint32 int_status_val_0=0;
-	//unsigned long flags;
+	kal_uint32 ret = 0;
+	kal_uint32 int_status_val_0 = 0;
+	/* unsigned long flags; */
 
-	//spin_lock_irqsave(&pmic_adc_lock, flags);
-	if (chip_num ==MT6325_CHIP) {
-		if (user_num == GPS ) {
-			ret=mt6325_upmu_get_rg_adc_rdy_gps();
-		} else if (user_num == MD ) {
-			ret=mt6325_upmu_get_rg_adc_rdy_md();
-		} else if (user_num == AP ) {
-			pmic_read_interface(MT6325_AUXADC_ADC0+channel_num * 2,(&int_status_val_0),0x8000,0x0);
+	/* spin_lock_irqsave(&pmic_adc_lock, flags); */
+	if (chip_num == MT6325_CHIP) {
+		if (user_num == GPS) {
+			ret = mt6325_upmu_get_rg_adc_rdy_gps();
+		} else if (user_num == MD) {
+			ret = mt6325_upmu_get_rg_adc_rdy_md();
+		} else if (user_num == AP) {
+			pmic_read_interface(MT6325_AUXADC_ADC0 + channel_num * 2,
+					    (&int_status_val_0), 0x8000, 0x0);
 			ret = int_status_val_0 >> 15;
 		}
 	} else if (chip_num == MT6311_CHIP) {
@@ -131,33 +136,42 @@ kal_uint32  pmic_is_auxadc_ready(kal_int32 channel_num, upmu_adc_chip_list_enum 
 		else if (channel_num == 1)
 			int_status_val_0 = mt6311_get_auxadc_adc_rdy_ch1();
 	}
-	//spin_unlock_irqrestore(&pmic_adc_lock, flags);
+	/* spin_unlock_irqrestore(&pmic_adc_lock, flags); */
 
 	return ret;
 #else
-    return 0;
+	return 0;
 #endif
 }
 
-kal_uint32  pmic_get_adc_output(kal_int32 channel_num, upmu_adc_chip_list_enum chip_num, upmu_adc_user_list_enum user_num)
+kal_uint32 pmic_get_adc_output(kal_int32 channel_num, upmu_adc_chip_list_enum chip_num,
+			       upmu_adc_user_list_enum user_num)
 {
 #if 1
-	kal_uint32 ret=0;
-	kal_uint32 int_status_val_0=0;
-	//unsigned long flags;
+	kal_uint32 ret = 0;
+	kal_uint32 int_status_val_0 = 0;
+	/* unsigned long flags; */
 
-	//spin_lock_irqsave(&pmic_adc_lock, flags);
-	if (chip_num ==MT6325_CHIP) {
-		if (user_num == GPS ) {
+	/* spin_lock_irqsave(&pmic_adc_lock, flags); */
+	if (chip_num == MT6325_CHIP) {
+		if (user_num == GPS) {
 			int_status_val_0 = mt6325_upmu_get_rg_adc_out_gps();
-			int_status_val_0 = (int_status_val_0 << 1) + mt6325_upmu_get_rg_adc_out_gps_lsb();
-			pr_notice( "adc_out_gps 16_1 = %d, 0 = %d\n", mt6325_upmu_get_rg_adc_out_gps(), mt6325_upmu_get_rg_adc_out_gps_lsb());
-		} else if (user_num == MD ) {
+			int_status_val_0 =
+			    (int_status_val_0 << 1) + mt6325_upmu_get_rg_adc_out_gps_lsb();
+			battery_log(BAT_LOG_CRTI, "adc_out_gps 16_1 = %d, 0 = %d\n",
+				    mt6325_upmu_get_rg_adc_out_gps(),
+				    mt6325_upmu_get_rg_adc_out_gps_lsb());
+		} else if (user_num == MD) {
 			int_status_val_0 = mt6325_upmu_get_rg_adc_out_md();
-			int_status_val_0 = (int_status_val_0 << 1) + mt6325_upmu_get_rg_adc_out_md_lsb();
-			pr_notice( "adc_out_md 16_1 = %d, 0 = %d\n", mt6325_upmu_get_rg_adc_out_md(), mt6325_upmu_get_rg_adc_out_md_lsb());
-		} else if (user_num == AP ) {
-			ret=pmic_read_interface(MT6325_AUXADC_ADC0+channel_num * 2,(&int_status_val_0),0x7fff,0x0);
+			int_status_val_0 =
+			    (int_status_val_0 << 1) + mt6325_upmu_get_rg_adc_out_md_lsb();
+			battery_log(BAT_LOG_CRTI, "adc_out_md 16_1 = %d, 0 = %d\n",
+				    mt6325_upmu_get_rg_adc_out_md(),
+				    mt6325_upmu_get_rg_adc_out_md_lsb());
+		} else if (user_num == AP) {
+			ret =
+			    pmic_read_interface(MT6325_AUXADC_ADC0 + channel_num * 2,
+						(&int_status_val_0), 0x7fff, 0x0);
 		}
 	} else if (chip_num == MT6311_CHIP) {
 		if (channel_num == 0)
@@ -165,20 +179,19 @@ kal_uint32  pmic_get_adc_output(kal_int32 channel_num, upmu_adc_chip_list_enum c
 		else if (channel_num == 1)
 			int_status_val_0 = mt6311_get_auxadc_adc_out_ch1();
 	}
-
-	//spin_unlock_irqrestore(&pmic_adc_lock, flags);
+	/* spin_unlock_irqrestore(&pmic_adc_lock, flags); */
 	return int_status_val_0;
 #else
-    return 0;
+	return 0;
 #endif
 }
 
 kal_uint32 PMIC_IMM_query_busy_bit(void)
 {
 	kal_uint32 busy_val_1 = 0, busy_val_2 = 0;
-	pmic_read_interface( (kal_uint32)(MT6325_AUXADC_STA0), (&busy_val_1), 0xffff, 0);
-	pmic_read_interface( (kal_uint32)(MT6325_AUXADC_STA1), (&busy_val_2), 0x1f, 11);
-	if (busy_val_1 == 0 && busy_val_2 == 0 )
+	pmic_read_interface((kal_uint32) (MT6325_AUXADC_STA0), (&busy_val_1), 0xffff, 0);
+	pmic_read_interface((kal_uint32) (MT6325_AUXADC_STA1), (&busy_val_2), 0x1f, 11);
+	if (busy_val_1 == 0 && busy_val_2 == 0)
 		return 0;
 	else
 		return 1;
@@ -189,92 +202,91 @@ kal_uint32 PMIC_IMM_RequestAuxadcChannel(upmu_adc_chl_list_enum dwChannel)
 #if 1
 	kal_uint32 ret = 0;
 
-		switch(dwChannel){
-		case AUX_BATSNS_AP:
-			mt6325_upmu_set_rg_ap_rqst_list(1<<7);
-			break;
-		case AUX_ISENSE_AP:
-			set_isense_flag = 1; 
-			if (PMIC_IMM_query_busy_bit() == 1) {
-				pr_notice("[AUXADC] PMIC_IMM_query_busy_bit on\n");
-				set_isense_flag = 0;
-				return 1;
-			}
-			mt6325_upmu_set_rg_adc_swctrl_en(1);
-
-			mt6325_upmu_set_rg_adcin_vsen_en(1);
-			mt6325_upmu_set_rg_adcin_vbat_en(0);
-			mt6325_upmu_set_rg_adcin_vsen_mux_en(0);
-			mt6325_upmu_set_rg_adcin_vsen_ext_baton_en(0);
-			mt6325_upmu_set_rg_adcin_chr_en(0);
-			mt6325_upmu_set_baton_tdet_en(1);
-			mt6325_upmu_set_rg_baton_en(0);
-			mt6325_upmu_set_rg_auxadc_chsel(0);
-			mt6325_upmu_set_rg_ap_rqst_list(1<<6);
-			break;
-		case AUX_VCDT_AP:
-			mt6325_upmu_set_rg_ap_rqst_list(1<<4);
-			break;
-		case AUX_BATON_AP:
-			upmu_set_reg_value(0x0a08,0x010b);
-			upmu_set_reg_value(0x0f00,0x0005);
-			//upmu_set_reg_value(0x0aba,0x500f);
-			mt6325_upmu_set_rg_ap_rqst_list(1<<5);
-			break;
-		case AUX_TSENSE_AP:
-			mt6325_upmu_set_rg_ap_rqst_list(1<<3);
-			break;
-		case AUX_TSENSE_MD:
-			mt6325_upmu_set_rg_ap_rqst_list(1<<2);
-			break;
-		case AUX_VACCDET_AP:
-			//mt6325_upmu_set_rg_ap_rqst_list(1<<8);
-			break;
-		case AUX_VISMPS_AP:
-			mt6325_upmu_set_rg_ap_rqst_list(1<<1);
-			break;
-		case AUX_ICLASSAB_AP:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<7);
-			break;
-		case AUX_HP_AP:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<6);
-			break;
-		case AUX_CH10_AP:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<5);
-			break;
-		case AUX_VBIF_AP:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<4);
-			break;
-		case AUX_CH12:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<3);
-			break;
-		case AUX_CH13:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<2);
-			break;
-		case AUX_CH14:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<1);
-			break;
-		case AUX_CH15:
-			mt6325_upmu_set_rg_ap_rqst_list_rsv(1<<0);
-			break;
-		case AUX_ADCVIN0_MD:
-			mt6325_upmu_set_rg_md_rqst(1);
-			break;
-		case AUX_ADCVIN0_GPS:
-			mt6325_upmu_set_rg_gps_rqst(1);
-			break;
-		case AUX_CH0_6311:
-			mt6311_set_auxadc_rqst_ch0(1);
-			break;
-		case AUX_CH1_6311:
-			mt6311_set_auxadc_rqst_ch1(1);
-			break;
-
-		default:
-		        pr_notice( "[AUXADC] Invalid channel value(%d)\n", dwChannel);
-		        wake_unlock(&pmicAuxadc_irq_lock);
-		        return 1;
+	switch (dwChannel) {
+	case AUX_BATSNS_AP:
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 7);
+		break;
+	case AUX_ISENSE_AP:
+		if (PMIC_IMM_query_busy_bit() == 1) {
+			xlog_printk(ANDROID_LOG_INFO, "Power/PMIC",
+				    "[ADCADC] PMIC_IMM_query_busy_bit on\n");
+			return 1;
 		}
+		mt6325_upmu_set_rg_adc_swctrl_en(1);
+
+		mt6325_upmu_set_rg_adcin_vsen_en(1);
+		mt6325_upmu_set_rg_adcin_vbat_en(0);
+		mt6325_upmu_set_rg_adcin_vsen_mux_en(0);
+		mt6325_upmu_set_rg_adcin_vsen_ext_baton_en(0);
+		mt6325_upmu_set_rg_adcin_chr_en(0);
+		mt6325_upmu_set_baton_tdet_en(1);
+		mt6325_upmu_set_rg_baton_en(0);
+		mt6325_upmu_set_rg_auxadc_chsel(0);
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 6);
+		break;
+	case AUX_VCDT_AP:
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 4);
+		break;
+	case AUX_BATON_AP:
+		upmu_set_reg_value(0x0a08, 0x010b);
+		upmu_set_reg_value(0x0f00, 0x0005);
+		/* upmu_set_reg_value(0x0aba,0x500f); */
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 5);
+		break;
+	case AUX_TSENSE_AP:
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 3);
+		break;
+	case AUX_TSENSE_MD:
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 2);
+		break;
+	case AUX_VACCDET_AP:
+		/* mt6325_upmu_set_rg_ap_rqst_list(1<<8); */
+		break;
+	case AUX_VISMPS_AP:
+		mt6325_upmu_set_rg_ap_rqst_list(1 << 1);
+		break;
+	case AUX_ICLASSAB_AP:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 7);
+		break;
+	case AUX_HP_AP:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 6);
+		break;
+	case AUX_CH10_AP:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 5);
+		break;
+	case AUX_VBIF_AP:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 4);
+		break;
+	case AUX_CH12:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 3);
+		break;
+	case AUX_CH13:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 2);
+		break;
+	case AUX_CH14:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 1);
+		break;
+	case AUX_CH15:
+		mt6325_upmu_set_rg_ap_rqst_list_rsv(1 << 0);
+		break;
+	case AUX_ADCVIN0_MD:
+		mt6325_upmu_set_rg_md_rqst(1);
+		break;
+	case AUX_ADCVIN0_GPS:
+		mt6325_upmu_set_rg_gps_rqst(1);
+		break;
+	case AUX_CH0_6311:
+		mt6311_set_auxadc_rqst_ch0(1);
+		break;
+	case AUX_CH1_6311:
+		mt6311_set_auxadc_rqst_ch1(1);
+		break;
+
+	default:
+		battery_log(BAT_LOG_CRTI, "[AUXADC] Invalid channel value(%d)\n", dwChannel);
+		wake_unlock(&pmicAuxadc_irq_lock);
+		return 1;
+	}
 
 	return ret;
 #else
@@ -285,7 +297,8 @@ kal_uint32 PMIC_IMM_RequestAuxadcChannel(upmu_adc_chl_list_enum dwChannel)
 int PMIC_IMM_GetChannelNumber(upmu_adc_chl_list_enum dwChannel)
 {
 	kal_int32 channel_num;
-	channel_num = (dwChannel & (AUXADC_CHANNEL_MASK << AUXADC_CHANNEL_SHIFT)) >> AUXADC_CHANNEL_SHIFT ;
+	channel_num =
+	    (dwChannel & (AUXADC_CHANNEL_MASK << AUXADC_CHANNEL_SHIFT)) >> AUXADC_CHANNEL_SHIFT;
 
 	return channel_num;
 }
@@ -293,7 +306,9 @@ int PMIC_IMM_GetChannelNumber(upmu_adc_chl_list_enum dwChannel)
 upmu_adc_chip_list_enum PMIC_IMM_GetChipNumber(upmu_adc_chl_list_enum dwChannel)
 {
 	upmu_adc_chip_list_enum chip_num;
-	chip_num = (upmu_adc_chip_list_enum)(dwChannel & (AUXADC_CHIP_MASK << AUXADC_CHIP_SHIFT)) >> AUXADC_CHIP_SHIFT ;
+	chip_num =
+	    (upmu_adc_chip_list_enum) (dwChannel & (AUXADC_CHIP_MASK << AUXADC_CHIP_SHIFT)) >>
+	    AUXADC_CHIP_SHIFT;
 
 	return chip_num;
 }
@@ -301,7 +316,9 @@ upmu_adc_chip_list_enum PMIC_IMM_GetChipNumber(upmu_adc_chl_list_enum dwChannel)
 upmu_adc_user_list_enum PMIC_IMM_GetUserNumber(upmu_adc_chl_list_enum dwChannel)
 {
 	upmu_adc_user_list_enum user_num;
-	user_num = (upmu_adc_user_list_enum)(dwChannel & (AUXADC_USER_MASK << AUXADC_USER_SHIFT)) >> AUXADC_USER_SHIFT ;
+	user_num =
+	    (upmu_adc_user_list_enum) (dwChannel & (AUXADC_USER_MASK << AUXADC_USER_SHIFT)) >>
+	    AUXADC_USER_SHIFT;
 
 	return user_num;
 }
@@ -309,61 +326,63 @@ upmu_adc_user_list_enum PMIC_IMM_GetUserNumber(upmu_adc_chl_list_enum dwChannel)
 
 
 
-//==============================================================================
-// PMIC-AUXADC
-//==============================================================================
+/* ============================================================================== */
+/* PMIC-AUXADC */
+/* ============================================================================== */
 int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, int trimd)
 {
 #if 1
 	kal_int32 ret_data;
-	kal_int32 count=0;
+	kal_int32 count = 0;
 	kal_int32 u4Sample_times = 0;
-	kal_int32 u4channel=0;
-	kal_int32 adc_result_temp=0;
-	kal_int32 r_val_temp=0;
-	kal_int32 adc_result=0;
+	kal_int32 u4channel = 0;
+	kal_int32 adc_result_temp = 0;
+	kal_int32 r_val_temp = 0;
+	kal_int32 adc_result = 0;
 	kal_int32 channel_num;
 	upmu_adc_chip_list_enum chip_num;
 	upmu_adc_user_list_enum user_num;
 
 	/*
-	AUX_BATSNS_AP =		0x000,
-	AUX_ISENSE_AP,
-	AUX_VCDT_AP,
-	AUX_BATON_AP,
-	AUX_TSENSE_AP,
-	AUX_TSENSE_MD =		0x005,
-	AUX_VACCDET_AP =	0x007,
-	AUX_VISMPS_AP =		0x00B,
-	AUX_ICLASSAB_AP =	0x016,
-	AUX_HP_AP =		0x017,
-	AUX_VBIF_AP =		0x019,
+	   AUX_BATSNS_AP =              0x000,
+	   AUX_ISENSE_AP,
+	   AUX_VCDT_AP,
+	   AUX_BATON_AP,
+	   AUX_TSENSE_AP,
+	   AUX_TSENSE_MD =              0x005,
+	   AUX_VACCDET_AP =     0x007,
+	   AUX_VISMPS_AP =              0x00B,
+	   AUX_ICLASSAB_AP =    0x016,
+	   AUX_HP_AP =          0x017,
+	   AUX_VBIF_AP =                0x019,
 
-	AUX_ADCVIN0_GPS = 	0x10C,
-	AUX_ADCVIN0_MD =	0x10F,
-	CH12-15 shared
-	*/
+	   AUX_ADCVIN0_GPS =    0x10C,
+	   AUX_ADCVIN0_MD =     0x10F,
+	   CH12-15 shared
+	 */
 	wake_lock(&pmicAuxadc_irq_lock);
+	mutex_lock(&pmic_isense_mutex);
 
-	do
-	{
+	do {
 		if (u4Sample_times > 50) {
-			return 0xFFFF;	
+			mutex_unlock(&pmic_isense_mutex);
+			wake_unlock(&pmicAuxadc_irq_lock);
+			return 0xFFFF;
 		}
-		if (set_isense_flag == 1)
-			continue;
-		count=0;
-	        ret_data=0;
 
-		channel_num 	= PMIC_IMM_GetChannelNumber(dwChannel);
-		chip_num 	= PMIC_IMM_GetChipNumber(dwChannel);
-		user_num 	= PMIC_IMM_GetUserNumber(dwChannel);
+		count = 0;
+		ret_data = 0;
 
-		//pr_notice( "\n[PMIC_IMM_GetOneChannelValue] %d ch=%d, chip= %d, user= %d \n",dwChannel, channel_num, chip_num, user_num);
+		channel_num = PMIC_IMM_GetChannelNumber(dwChannel);
+		chip_num = PMIC_IMM_GetChipNumber(dwChannel);
+		user_num = PMIC_IMM_GetUserNumber(dwChannel);
+
+		/*battery_log(BAT_LOG_CRTI,  "\n[PMIC_IMM_GetOneChannelValue] %d ch=%d, chip= %d,
+			user= %d\n",dwChannel, channel_num, chip_num, user_num)); */
 
 		if (chip_num == MT6325_CHIP) {
-			if (user_num == MD ) {
-				//Prerequisite settings before accessing AuxADC
+			if (user_num == MD) {
+				/* Prerequisite settings before accessing AuxADC */
 				mt6325_upmu_set_rg_clksq_en_aux_md(1);
 				mt6325_upmu_set_rg_vref18_enb_md(0);
 			} else if (user_num == GPS) {
@@ -384,18 +403,19 @@ int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, i
 		}
 		if (PMIC_IMM_RequestAuxadcChannel(dwChannel) == 1)
 			continue;
-		//udelay(10);
-		while( pmic_is_auxadc_ready(channel_num, chip_num, user_num) != 1 ) {
+		/* udelay(10); */
+		while (pmic_is_auxadc_ready(channel_num, chip_num, user_num) != 1) {
 			mdelay(1);
-			if( (count++) > count_time_out)
-			{
-			pr_notice( "[IMM_GetOneChannelValue_PMIC] (%d) Time out!\n", dwChannel);
-			break;
+			if ((count++) > count_time_out) {
+				battery_log(BAT_LOG_CRTI,
+					    "[IMM_GetOneChannelValue_PMIC] (%d) Time out!\n",
+					    dwChannel);
+				break;
 			}
 		}
 		ret_data = pmic_get_adc_output(channel_num, chip_num, user_num);
 
-		//clear
+		/* clear */
 
 		if (chip_num == MT6325_CHIP) {
 			mt6325_upmu_set_rg_ap_rqst_list(0);
@@ -406,132 +426,139 @@ int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, i
 			mt6311_set_auxadc_rqst_ch0(0);
 			mt6311_set_auxadc_rqst_ch1(0);
 		}
-	        u4channel += ret_data;
+		u4channel += ret_data;
 
-	        u4Sample_times++;
+		u4Sample_times++;
 
-		//debug
-		//pr_debug( "Power/PMIC", "[AUXADC] output data[%d]=%d\n",
-//			dwChannel, ret_data);
+		/* debug */
+		/* pr_debug( "Power/PMIC", "[AUXADC] output data[%d]=%d\n", */
+/* dwChannel, ret_data); */
 		if (chip_num == MT6325_CHIP) {
 			if (user_num == MD) {
-				//Prerequisite settings before accessing AuxADC
+				/* Prerequisite settings before accessing AuxADC */
 				mt6325_upmu_set_rg_clksq_en_aux_md(0);
 				mt6325_upmu_set_rg_vref18_enb_md(1);
 			} else if (user_num == GPS) {
 				mt6325_upmu_set_rg_clksq_en_aux_gps(0);
 			}
 		}
-	}while (u4Sample_times < deCount);
+	} while (u4Sample_times < deCount);
 
 	/* Value averaging  */
-	if (u4Sample_times == 0)
-		return 0xFFFF; 
+	if (u4Sample_times == 0) {
+		mutex_unlock(&pmic_isense_mutex);
+		wake_unlock(&pmicAuxadc_irq_lock);
+		return 0xFFFF;
+	}
 	adc_result_temp = u4channel / u4Sample_times;
 
-	switch(dwChannel){
+	switch (dwChannel) {
 	case AUX_BATSNS_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_BATSNS_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_BATSNS_AP]");
 		}
 		r_val_temp = 4;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_VCDT_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_VCDT_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_VCDT_AP]");
 		}
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_BATON_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_BATON_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_BATON_AP]");
 		}
 		r_val_temp = 2;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_TSENSE_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_TSENSE_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_TSENSE_AP]");
 		}
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_TSENSE_MD:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_TSENSE_MD]");
+			battery_log(BAT_LOG_CRTI, "[AUX_TSENSE_MD]");
 		}
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_VACCDET_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_VACCDET_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_VACCDET_AP]");
 		}
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_VISMPS_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_VISMPS_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_VISMPS_AP]");
 		}
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_ICLASSAB_AP:
 		if (Enable_BATDRV_LOG == 2) {
-			pr_notice( "[AUX_ICLASSAB_AP]");
+			battery_log(BAT_LOG_CRTI, "[AUX_ICLASSAB_AP]");
 		}
-		//r_val_temp = 1;
+		/* r_val_temp = 1; */
 		adc_result = adc_result_temp;
 		break;
 	case AUX_HP_AP:
-		pr_notice( "[AUX_HP_AP]");
+		battery_log(BAT_LOG_CRTI, "[AUX_HP_AP]");
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_CH10_AP:
-		//pr_notice( "[AUX_CH10_AP]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_CH10_AP]")); */
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_VBIF_AP:
-		//pr_notice( "[AUX_VBIF_AP]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_VBIF_AP]")); */
 		r_val_temp = 2;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	case AUX_ADCVIN0_MD:
-		//pr_notice( "[AUX_CH7_MD]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_CH7_MD]")); */
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE_CH7;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE_CH7;
 		break;
 	case AUX_ADCVIN0_GPS:
-		//pr_notice( "[AUX_CH7_GPS]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_CH7_GPS]")); */
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE_CH7;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE_CH7;
 		break;
 	case AUX_CH0_6311:
-		//pr_notice( "[AUX_CH0_6311]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_CH0_6311]")); */
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE_6311)/ADC_PRECISE_6311;
+		adc_result =
+		    (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE_6311) / ADC_PRECISE_6311;
 		break;
 	case AUX_CH1_6311:
-		//pr_notice( "[AUX_CH1_6311]");
+		/*battery_log(BAT_LOG_CRTI,  "[AUX_CH1_6311]")); */
 		r_val_temp = 1;
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE_6311)/ADC_PRECISE_6311;
+		adc_result =
+		    (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE_6311) / ADC_PRECISE_6311;
 		break;
 	default:
-	    pr_notice( "[AUXADC] Invalid channel value(%d,%d)\n", dwChannel, trimd);
-	    wake_unlock(&pmicAuxadc_irq_lock);
-	    return -1;
+		battery_log(BAT_LOG_CRTI, "[AUXADC] Invalid channel value(%d,%d)\n", dwChannel,
+			    trimd);
+		mutex_unlock(&pmic_isense_mutex);
+		wake_unlock(&pmicAuxadc_irq_lock);
+		return -1;
 	}
 	if (Enable_BATDRV_LOG == 2) {
-		pr_notice( "outputdata=%d, transfer data=%d, r_val=%d.\n",
-			adc_result_temp, adc_result, r_val_temp);
+		battery_log(BAT_LOG_CRTI, "outputdata=%d, transfer data=%d, r_val=%d.\n",
+			    adc_result_temp, adc_result, r_val_temp);
 	}
 
-
+	mutex_unlock(&pmic_isense_mutex);
 	wake_unlock(&pmicAuxadc_irq_lock);
 
 	return adc_result;
@@ -543,58 +570,37 @@ int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, i
 int PMIC_IMM_SwGetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, int trimd)
 {
 #if 1
-	kal_int32 ret_data;    
-	kal_int32 count=0;
+	kal_int32 ret_data;
+	kal_int32 count = 0;
 	kal_int32 u4Sample_times = 0;
-	kal_int32 u4channel=0;    
-	kal_int32 adc_result_temp=0;
-	kal_int32 r_val_temp=0;   
-	kal_int32 adc_result=0;   
+	kal_int32 u4channel = 0;
+	kal_int32 adc_result_temp = 0;
+	kal_int32 r_val_temp = 0;
+	kal_int32 adc_result = 0;
 	kal_int32 channel_num;
 	upmu_adc_chip_list_enum chip_num;
 	upmu_adc_user_list_enum user_num;
-	
-	/*
-	AUX_BATSNS_AP =		0x000,
-	AUX_ISENSE_AP,
-	AUX_VCDT_AP,
-	AUX_BATON_AP,
-	AUX_TSENSE_AP,
-	AUX_TSENSE_MD =		0x005,
-	AUX_VACCDET_AP =	0x007,
-	AUX_VISMPS_AP =		0x00B,
-	AUX_ICLASSAB_AP =	0x016,
-	AUX_HP_AP =		0x017,
-	AUX_VBIF_AP =		0x019,
 
-	AUX_ADCVIN0_GPS = 	0x10C,
-	AUX_ADCVIN0_MD =	0x10F,
-	CH12-15 shared
-	*/
-	
 	wake_lock(&pmicAuxadc_irq_lock);
+	mutex_lock(&pmic_isense_mutex);
 
-	do
-	{
-		count=0;
-		ret_data=0;
+	do {
+		count = 0;
+		ret_data = 0;
 
-		channel_num 	= PMIC_IMM_GetChannelNumber(dwChannel);
-		chip_num 	= PMIC_IMM_GetChipNumber(dwChannel);
-		user_num 	= PMIC_IMM_GetUserNumber(dwChannel);
+		channel_num = PMIC_IMM_GetChannelNumber(dwChannel);
+		chip_num = PMIC_IMM_GetChipNumber(dwChannel);
+		user_num = PMIC_IMM_GetUserNumber(dwChannel);
 
 		if (chip_num == MT6325_CHIP) {
-			if (user_num == MD ) {
-				//Prerequisite settings before accessing AuxADC 
+			if (user_num == MD) {
+				/* Prerequisite settings before accessing ADC */
 				mt6325_upmu_set_rg_clksq_en_aux_md(1);
-				mt6325_upmu_set_rg_vref18_enb_md(0);	
-			} else if (user_num == GPS) {
+				mt6325_upmu_set_rg_vref18_enb_md(0);
+			} else if (user_num == GPS)
 				mt6325_upmu_set_rg_clksq_en_aux_gps(1);
-			}
-		} else if (chip_num == MT6311_CHIP) {
-			
 		}
-		
+
 		if (chip_num == MT6325_CHIP) {
 			mt6325_upmu_set_rg_ap_rqst_list(0);
 			mt6325_upmu_set_rg_ap_rqst_list_rsv(0);
@@ -608,18 +614,19 @@ int PMIC_IMM_SwGetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount,
 		if (PMIC_IMM_RequestAuxadcChannel(dwChannel) == 1)
 			continue;
 
-		while( pmic_is_auxadc_ready(channel_num, chip_num, user_num) != 1 ) {
+		while (pmic_is_auxadc_ready(channel_num, chip_num, user_num) != 1) {
 			mdelay(1);
-			if( (count++) > count_time_out)
-			{
-				pr_notice("[IMM_GetOneChannelValue_PMIC] (%d) Time out!\n", dwChannel);
+			if ((count++) > count_time_out) {
+				xlog_printk(ANDROID_LOG_INFO, "Power/PMIC",
+					    "[IMM_GetOneChannelValue_PMIC] (%d) Time out!\n",
+					    dwChannel);
 				break;
-			}            
+			}
 		}
-		ret_data = pmic_get_adc_output(channel_num, chip_num, user_num);                
-		
-		//clear
-		
+		ret_data = pmic_get_adc_output(channel_num, chip_num, user_num);
+
+		/* clear */
+
 		if (chip_num == MT6325_CHIP) {
 			mt6325_upmu_set_rg_ap_rqst_list(0);
 			mt6325_upmu_set_rg_ap_rqst_list_rsv(0);
@@ -629,41 +636,43 @@ int PMIC_IMM_SwGetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount,
 			mt6311_set_auxadc_rqst_ch0(0);
 			mt6311_set_auxadc_rqst_ch1(0);
 		}
-	        u4channel += ret_data;
-	
-	        u4Sample_times++;
-	}while (u4Sample_times < deCount);
+		u4channel += ret_data;
+
+		u4Sample_times++;
+	} while (u4Sample_times < deCount);
 
 	adc_result_temp = u4channel / u4Sample_times;
 
-	switch(dwChannel){
+	switch (dwChannel) {
 	case AUX_ISENSE_AP:
 		mt6325_upmu_set_rg_adc_swctrl_en(0);
 		mt6325_upmu_set_rg_adcin_vsen_en(0);
-		set_isense_flag = 0;
-		if (Enable_BATDRV_LOG == 2) {
-			pr_notice("[AUX_ISENSE_AP]");
-		}
-		r_val_temp = 4;           
-		adc_result = (adc_result_temp*r_val_temp*VOLTAGE_FULL_RANGE)/ADC_PRECISE;
+		if (Enable_BATDRV_LOG == 2)
+			xlog_printk(ANDROID_LOG_INFO, "Power/PMIC", "[ADC_ISENSE_AP]");
+
+		r_val_temp = 4;
+		adc_result = (adc_result_temp * r_val_temp * VOLTAGE_FULL_RANGE) / ADC_PRECISE;
 		break;
 	default:
-	    pr_notice("[AUXADC] Invalid channel value(%d,%d)\n", dwChannel, trimd);
-	    wake_unlock(&pmicAuxadc_irq_lock);
-	    return -1;
+		xlog_printk(ANDROID_LOG_INFO, "Power/PMIC", "[ADC] Invalid channel value(%d,%d)\n",
+			    dwChannel, trimd);
+		mutex_unlock(&pmic_isense_mutex);
+		wake_unlock(&pmicAuxadc_irq_lock);
+		return -1;
 	}
 	if (Enable_BATDRV_LOG == 2) {
-		pr_notice( "outputdata=%d, transfer data=%d, r_val=%d.\n", 
-			adc_result_temp, adc_result, r_val_temp);
+		xlog_printk(ANDROID_LOG_INFO, "Power/PMIC",
+			    "outputdata=%d, transfer data=%d, r_val=%d.\n", adc_result_temp,
+			    adc_result, r_val_temp);
 	}
 
-	
+	mutex_unlock(&pmic_isense_mutex);
 	wake_unlock(&pmicAuxadc_irq_lock);
-	
+
 	return adc_result;
 #else
 	return 0;
-#endif   
+#endif
 }
 #else
 
@@ -673,7 +682,7 @@ void pmic_auxadc_init(void)
 
 int PMIC_IMM_GetOneChannelValue(upmu_adc_chl_list_enum dwChannel, int deCount, int trimd)
 {
-    return 1234;
+	return 1234;
 }
 
 #endif

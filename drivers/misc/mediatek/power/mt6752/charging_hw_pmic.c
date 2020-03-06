@@ -205,8 +205,8 @@ static kal_uint32 charging_hw_init(void *data)
 
     mt6325_upmu_set_rg_hwcv_en(1);
     mt6325_upmu_set_rg_vbat_cv_en(1);			// CV_EN
-    mt6325_upmu_set_rg_csdac_en(1);				// CSDAC_EN
     mt6325_upmu_set_rg_chr_en(1);				// CHR_EN
+    mt6325_upmu_set_rg_csdac_en(1);				// CSDAC_EN
     #endif
 
     return status;
@@ -246,12 +246,10 @@ static kal_uint32 charging_enable(void *data)
         mt6325_upmu_set_rg_cs_en(1);                   // CS_EN, check me
 
         mt6325_upmu_set_rg_vbat_cv_en(1);              // CV_EN
-        mt6325_upmu_set_rg_csdac_en(1);                // CSDAC_EN
-
-
         mt6325_upmu_set_rg_pchr_flag_en(1);		       // enable debug falg output
 
         mt6325_upmu_set_rg_chr_en(1); 				   // CHR_EN
+        mt6325_upmu_set_rg_csdac_en(1);                // CSDAC_EN
         mt6325_upmu_set_rg_csdac_mode(1);      		//CSDAC_MODE
         mt6325_upmu_set_rg_hwcv_en(1);
         mt6325_upmu_set_rg_ulc_det_en(1);		// ULC_DET_EN
@@ -551,6 +549,9 @@ static kal_uint32 charging_set_ta_current_pattern(void *data)
 	kal_uint32 increase = *(kal_uint32*)(data);
 	kal_uint32 debug_val = 0;
 	U8 count = 0;
+
+	mt6325_upmu_set_rg_cs_vth(0xc);
+
 	if(increase == KAL_TRUE) {
 	    	/* Set communication mode high/low current */
 	    	mt6325_upmu_set_rg_cm_cs_vthh(0xa);	/* 650mA */
@@ -569,7 +570,7 @@ static kal_uint32 charging_set_ta_current_pattern(void *data)
 		mt6325_upmu_set_rg_cm_vinc_hprd6(49);	/* 500ms */
 
 		/* Enable CM_VINC interrupt */
-		//mt6325_upmu_set_rg_int_en_pchr_cm_vinc(0x1);
+		mt6325_upmu_set_rg_int_en_pchr_cm_vinc(0x1);
 
 		/* Select PCHR debug flag to monitor abnormal abort */
 		mt6325_upmu_set_rg_pchr_flag_sel(0x2e);
@@ -582,9 +583,9 @@ static kal_uint32 charging_set_ta_current_pattern(void *data)
 
 		/* wait for interrupt */
 		while(mt6325_upmu_get_pchr_cm_vinc_status() != 1) {
-			msleep(1);
+			msleep(50);
 			count++;
-			if (count > 10)
+			if (count > 42)
 				break;
 		}
 	} else {
@@ -593,19 +594,19 @@ static kal_uint32 charging_set_ta_current_pattern(void *data)
 		mt6325_upmu_set_rg_cm_cs_vthl(0xf);	/* 70mA */
 
 		/* Set CM_VINC high period time (HPRD1, HPRD2) */
-		mt6325_upmu_set_rg_cm_vdec_hprd1(9);	/* 100ms */
-		mt6325_upmu_set_rg_cm_vdec_hprd2(9);	/* 100ms */
+		mt6325_upmu_set_rg_cm_vdec_hprd1(29);	/* 100ms */
+		mt6325_upmu_set_rg_cm_vdec_hprd2(29);	/* 100ms */
 
 		/* Set CM_VINC high period time (HPRD3, HPRD4) */
 		mt6325_upmu_set_rg_cm_vdec_hprd3(29);	/* 300ms */
-		mt6325_upmu_set_rg_cm_vdec_hprd4(29);	/* 300ms */
+		mt6325_upmu_set_rg_cm_vdec_hprd4(9);	/* 300ms */
 
 		/* Set CM_VINC high period time (HPRD5, HPRD6) */
-		mt6325_upmu_set_rg_cm_vdec_hprd5(29);	/* 300ms */
+		mt6325_upmu_set_rg_cm_vdec_hprd5(9);	/* 300ms */
 		mt6325_upmu_set_rg_cm_vdec_hprd6(49);	/* 500ms */
 
 		/* Enable CM_VINC interrupt */
-		//mt6325_upmu_set_rg_int_en_pchr_cm_vinc(0x1);
+		mt6325_upmu_set_rg_int_en_pchr_cm_vdec(0x1);
 
 		/* Select PCHR debug flag to monitor abnormal abort */
 		mt6325_upmu_set_rg_pchr_flag_sel(0x2e);
@@ -618,9 +619,9 @@ static kal_uint32 charging_set_ta_current_pattern(void *data)
 
 		/* wait for interrupt */
 		while(mt6325_upmu_get_pchr_cm_vdec_status() != 1) {
-			msleep(1);
+			msleep(50);
 			count++;
-			if (count > 10)
+			if (count > 42)
 				break;
 		}
 	}

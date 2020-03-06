@@ -20,8 +20,17 @@ LIBGCC 		:= $(shell $(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 KBUILD_DEFCONFIG := defconfig
 
 KBUILD_CFLAGS	+= -mgeneral-regs-only
-KBUILD_CFLAGS	+= -fno-pic -mtune=cortex-a53 -march=armv8-a -O2 -ftree-vectorize
+KBUILD_CFLAGS	+= -fno-pic
 KBUILD_CPPFLAGS	+= -mlittle-endian
+KBUILD_CFLAGS	+= -Wno-error=format-overflow
+KBUILD_CFLAGS	+= -Wno-error=array-bounds
+KBUILD_CFLAGS	+= -Wno-error=format-truncation
+KBUILD_CFLAGS	+= -Wno-error=logical-not-parentheses
+KBUILD_CFLAGS	+= -Wno-error=discarded-array-qualifiers
+KBUILD_CFLAGS	+= -Wno-error=bool-compare
+KBUILD_CFLAGS	+= -Wno-error=misleading-indentation
+KBUILD_CFLAGS	+= -Wno-error=implicit-function-declaration
+KBUILD_CFLAGS	+= -Wno-error=int-to-pointer-cast
 AS		+= -EL
 LD		+= -EL
 
@@ -39,6 +48,10 @@ export	TEXT_OFFSET GZFLAGS
 
 core-y		+= arch/arm64/kernel/ arch/arm64/mm/
 core-$(CONFIG_CRYPTO) += arch/arm64/crypto/
+
+#hotplugs
+core-y += arch/arm64/hotplug/
+
 libs-y		:= arch/arm64/lib/ $(libs-y)
 libs-y		+= $(LIBGCC)
 
@@ -62,10 +75,13 @@ dtbs: $(DRVGEN_FILE_LIST)
 
 boot := arch/arm64/boot
 
-Image Image.gz: vmlinux
+Image: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
-zinstall install: vmlinux
+Image.%: vmlinux
+	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
+
+zinstall install:
 	$(Q)$(MAKE) $(build)=$(boot) $@
 
 %.dtb: scripts

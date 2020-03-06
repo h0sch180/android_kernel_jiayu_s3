@@ -26,7 +26,31 @@
 				reg = <0x64>;
 			};
 		};
+
+		I2C1@0x11008000 {
+			akm@0d {
+				compatible = "akm09911";
+				reg = <0x0d>;
+			};
+			
+			bma@18 {
+				compatible = "bma222e";
+				reg = <0x18>;
+			};
+			
+			EPL@49 {
+				compatible = "ELAN,EPL21822";
+				reg = <0x49>;
+			};
+			
+			mt6605@28 {
+				compatible = "mediatek,mt6605";
+				reg = <0x28>;
+			};
+		};
+
 	};
+
     TOUCH@0 {
     	compatible = "mediatek,TPD";
 		eint-gpio = <139 1>;
@@ -83,7 +107,4 @@
 		firlen 					= <0>;
 		is_batch_supported  	= <0>;
   		};
-
-
-  /* end sensor */
 };

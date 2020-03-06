@@ -512,7 +512,7 @@ static void unix_sock_destructor(struct sock *sk)
     #ifdef UNIX_REFCNT_DEBUG
 	pr_debug(KERN_DEBUG "[mtk_net][unix]UNIX %p is destroyed, %ld are still alive.\n", sk,
 		atomic_long_read(&unix_nr_socks));
-    #endif
+#endif
 }
 
 static void unix_release_sock(struct sock *sk, int embrion)
@@ -634,7 +634,6 @@ out_unlock:
 	unix_state_unlock(sk);
 	put_pid(old_pid);
 out:
-   
 	return err;
 }
 
@@ -997,7 +996,7 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	struct sockaddr_un *sunaddr = (struct sockaddr_un *)uaddr;
 	char *sun_path = sunaddr->sun_path;
 	int err;
-	unsigned int hash;
+	unsigned int hash = 0;
 	struct unix_address *addr;
 	struct hlist_head *list;
 	struct path path = { NULL, NULL };
@@ -1019,6 +1018,8 @@ static int unix_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	if (sun_path[0]) {
 		umode_t mode = S_IFSOCK |
 		       (SOCK_INODE(sock)->i_mode & ~current_umask());
+		path.dentry = NULL;
+		path.mnt = NULL;
 		err = unix_mknod(sun_path, mode, &path);
 		if (err) {
 			if (err == -EEXIST)
@@ -1076,7 +1077,6 @@ out_put:
 	if (err)
 		path_put(&path);
 out:
- 
 	return err;
 }
 
@@ -1116,7 +1116,6 @@ static int unix_dgram_connect(struct socket *sock, struct sockaddr *addr,
 	int err;
 
 	if (addr->sa_family != AF_UNSPEC) {
-     
 		err = unix_mkname(sunaddr, alen, &hash);
 		if (err < 0)
 			goto out;
@@ -1187,7 +1186,6 @@ out_unlock:
 	unix_state_double_unlock(sk, other);
 	sock_put(other);
 out:
-     
 	return err;
 }
 
@@ -1376,11 +1374,10 @@ restart:
   {
 	  pr_debug(KERN_INFO "[mtk_net][socket]unix_stream_connect[%lu ]: connect [%s] other[%lu] \n",SOCK_INODE(sock)->i_ino,sunaddr->sun_path,SOCK_INODE(other->sk_socket)->i_ino);
 	}
-  #endif 
+#endif
 
 	other->sk_data_ready(other, 0);
 	sock_put(other);
-       
 	return 0;
 
 out_unlock:
@@ -1393,7 +1390,6 @@ out:
 		unix_release_sock(newsk, 0);
 	if (other)
 		sock_put(other);
-    
 	return err;
 }
 
@@ -1445,7 +1441,7 @@ static int unix_accept(struct socket *sock, struct socket *newsock, int flags)
 	/* If socket state is TCP_LISTEN it cannot change (for now...),
 	 * so that no locks are necessary.
 	 */
-    
+
 	skb = skb_recv_datagram(sk, 0, flags&O_NONBLOCK, &err);
 	if (!skb) {
 		/* This means receive shutdown. */
@@ -1464,11 +1460,9 @@ static int unix_accept(struct socket *sock, struct socket *newsock, int flags)
 	unix_sock_inherit_flags(sock, newsock);
 	sock_graft(tsk, newsock);
 	unix_state_unlock(tsk);
-    
 	return 0;
 
 out:
-    
 	return err;
 }
 
@@ -1812,7 +1806,7 @@ restart_locked:
 	other->sk_data_ready(other, len);
 	sock_put(other);
 	scm_destroy(siocb->scm);
-    
+
 	return len;
 
 out_unlock:
@@ -1825,10 +1819,14 @@ out:
 	if (other)
 		sock_put(other);
 	scm_destroy(siocb->scm);
-      
+
 	return err;
 }
 
+/* We use paged skbs for stream sockets, and limit occupancy to 32768
+ * bytes, and a minimun of a full page.
+ */
+#define UNIX_SKB_FRAGS_SZ (PAGE_SIZE << get_order(32768))
 
 static int unix_stream_sendmsg(struct kiocb *kiocb, struct socket *sock,
 			       struct msghdr *msg, size_t len)
@@ -1842,10 +1840,11 @@ static int unix_stream_sendmsg(struct kiocb *kiocb, struct socket *sock,
 	struct scm_cookie tmp_scm;
 	bool fds_sent = false;
 	int max_level;
+	int data_len;
 
 	if (NULL == siocb->scm)
 		siocb->scm = &tmp_scm;
-		
+
 	wait_for_unix_gc();
 	err = scm_send(sock, msg, siocb->scm, false);
 	if (err < 0)
@@ -1869,40 +1868,19 @@ static int unix_stream_sendmsg(struct kiocb *kiocb, struct socket *sock,
 		goto pipe_err;
 
 	while (sent < len) {
-		/*
-		 *	Optimisation for the fact that under 0.01% of X
-		 *	messages typically need breaking up.
-		 */
-
-		size = len-sent;
+		size = len - sent;
 
 		/* Keep two messages in the pipe so it schedules better */
-		if (size > ((sk->sk_sndbuf >> 1) - 64))
-			size = (sk->sk_sndbuf >> 1) - 64;
+		size = min_t(int, size, (sk->sk_sndbuf >> 1) - 64);
 
-		if (size > SKB_MAX_ALLOC)
-			size = SKB_MAX_ALLOC;
-
-		/*
-		 *	Grab a buffer
-		 */
-
-		skb = sock_alloc_send_skb(sk, size, msg->msg_flags&MSG_DONTWAIT,
-					  &err);
+		/* allow fallback to order-0 allocations */
+		size = min_t(int, size, SKB_MAX_HEAD(0) + UNIX_SKB_FRAGS_SZ);
+		data_len = max_t(int, 0, size - SKB_MAX_HEAD(0));
 		
-
-		if (skb == NULL)
+		skb = sock_alloc_send_pskb(sk, size - data_len, data_len,
+					   msg->msg_flags & MSG_DONTWAIT, &err);
+		if (!skb)
 			goto out_err;
-
-		/*
-		 *	If you pass two values to the sock_alloc_send_skb
-		 *	it tries to grab the large buffer with GFP_NOFS
-		 *	(which can fail easily), and if it fails grab the
-		 *	fallback size buffer which is under a page and will
-		 *	succeed. [Alan]
-		 */
-		size = min_t(int, size, skb_tailroom(skb));
-
 
 		/* Only send the fds in the first buffer */
 		err = unix_scm_to_skb(siocb->scm, skb, !fds_sent);
@@ -1913,7 +1891,11 @@ static int unix_stream_sendmsg(struct kiocb *kiocb, struct socket *sock,
 		max_level = err + 1;
 		fds_sent = true;
 
-		err = memcpy_fromiovec(skb_put(skb, size), msg->msg_iov, size);
+		skb_put(skb, size - data_len);
+		skb->data_len = data_len;
+		skb->len = size;
+		err = skb_copy_datagram_from_iovec(skb, 0, msg->msg_iov,
+						   sent, size);
 		if (err) {
 			kfree_skb(skb);
 			goto out_err;
@@ -1939,15 +1921,13 @@ static int unix_stream_sendmsg(struct kiocb *kiocb, struct socket *sock,
 				        #endif
 		         }        
 
-		    }
-		    else	
-					{
-						#ifdef CONFIG_MTK_NET_LOGGING 	
-				        pr_debug(KERN_INFO " [mtk_net][unix]: sendmsg:peer close \n" );
-				        #endif
-				}
-		   		
-          
+			} else {
+#ifdef CONFIG_MTK_NET_LOGGING
+				pr_debug("[mtk_net][unix]: sendmsg:peer close\n");
+#endif
+			}
+
+
 			goto pipe_err_free;
 		}
 
@@ -1975,7 +1955,6 @@ pipe_err:
 out_err:
 	scm_destroy(siocb->scm);
 	siocb->scm = NULL;
-        
 	return sent ? : err;
 }
 
@@ -2117,7 +2096,6 @@ out_free:
 out_unlock:
 	mutex_unlock(&u->readlock);
 out:
-      
 	return err;
 }
 
@@ -2155,6 +2133,11 @@ static long unix_stream_data_wait(struct sock *sk, long timeo,
 	finish_wait(sk_sleep(sk), &wait);
 	unix_state_unlock(sk);
 	return timeo;
+}
+
+static unsigned int unix_skb_len(const struct sk_buff *skb)
+{
+	return skb->len - UNIXCB(skb).consumed;
 }
 
 static int unix_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
@@ -2269,11 +2252,12 @@ again:
 				  pr_debug(KERN_INFO " [mtk_net][unix]: recvmsg:exit read due to timeout \n" );
 				  #endif
 				}
-		   		  
-			 }
+
+			}
 
 			if (signal_pending(current)) {
 				err = sock_intr_errno(timeo);
+				scm_destroy(siocb->scm);
 				goto out;
 			}
 
@@ -2285,8 +2269,8 @@ again:
 		}
 
 		skip = sk_peek_offset(sk, flags);
-		while (skip >= skb->len) {
-			skip -= skb->len;
+		while (skip >= unix_skb_len(skb)) {
+			skip -= unix_skb_len(skb);
 			last = skb;
 			skb = skb_peek_next(skb, &sk->sk_receive_queue);
 			if (!skb)
@@ -2313,8 +2297,9 @@ again:
 			sunaddr = NULL;
 		}
 
-		chunk = min_t(unsigned int, skb->len - skip, size);
-		if (memcpy_toiovec(msg->msg_iov, skb->data + skip, chunk)) {
+		chunk = min_t(unsigned int, unix_skb_len(skb) - skip, size);
+		if (skb_copy_datagram_iovec(skb, UNIXCB(skb).consumed + skip,
+					    msg->msg_iov, chunk)) {
 			if (copied == 0)
 				copied = -EFAULT;
 			break;
@@ -2324,14 +2309,14 @@ again:
 
 		/* Mark read part of skb as used */
 		if (!(flags & MSG_PEEK)) {
-			skb_pull(skb, chunk);
+			UNIXCB(skb).consumed += chunk;
 
 			sk_peek_offset_bwd(sk, chunk);
 
 			if (UNIXCB(skb).fp)
 				unix_detach_fds(siocb->scm, skb);
 
-			if (skb->len)
+			if (unix_skb_len(skb))
 				break;
 
 			skb_unlink(skb, &sk->sk_receive_queue);
@@ -2366,7 +2351,6 @@ again:
 	mutex_unlock(&u->readlock);
 	scm_recv(sock, msg, siocb->scm, flags);
 out:
-  
 	return copied ? : err;
 }
 
@@ -2428,7 +2412,7 @@ long unix_inq_len(struct sock *sk)
 	if (sk->sk_type == SOCK_STREAM ||
 	    sk->sk_type == SOCK_SEQPACKET) {
 		skb_queue_walk(&sk->sk_receive_queue, skb)
-			amount += skb->len;
+			amount += unix_skb_len(skb);
 	} else {
 		skb = skb_peek(&sk->sk_receive_queue);
 		if (skb)

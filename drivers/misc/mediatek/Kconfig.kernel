@@ -12,8 +12,7 @@ config MTK_SCHED_TRACERS
 
 config MTK_FTRACE_DEFAULT_ENABLE
     bool "enable MTK events by default"
-    depends on MTK_SCHED_TRACERS 
-    depends on !MTK_GMO_RAM_OPTIMIZE || MTK_EXTMEM 
+    depends on MTK_SCHED_TRACERS
     default n
     help
         update ring buffer and enable MTK events by default
@@ -49,9 +48,44 @@ config MTK_MET_PLF
 
 endmenu
 
+menuconfig MALI_MIDGARD
+	tristate "Mali Midgard series support"
+	depends on MTK_MET
+	default n
+	help
+	  Enable this option to build support for a ARM Mali Midgard GPU.
+
+	  To compile this driver as a module, choose M here:
+	  this will generate a single module, called mali_kbase.
+
+config MALI_GATOR_SUPPORT
+	bool "Streamline Debug support"
+	depends on MTK_MET && MALI_MIDGARD
+	default n
+	help
+	  Adds diagnostic support for use with the ARM Streamline Performance Analyzer.
+	  You will need the Gator device driver already loaded before loading this driver when enabling
+	  Streamline debug support.
+
+config MALI_GPU_TRACEPOINTS
+	bool "Enable GPU tracepoints"
+	depends on MTK_MET && MALI_MIDGARD && ANDROID
+	select GPU_TRACEPOINTS
+	help
+	  Enables GPU tracepoints using Android trace event definitions.
+
 endmenu
 
 menu "MTPROF tools"
+
+config MTPROF
+	bool "Enable MTK profiler/debugger tool"
+	default y
+	help
+	  CONFIG_MTPROF define if mtk profiling tools should be built-in or not. It
+	  includes workqueue debugger, signal debugger, cputime, bootprof, and other
+	  misc tools. If you are not sure about whether to enable it or not, please
+	  set n.
 
 config MTK_MUTATION
 	bool "Support some MTK debug/profiling patches"
@@ -62,9 +96,6 @@ config MTPROF_CPUTIME
 	depends on SCHEDSTATS
 
 endmenu
-
-config MTPROF_IRQ_DURATION
-	bool "mt IRQ/ISR profiling"
 
 config MTK_AEE_FEATURE
 	tristate "Enable Android Exception Enhancement"
@@ -89,19 +120,6 @@ config MTK_AEE_MRDUMP
 	tristate "Enable AEE RAMDUMP support"
 	default y
 
-config ANDROID_VMEM
-	tristate "Virutally continuous memory allocator"
-	default y
-
-config CPUTIME_SUPPORT
-	bool "cputime profiling support for functions"
-	default n
-
-config CPUTIME_STATS
-	tristate "cputime profiling module for functions"
-	select CPUTIME_SUPPORT
-	default n
-	
 config MTK_RAM_CONSOLE
 	bool "mt ram console" 
 
@@ -145,6 +163,15 @@ config MT_SCHED_MONITOR
 	bool "mt scheduler monitor"
 	default n
 
+config MT_RT_THROTTLE_MON
+	bool "mt rt throttle monitor"
+	default n
+	help
+	  MT_RT_THROTTLE_MON is used to monitor rt throttle. When rt throttle activated
+	  print 5 longest execusion time rt tasks. Say Y here to enable rt throttle
+	  monitor.
+	  If you are not sure about whether to enable it or not, please set n.
+
 config MT_CHRDEV_REG
 	bool "mt char driver number table"
 	default n
@@ -165,6 +192,20 @@ config PRINTK_PROCESS_INFO
 config MT_PRINTK_UART_CONSOLE
 	bool "MTK printk UART controller"
 	default n
+
+config LOG_TOO_MUCH_WARNING
+	bool "printk too much warning"
+	default n
+
+config LOG_TOO_MUCH_DETECT_COUNT
+	hex "printk too much detect count"
+	default 300
+	depends on LOG_TOO_MUCH_WARNING
+
+config LOG_TOO_MUCH_DETECT_GAP
+	hex "detect log too much delay time"
+	default 10
+	depends on LOG_TOO_MUCH_WARNING
 
 config MT_ENG_BUILD
 	bool "flag for MTK eng/usr build verification"
@@ -192,17 +233,16 @@ config MTK_ETM
 	default y
 	help
 
-config MTK_MEMCFG
-	bool "Support enhanced memory configurations"
-	default n
-	help
-
-menu "MT load balance and schedule enhancement"
-config MT_SCHED
-	bool "Enhance CPU affinity in hotplug"	
- 	depends on HOTPLUG
+config MTK_MEM
+	bool "Support platform memory information"
 	default y
 
+config MTK_MEMCFG
+	bool "Support enhanced memory configurations"
+	depends on MTK_MEM
+	default n
+
+menu "MT load balance and schedule enhancement"
 config MT_LOAD_BALANCE_ENHANCEMENT
 	bool "mt load balance enhancement"
 	depends on  SMP
@@ -226,26 +266,6 @@ config MTK_COMPAT
 config MT_SCHED_INTEROP
 	bool "mtk scheduling interopation enhancement"
 	default n
-
-config MTK_SCHED_RQAVG_US
-	bool "Enable runqueue staticsic calculation used in user space operation"
-	depends on SMP && HIGH_RES_TIMERS
-	default n
-	help
-	  TLP estimation for user space CPUfreq governors
-
-config MTK_SCHED_RQAVG_KS
-	bool "Enable runqueue staticsic calculation used in kernel space operation"
-	depends on SMP
-	default n
-	help
-	  TLP estimation for kernel space CPUfreq governors, e.g., hotplug
-
-config MT_PRIO_TRACER
-	bool "Record priority changes"
-	default n
-	help
-	  Export device node under debugfs/prio_tracer
 
 config MT_SCHED_TRACE
 	bool "mt scheduling trace, output mtk schedule trace into FTRACE"
@@ -363,12 +383,6 @@ config MTK_IPV6_TETHER_NDP_MODE
 	  mode during IPv6 tethering no: disable enable NDP mode during IPv6
 	  tethering
 
-config MTK_EMMC_SUPPORT_OTP
-	tristate "MediaTek eMMC Card OTP support"
-	depends on MTK_EMMC_SUPPORT
-	help
-	  support ont time program on EMMC
-
 config MTK_TETHERINGIPV6_SUPPORT
 	bool "MTK_TETHERINGIPV6_SUPPORT"
 	help
@@ -376,20 +390,9 @@ config MTK_TETHERINGIPV6_SUPPORT
 
 config MTK_LEGACY
 	bool "MTK LEGACY driver API support"
-	select MTK_CLKMGR
 	default y
 	help
 	  This is an option for MTK legacy driver that using old API
 	  It will be deprecated after all drivers changed to new structure
-
-config MTK_CLKMGR
-	bool "Mediatek proprietary clock management"
-	default n
-	---help---
-	  Mediatek proprietary clock management is used to operate
-          the clocks. The clocks are composed of CG, MUX, PLL,
-          non-MTCMOS. The operations of clocks are enabling,
-          disabling, and querying status. If this config is not set,
-          system will use COMMON_CLK instead.
 
 

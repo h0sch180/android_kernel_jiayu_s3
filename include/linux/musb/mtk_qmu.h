@@ -73,12 +73,11 @@ static inline int mtk_dbg_level(unsigned level)
 #define LOG_DBG  		7
 
 #define QMU_DBG_ON
-
 #ifdef QMU_DBG_ON
-#define QMU_ERR(format, args...) do {if(mtk_dbg_level(LOG_ERR)){printk(KERN_WARNING "QMU_ERR,<%s %d>, " format , __func__, __LINE__ , ## args);}}while(0)
-#define QMU_WARN(format, args...) do {if(mtk_dbg_level(LOG_WARN)){printk(KERN_WARNING "QMU_WARN,<%s %d>, " format , __func__, __LINE__ , ## args);}}while(0)
-#define QMU_INFO(format, args...) do {if(mtk_dbg_level(LOG_INFO)){printk(KERN_WARNING "QMU_INFO,<%s %d>, " format , __func__, __LINE__ , ## args);}}while(0)
-#define QMU_DBG(format, args...) do {if(mtk_dbg_level(LOG_DBG)){printk(KERN_WARNING "QMU_DBG,<%s %d>, " format , __func__, __LINE__ , ## args);}}while(0)
+#define QMU_ERR(format, args...) do {if (mtk_dbg_level(LOG_ERR)) {pr_warn("QMU_ERR,<%s %d>, " format , __func__, __LINE__ , ## args); } } while (0)
+#define QMU_WARN(format, args...) do {if (mtk_dbg_level(LOG_WARN)) {pr_warn("QMU_WARN,<%s %d>, " format , __func__, __LINE__ , ## args); } } while (0)
+#define QMU_INFO(format, args...) do {if (mtk_dbg_level(LOG_INFO)) {pr_warn("QMU_INFO,<%s %d>, " format , __func__, __LINE__ , ## args); } } while (0)
+#define QMU_DBG(format, args...) do {if (mtk_dbg_level(LOG_DBG)) {pr_warn("QMU_DBG,<%s %d>, " format , __func__, __LINE__ , ## args); } } while (0)
 #else
 #define QMU_ERR(format, args...) do {}while(0)
 #define QMU_WARN(format, args...) do {}while(0)

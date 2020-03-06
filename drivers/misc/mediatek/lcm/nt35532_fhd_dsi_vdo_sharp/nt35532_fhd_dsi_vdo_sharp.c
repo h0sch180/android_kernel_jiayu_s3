@@ -269,7 +269,7 @@ static void lcm_init(void)
 #ifdef BUILD_LK
     dprintf(0, "[LK]lcm_initialization_setting----%d\n",i);    	
 #else
-	printk("[KERNEL]lcm_initialization_setting----%d\n",i);
+	pr_debug("[KERNEL]lcm_initialization_setting----%d\n",i);
 #endif
 	push_table(lcm_initialization_setting3, sizeof(lcm_initialization_setting3) / sizeof(struct LCM_setting_table), 1);
     	

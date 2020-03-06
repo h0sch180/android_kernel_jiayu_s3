@@ -19,10 +19,6 @@
  *
  *---------------------------------------------------------------------------
 ---
- * $Revision: #1 $
- * $Modtime:$
- * $Log:$
- *
  *
 
 *******************************************************************************/
@@ -37,162 +33,162 @@
 #endif
 #define AUDIO_MEMORY_SRAM
 #define AUDIO_MEM_IOREMAP
-//#define AUDIO_64BYTE_ALIGN
+/* #define AUDIO_64BYTE_ALIGN */
 
-// below for audio debugging
+/* below for audio debugging */
 #define DEBUG_AUDDRV
-//#define DEBUG_AFE_REG
-//#define DEBUG_ANA_REG
-//#define DEBUG_AUD_CLK
+/* #define DEBUG_AFE_REG */
+/* #define DEBUG_ANA_REG */
+/* #define DEBUG_AUD_CLK */
 #define DEBUG_AUD_HDMI
-//efine DEBUG_AUD_FMTX
-//#define DEBUG_AUD_UL2
-//#define DEBUG_AUD_UL1
-//#define DEBUG_AUD_DL1
-//#define DEBUG_AUD_DAI
+/* efine DEBUG_AUD_FMTX */
+/* #define DEBUG_AUD_UL2 */
+/* #define DEBUG_AUD_UL1 */
+/* #define DEBUG_AUD_DL1 */
+/* #define DEBUG_AUD_DAI */
 
 #ifdef DEBUG_AUDDRV
-#define PRINTK_AUDDRV(format, args...) printk(format, ##args )
+#define PRINTK_AUDDRV(format, args...) printk(format, ##args)
 #else
 #define PRINTK_AUDDRV(format, args...)
 #endif
 
 #ifdef DEBUG_AFE_REG
-#define PRINTK_AFE_REG(format, args...) printk(format, ##args )
+#define PRINTK_AFE_REG(format, args...) printk(format, ##args)
 #else
 #define PRINTK_AFE_REG(format, args...)
 #endif
 
 #ifdef DEBUG_ANA_REG
-#define PRINTK_ANA_REG(format, args...) printk(format, ##args )
+#define PRINTK_ANA_REG(format, args...) printk(format, ##args)
 #else
 #define PRINTK_ANA_REG(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_CLK
-#define PRINTK_AUD_CLK(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_CLK(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_CLK(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DL1
-#define PRINTK_AUD_DL1(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DL1(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DL1(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DL2
-#define PRINTK_AUD_DL2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DL2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DL2(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_FMTX
-#define PRINTK_AUD_FMTX(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_FMTX(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_FMTX(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_HDMI
-#define PRINTK_AUD_HDMI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_HDMI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_HDMI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_HDMI2
-#define PRINTK_AUD_HDMI2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_HDMI2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_HDMI2(format, args...)
 #endif
 
 
 #ifdef DEBUG_AUD_UL1
-#define PRINTK_AUD_UL1(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL1(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL1(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_UL2
-#define PRINTK_AUD_UL2(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL2(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL2(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_UL3
-#define PRINTK_AUD_UL3(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_UL3(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_UL3(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_AWB
-#define PRINTK_AUD_AWB(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_AWB(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_AWB(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DAI
-#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DAI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_MODDAI
-#define PRINTK_AUD_MODDAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_MODDAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_MODDAI(format, args...)
 #endif
 
 #ifdef DEBUG_AUD_DAI
-#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_DAI(format, args...)  printk(format, ##args)
 #else
 #define PRINTK_AUD_DAI(format, args...)
 #endif
 
 
-#define PRINTK_AUD_ERROR(format, args...)  printk(format, ##args )
+#define PRINTK_AUD_ERROR(format, args...)  printk(format, ##args)
 
-// if need assert , use AUDIO_ASSERT(true)
+/* if need assert , use AUDIO_ASSERT(true) */
 #define AUDIO_ASSERT(value) BUG_ON(false)
 
 
 /**********************************
  *  Other Definitions             *
  **********************************/
-#define BIT_00	0x00000001        /* ---- ---- ---- ---- ---- ---- ---- ---1 */
-#define BIT_01	0x00000002        /* ---- ---- ---- ---- ---- ---- ---- --1- */
-#define BIT_02	0x00000004        /* ---- ---- ---- ---- ---- ---- ---- -1-- */
-#define BIT_03	0x00000008        /* ---- ---- ---- ---- ---- ---- ---- 1--- */
-#define BIT_04	0x00000010        /* ---- ---- ---- ---- ---- ---- ---1 ---- */
-#define BIT_05	0x00000020        /* ---- ---- ---- ---- ---- ---- --1- ---- */
-#define BIT_06	0x00000040        /* ---- ---- ---- ---- ---- ---- -1-- ---- */
-#define BIT_07	0x00000080        /* ---- ---- ---- ---- ---- ---- 1--- ---- */
-#define BIT_08	0x00000100        /* ---- ---- ---- ---- ---- ---1 ---- ---- */
-#define BIT_09	0x00000200        /* ---- ---- ---- ---- ---- --1- ---- ---- */
-#define BIT_10	0x00000400        /* ---- ---- ---- ---- ---- -1-- ---- ---- */
-#define BIT_11	0x00000800        /* ---- ---- ---- ---- ---- 1--- ---- ---- */
-#define BIT_12	0x00001000        /* ---- ---- ---- ---- ---1 ---- ---- ---- */
-#define BIT_13	0x00002000        /* ---- ---- ---- ---- --1- ---- ---- ---- */
-#define BIT_14	0x00004000        /* ---- ---- ---- ---- -1-- ---- ---- ---- */
-#define BIT_15	0x00008000        /* ---- ---- ---- ---- 1--- ---- ---- ---- */
-#define BIT_16	0x00010000        /* ---- ---- ---- ---1 ---- ---- ---- ---- */
-#define BIT_17	0x00020000        /* ---- ---- ---- --1- ---- ---- ---- ---- */
-#define BIT_18	0x00040000        /* ---- ---- ---- -1-- ---- ---- ---- ---- */
-#define BIT_19	0x00080000        /* ---- ---- ---- 1--- ---- ---- ---- ---- */
-#define BIT_20	0x00100000        /* ---- ---- ---1 ---- ---- ---- ---- ---- */
-#define BIT_21	0x00200000        /* ---- ---- --1- ---- ---- ---- ---- ---- */
-#define BIT_22	0x00400000        /* ---- ---- -1-- ---- ---- ---- ---- ---- */
-#define BIT_23	0x00800000        /* ---- ---- 1--- ---- ---- ---- ---- ---- */
-#define BIT_24	0x01000000        /* ---- ---1 ---- ---- ---- ---- ---- ---- */
-#define BIT_25	0x02000000        /* ---- --1- ---- ---- ---- ---- ---- ---- */
-#define BIT_26	0x04000000        /* ---- -1-- ---- ---- ---- ---- ---- ---- */
-#define BIT_27	0x08000000        /* ---- 1--- ---- ---- ---- ---- ---- ---- */
-#define BIT_28	0x10000000        /* ---1 ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_29	0x20000000        /* --1- ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_30	0x40000000        /* -1-- ---- ---- ---- ---- ---- ---- ---- */
-#define BIT_31	0x80000000        /* 1--- ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_00  0x00000001	/* ---- ---- ---- ---- ---- ---- ---- ---1 */
+#define BIT_01  0x00000002	/* ---- ---- ---- ---- ---- ---- ---- --1- */
+#define BIT_02  0x00000004	/* ---- ---- ---- ---- ---- ---- ---- -1-- */
+#define BIT_03  0x00000008	/* ---- ---- ---- ---- ---- ---- ---- 1--- */
+#define BIT_04  0x00000010	/* ---- ---- ---- ---- ---- ---- ---1 ---- */
+#define BIT_05  0x00000020	/* ---- ---- ---- ---- ---- ---- --1- ---- */
+#define BIT_06  0x00000040	/* ---- ---- ---- ---- ---- ---- -1-- ---- */
+#define BIT_07  0x00000080	/* ---- ---- ---- ---- ---- ---- 1--- ---- */
+#define BIT_08  0x00000100	/* ---- ---- ---- ---- ---- ---1 ---- ---- */
+#define BIT_09  0x00000200	/* ---- ---- ---- ---- ---- --1- ---- ---- */
+#define BIT_10  0x00000400	/* ---- ---- ---- ---- ---- -1-- ---- ---- */
+#define BIT_11  0x00000800	/* ---- ---- ---- ---- ---- 1--- ---- ---- */
+#define BIT_12  0x00001000	/* ---- ---- ---- ---- ---1 ---- ---- ---- */
+#define BIT_13  0x00002000	/* ---- ---- ---- ---- --1- ---- ---- ---- */
+#define BIT_14  0x00004000	/* ---- ---- ---- ---- -1-- ---- ---- ---- */
+#define BIT_15  0x00008000	/* ---- ---- ---- ---- 1--- ---- ---- ---- */
+#define BIT_16  0x00010000	/* ---- ---- ---- ---1 ---- ---- ---- ---- */
+#define BIT_17  0x00020000	/* ---- ---- ---- --1- ---- ---- ---- ---- */
+#define BIT_18  0x00040000	/* ---- ---- ---- -1-- ---- ---- ---- ---- */
+#define BIT_19  0x00080000	/* ---- ---- ---- 1--- ---- ---- ---- ---- */
+#define BIT_20  0x00100000	/* ---- ---- ---1 ---- ---- ---- ---- ---- */
+#define BIT_21  0x00200000	/* ---- ---- --1- ---- ---- ---- ---- ---- */
+#define BIT_22  0x00400000	/* ---- ---- -1-- ---- ---- ---- ---- ---- */
+#define BIT_23  0x00800000	/* ---- ---- 1--- ---- ---- ---- ---- ---- */
+#define BIT_24  0x01000000	/* ---- ---1 ---- ---- ---- ---- ---- ---- */
+#define BIT_25  0x02000000	/* ---- --1- ---- ---- ---- ---- ---- ---- */
+#define BIT_26  0x04000000	/* ---- -1-- ---- ---- ---- ---- ---- ---- */
+#define BIT_27  0x08000000	/* ---- 1--- ---- ---- ---- ---- ---- ---- */
+#define BIT_28  0x10000000	/* ---1 ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_29  0x20000000	/* --1- ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_30  0x40000000	/* -1-- ---- ---- ---- ---- ---- ---- ---- */
+#define BIT_31  0x80000000	/* 1--- ---- ---- ---- ---- ---- ---- ---- */
 #define MASK_ALL          (0xFFFFFFFF)
 
-// cpu dai name
+/* cpu dai name */
 #define MT_SOC_DAI_NAME "mt-soc-dai-driver"
 #define MT_SOC_DL1DAI_NAME "mt-soc-dl1dai-driver"
 #define MT_SOC_DL1DATA2DAI_NAME "mt-soc-dl1data2dai-driver"
@@ -223,7 +219,7 @@
 #define MT_SOC_FM_I2S_CAPTURE_NAME "mt-soc-fmi2Scapturedai-driver"
 
 
-// platform name
+/* platform name */
 #define MT_SOC_DL1_PCM   "mt-soc-dl1-pcm"
 #define MT_SOC_HP_IMPEDANCE_PCM   "mt-soc-hp-impedence-pcm"
 #define MT_SOC_DL1DATA2_PCM   "mt-soc-dl1_data2-pcm"
@@ -259,7 +255,7 @@
 #define MT_SOC_FM_I2S_AWB_PCM  "mt-soc-fm-i2s-awb-pcm"
 
 
-//codec dai name
+/* codec dai name */
 #define MT_SOC_CODEC_TXDAI_NAME "mt-soc-codec-tx-dai"
 #define MT_SOC_CODEC_RXDAI_NAME "mt-soc-codec-rx-dai"
 #define MT_SOC_CODEC_RXDAI2_NAME "mt-soc-codec-rx-dai2"
@@ -295,7 +291,7 @@
 #define MT_SOC_CODEC_FM_I2S_DUMMY_DAI_NAME "mt-soc-fm-i2s-dummy-dai-codec"
 #define MT_SOC_CODEC_FM_I2S_DAI_NAME "mt-soc-fm-i2s-dai-codec"
 
-// stream name
+/* stream name */
 #define MT_SOC_DL1_STREAM_NAME "MultiMedia1_PLayback"
 #define MT_SOC_DL1DATA2_STREAM_NAME "MultiMedia1data2_PLayback"
 #define MT_SOC_DL2_STREAM_NAME "MultiMedia2_PLayback"
@@ -331,5 +327,3 @@
 #define MT_SOC_FM_I2S_CAPTURE_STREAM_NAME "FM_I2S_Capture"
 
 #endif
-
-

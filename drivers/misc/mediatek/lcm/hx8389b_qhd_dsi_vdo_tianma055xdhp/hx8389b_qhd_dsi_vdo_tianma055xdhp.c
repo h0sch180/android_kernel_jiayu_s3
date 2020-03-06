@@ -265,7 +265,7 @@ static void lcm_resume(void)
     #ifdef BUILD_LK
 	  printf("[LK]---cmd---hx8389b----%s------\n",__func__);
     #else
-	  printk("[KERNEL]---cmd---hx8389b----%s------\n",__func__);
+	  pr_debug("[KERNEL]---cmd---hx8389b----%s------\n",__func__);
     #endif	
 }
          
@@ -326,7 +326,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s, LK hx8389b debug: hx8389b id = 0x%08x\n", __func__, id);
     #else
-		printk("%s, kernel hx8389b horse debug: hx8389b id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel hx8389b horse debug: hx8389b id = 0x%08x\n", __func__, id);
     #endif
 
     if(id == LCM_ID_HX8389B)

@@ -10,22 +10,7 @@ obj-y   +=  tpd_default.o
 obj-y   +=  tpd_init.o
 obj-y   +=  tpd_misc.o
 obj-y   +=  tpd_setting.o
-# Vanzo:wangfei on: Wed, 12 Nov 2014 21:06:42 +0800
-# for compatible the old style ,so use CUSTOM_KERNEL_IMGSENSOR
-project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
-ifneq ($(project_name),)
-
-ifneq ($(strip $(CUSTOM_KERNEL_TOUCHPANEL)),)
-CONFIG_CUSTOM_KERNEL_TOUCHPANEL:=$(CUSTOM_KERNEL_TOUCHPANEL)
-endif
-
-custom_kernel_touchpanel:= $(addsuffix /, $(shell echo $(CONFIG_CUSTOM_KERNEL_TOUCHPANEL)))
-
-$(info "custom_kernel_touchpanel:$(custom_kernel_touchpanel)")
-obj-y += $(custom_kernel_touchpanel)
-else
-# End of Vanzo:wangfei
-
+obj-$(CONFIG_LENOVO_CTP_FEATURE)	+=  tpd_feature.o
 ifeq ($(CONFIG_MTK_FT5206),y)
 obj-y	+=  ft5206/
 endif
@@ -155,7 +140,15 @@ endif
 ifeq ($(CONFIG_MTK_GT911),y)
 obj-y	+=  GT911/
 endif
-# Vanzo:wangfei on: Sat, 28 Feb 2015 16:22:43 +0800
-# for use new style to config touchscreen
+
+ifeq ($(CONFIG_TOUCHSCREEN_LENOVO_S3528),y)
+obj-y   +=  lenovo_S3528/
 endif
-# End of Vanzo:wangfei
+
+ifeq ($(CONFIG_TOUCHSCREEN_S3528),y)
+obj-y   +=  S3528/
+endif
+
+ifeq ($(CONFIG_TOUCHSCREEN_SYNAPTICS_C),y)
+obj-y   +=  synaptics_c/
+endif

@@ -23,7 +23,7 @@
 #if defined(BUILD_UBOOT)
 #define LCM_PRINT printf
 #else
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 #endif
 #endif
 
@@ -445,7 +445,7 @@ static void lcd_reset(unsigned char enabled)
 	#ifdef BUILD_LK
 		printf("%s,  %d LK \n", __func__, enabled);
 	#else
-		printk("%s,  %d kernel \n", __func__, enabled);
+		pr_debug("%s,  %d kernel \n", __func__, enabled);
 	#endif
     if (enabled)
     {
@@ -467,7 +467,7 @@ static void lcd_power_en(unsigned char enabled)
     #ifdef BUILD_LK
 		printf("%s,  %d LK \n", __func__, enabled);
 	#else
-		printk("%s, %d kernel", __func__, enabled);
+		pr_debug("%s, %d kernel", __func__, enabled);
 	#endif
 
    // dump_stack();
@@ -599,7 +599,7 @@ static void lcm_init(void)
 		#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 	#endif
 		//lcm_compare_id();
 		//SET_RESET_PIN(0);
@@ -629,7 +629,7 @@ static void lcm_suspend(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 	#endif
 	data_array[0] = 0x00110500; // Sleep In
 	dsi_set_cmdq(data_array, 1, 1);
@@ -679,7 +679,7 @@ static void lcm_resume(void)
 	#ifdef BUILD_LK
 		printf("%s, LK \n", __func__);
 	#else
-		printk("%s, kernel", __func__);
+		pr_debug("%s, kernel", __func__);
 	#endif
 #ifdef BUILD_LK
     		upmu_set_rg_vgp6_vosel(0x7);

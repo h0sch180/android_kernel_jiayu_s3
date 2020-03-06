@@ -34,12 +34,6 @@
 
 static DEFINE_MUTEX(leds_mutex);
 static DEFINE_MUTEX(leds_pmic_mutex);
-/* Vanzo:maxiaojun on: Wed, 30 Oct 2013 17:41:16 +0800
- */
-static unsigned long flags;
-static DEFINE_SPINLOCK(g_backlight_SpinLock);
-// End of Vanzo:maxiaojun
-//#define ISINK_CHOP_CLK
 /****************************************************************************
  * variables
  ***************************************************************************/
@@ -318,8 +312,13 @@ static int led_switch_breath_pmic(enum mt65xx_led_pmic pmic_type, struct nled_se
 int pmic_period_array[] = {250,500,1000,1250,1666,2000,2500,10000};
 
 /* int pmic_freqsel_array[] = {99999, 9999, 4999, 1999, 999, 499, 199, 4, 0}; */
+//lenovo wuwl10 20150514 modify for led begin
+#if 0
 int pmic_freqsel_array[] = {0, 4, 199, 499, 999, 1999, 1999, 1999};
-
+#else
+int pmic_freqsel_array[] = {0, 4, 199, 499, 999, 1999, 1999, 4999};
+#endif
+//lenovo wuwl10 20150514  modify for led  end
 static int find_time_index_pmic(int time_ms)
 {
 	int i;
@@ -604,8 +603,7 @@ int mt_brightness_set_pmic(enum mt65xx_led_pmic pmic_type, u32 level, u32 div)
 			mt6325_upmu_set_isink_ch3_mode(ISINK_PWM_MODE);
             mt6325_upmu_set_isink_ch3_step(ISINK_3); // 24mA
             mt6325_upmu_set_isink_sfstr3_en(0x0); // Disable soft start
-			//mt6325_upmu_set_rg_isink3_double_en(0x1); // Enable double current
-			mt6325_upmu_set_rg_isink3_double_en(0x0); // Enable double current
+			mt6325_upmu_set_rg_isink3_double_en(0x1); // Enable double current
 			mt6325_upmu_set_isink_phase3_dly_en(0x1); // Enable phase delay
             mt6325_upmu_set_isink_chop3_en(0x1); // Enable CHOP clk              
 			backlight_init_flag = true;
@@ -763,7 +761,7 @@ int mt_brightness_set_pmic(enum mt65xx_led_pmic pmic_type, u32 level, u32 div)
 			mt6325_upmu_set_isink_ch3_step(ISINK_3);//16mA
 			mt6325_upmu_set_isink_dim3_duty(15);
 			mt6325_upmu_set_isink_dim3_fsel(ISINK_1KHZ);//1KHz
-			if (level) //DerTeufel: why doesn't it use the level for anything?
+			if (level) 
 			{
 				mt6325_upmu_set_isink_ch3_en(NLED_ON);
 				
@@ -967,7 +965,7 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 			LEDS_DEBUG("brightness_set_cust:go GPIO mode!!!!!\n");
 			return ((cust_set_brightness)(cust->data))(level);
               
-		case MT65XX_LED_MODE_PMIC: //check this
+		case MT65XX_LED_MODE_PMIC:
 			//for button baclight used SINK channel, when set button ISINK, don't do disable other ISINK channel
 			if((strcmp(cust->name,"button-backlight") == 0)) {
 				if(button_flag==false) {
@@ -1000,27 +998,14 @@ int mt_mt65xx_led_set_cust(struct cust_mt65xx_led *cust, int level)
 			return ((cust_brightness_set)(cust->data))(level, bl_div_hal);
 
 		case MT65XX_LED_MODE_CUST_BLS_PWM:
-/* Vanzo:maxiaojun on: Thu, 10 Apr 2014 14:30:58 +0800
- */
-#if (defined(VANZO_DELAY_BACKLIGHT))
-			if((bl_brightness_hal ==0)&&(level != 0))
-			msleep(200);
-#endif
-// End of Vanzo:maxiaojun
 		if (strcmp(cust->name, "lcd-backlight") == 0) {
 				bl_brightness_hal = level;
 				#ifdef IWLED_SUPPORT
 					power_switch(level);
 				#endif
 			}
-/* Vanzo:maxiaojun on: Thu, 10 Apr 2014 14:28:31 +0800
 			return ((cust_set_brightness)(cust->data))(level);
- */
-            spin_lock_irqsave(&g_backlight_SpinLock, flags);
-            ((cust_set_brightness)(cust->data))(level);
-            spin_unlock_irqrestore(&g_backlight_SpinLock, flags);
-            return 0;
-// End of Vanzo: maxiaojun
+            
 		case MT65XX_LED_MODE_NONE:
 		default:
 			break;

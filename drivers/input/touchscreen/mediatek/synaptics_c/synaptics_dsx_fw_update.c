@@ -1320,7 +1320,7 @@ static int fwu_start_reflash(void)
 		}
 
 		dev_dbg(&fwu->rmi4_data->i2c_client->dev,
-				"%s: Firmware image size = %d\n",
+				"%s: Firmware image size = %ld\n",
 				__func__, fw_entry->size);
 
 		fw_image = fw_entry->data;
@@ -1446,7 +1446,7 @@ static ssize_t fwu_sysfs_show_image(struct file *data_file,
 
 	if (count < fwu->config_size) {
 		dev_err(&rmi4_data->i2c_client->dev,
-				"%s: Not enough space (%d bytes) in buffer\n",
+				"%s: Not enough space (%ld bytes) in buffer\n",
 				__func__, count);
 		return -EINVAL;
 	}
@@ -1866,3 +1866,4 @@ module_exit(rmi4_fw_update_module_exit);
 MODULE_AUTHOR("Synaptics, Inc.");
 MODULE_DESCRIPTION("Synaptics DSX FW Update Module");
 MODULE_LICENSE("GPL v2");
+

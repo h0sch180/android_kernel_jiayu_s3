@@ -72,7 +72,7 @@ int charging_ic_set_chargingmode( enum charging_ic_charging_mode mode )
     int i= 0;
     int pulse_cnt = 0;
 
-    pr_notice("[charger_rt9536] :: %s\n", __func__);
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: %s\n", __func__);
 
     switch( mode )
     {
@@ -134,7 +134,7 @@ int charging_ic_set_chargingmode( enum charging_ic_charging_mode mode )
         cfg.dout   = mt_get_gpio_out(cfg.no);
         cfg.pullen = mt_get_gpio_pull_enable(cfg.no);
         cfg.dir    = mt_get_gpio_dir(cfg.no);
-        pr_notice( "[charger_rt9536] ::idx = %3d: mode = %d, pullsel = %d, dout = %d, pullen = %d, dir = %d\n",
+		battery_log(BAT_LOG_CRTI,  "[charger_rt9536] ::idx = %3d: mode = %d, pullsel = %d, dout = %d, pullen = %d, dir = %d\n",
             cfg.no, cfg.mode, cfg.pullsel, cfg.dout, cfg.pullen, cfg.dir);
     }
     */
@@ -152,7 +152,7 @@ void charging_ic_active_default(void)
 
     if(charging_ic_status == POWER_SUPPLY_TYPE_USB)
     {
-        pr_notice( "[charger_rt9536] :: it's already %s mode!!\n", __func__);
+		battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: it's already %s mode!!\n", __func__);
         return;
     }
 
@@ -175,7 +175,7 @@ void charging_ic_active_default(void)
 
     mutex_unlock(&charging_lock);
 
-    pr_notice( "[charger_rt9536] :: %s : \n", __func__);
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: %s :\n", __func__);
 
 }
 EXPORT_SYMBOL(charging_ic_active_default);
@@ -184,11 +184,11 @@ void charging_ic_set_ta_mode(void)
 {
     u32 wait;
 
-    pr_notice( "[charger_rt9536] :: charging_ic_set_ta_mode\n");
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: charging_ic_set_ta_mode\n");
 
     if(charging_ic_status == POWER_SUPPLY_TYPE_MAINS)
     {
-        pr_notice( "[charger_rt9536] :: it's already %s mode!! : \n", __func__);
+		battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: it's already %s mode!! :\n", __func__);
         return;
     }
 
@@ -214,7 +214,7 @@ void charging_ic_set_ta_mode(void)
 
     mutex_unlock(&charging_lock);
 
-    pr_notice( "[charger_rt9536] :: %s : \n", __func__);
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: %s :\n", __func__);
 }
 
 void charging_ic_set_usb_mode(void)
@@ -229,12 +229,12 @@ void charging_ic_set_factory_mode(void)
 #if 0
     if(charging_ic_status == POWER_SUPPLY_TYPE_FACTORY)
     {
-        pr_notice( "[charger_rt9536] :: it's already %s mode!! : \n", __func__);
+		battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: it's already %s mode!! :\n", __func__);
         return;
     }
 #endif /* 0 */
 
-    pr_notice( "[charger_rt9536] :: charging_ic_set_factory_mode\n");
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: charging_ic_set_factory_mode\n");
 
     if(charging_ic_status != POWER_SUPPLY_TYPE_BATTERY)
     {
@@ -268,7 +268,7 @@ void charging_ic_set_factory_mode(void)
 
     mutex_unlock(&charging_lock);
 
-    pr_notice( "[charger_rt9536] :: %s : \n", __func__);
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: %s :\n", __func__);
 }
 
 void charging_ic_deactive(void)
@@ -276,7 +276,7 @@ void charging_ic_deactive(void)
 
     if(charging_ic_status == POWER_SUPPLY_TYPE_BATTERY)
     {
-        pr_notice( "[charger_rt9536] :: it's already %s mode!! : \n", __func__);
+		battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: it's already %s mode!! :\n", __func__);
         return;
     }
 
@@ -294,7 +294,7 @@ void charging_ic_deactive(void)
 
     mutex_unlock(&charging_lock);
 
-    pr_notice( "[charger_rt9536] :: %s : \n", __func__);
+	battery_log(BAT_LOG_CRTI,  "[charger_rt9536] :: %s :\n", __func__);
 }
 EXPORT_SYMBOL(charging_ic_deactive);
 
@@ -309,12 +309,12 @@ void rt9536_charging_enable(unsigned int set_current, unsigned int enable)
         else
             charging_ic_active_default();
 
-        pr_notice("[charger_rt9536] :: %s, current(%d), enable(%d)\n", __func__, set_current, enable);
+		battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: %s, current(%d), enable(%d)\n", __func__, set_current, enable);
     }
     else
     {
         charging_ic_deactive();
-        pr_notice("[charger_rt9536] :: %s, enable(%d)\n", __func__, enable);
+		battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: %s, enable(%d)\n", __func__, enable);
     }
 
 }
@@ -329,11 +329,11 @@ unsigned char rt9536_check_eoc_status(void)
 
     if( eoc_status == 1 )
     {
-        pr_notice("[charger_rt9536] :: (%s) eoc_status(%d)\n", __func__, eoc_status);
+		battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: (%s) eoc_status(%d)\n", __func__, eoc_status);
         return 1;
     }
 
-    pr_notice("[charger_rt9536] :: (%s) eoc_status(%d)\n", __func__, eoc_status);
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: (%s) eoc_status(%d)\n", __func__, eoc_status);
     return 0;
 }
 
@@ -366,7 +366,7 @@ static int charging_ic_probe(struct platform_device *dev)
     mt_set_gpio_pull_enable(CHG_EOC_N, CHG_EOC_PULL_ENABLE);
     mt_set_gpio_pull_select(CHG_EOC_N, CHG_EOC_PULL_SELECT);
 
-    pr_notice("[charger_rt9536] :: charging IC Initialization is done\n");
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: charging IC Initialization is done\n");
 
     charging_ic_initialize();
 
@@ -384,14 +384,14 @@ static int charging_ic_remove(struct platform_device *dev)
 
 static int charging_ic_suspend(struct platform_device *dev, pm_message_t state)
 {
-    pr_notice("[charger_rt9536] :: charging_ic_suspend \n");
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: charging_ic_suspend\n");
     dev->dev.power.power_state = state;
     return 0;
 }
 
 static int charging_ic_resume(struct platform_device *dev)
 {
-    pr_notice("[charger_rt9536] :: charging_ic_resume \n");
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] :: charging_ic_resume\n");
     dev->dev.power.power_state = PMSG_ON;
     return 0;
 }
@@ -417,11 +417,11 @@ static int __init charging_ic_init(void)
 {
     int ret=0;
 
-    pr_notice("[charger_rt9536] Charging IC Driver Init \n");
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] Charging IC Driver Init\n");
 
     ret = platform_device_register(&charger_ic_dev);
     if (ret) {
-        pr_notice("[charger_rt9536] Unable to device register(%d)\n", ret);
+		battery_log(BAT_LOG_CRTI, "[charger_rt9536] Unable to device register(%d)\n", ret);
         return ret;
     }
 
@@ -430,7 +430,7 @@ static int __init charging_ic_init(void)
 
 static void __exit charging_ic_exit(void)
 {
-    pr_notice("[charger_rt9536] Charging IC Driver Exit \n");
+	battery_log(BAT_LOG_CRTI, "[charger_rt9536] Charging IC Driver Exit\n");
     platform_driver_unregister(&charging_ic_driver);
 }
 

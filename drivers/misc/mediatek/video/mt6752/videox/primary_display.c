@@ -66,7 +66,7 @@ unsigned int gEnableLowPowerFeature = 0;
 int primary_display_use_cmdq = CMDQ_DISABLE;
 int primary_display_use_m4u = 1;
 DISP_PRIMARY_PATH_MODE primary_display_mode = DIRECT_LINK_MODE;
-atomic_t isMiraPath = ATOMIC_INIT(0);
+
 static unsigned long dim_layer_mva;
 /* wdma dump thread */
 static unsigned int primary_dump_wdma;
@@ -106,6 +106,12 @@ unsigned long long last_primary_trigger_time = 0xffffffffffffffff;
 unsigned int isIdlePowerOff = 0;
 unsigned int isDSIOff = 0;
 unsigned int gPresentFenceIndex = 0;
+//lenovo add by jixu@lenovo.com begin
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+extern lenovo_disp_feature_info_t disp_feature_info[MTKFB_MAX_DISPLAY_COUNT];
+extern lenovo_disp_feature_state_t disp_feature_state[MTKFB_MAX_DISPLAY_COUNT];
+#endif
+//lenovo add by jixu@lenovo.com end
 
 void enqueue_buffer(display_primary_path_context *ctx, struct list_head *head,
 		    disp_internal_buffer_info *buf)
@@ -274,7 +280,6 @@ static inline int _is_decouple_mode(DISP_MODE mode)
 	else
 		return 0;
 }
-
 
 struct mutex esd_mode_switch_lock;
 static void _primary_path_esd_check_lock(void)
@@ -532,8 +537,9 @@ int primary_display_save_power_for_idle(int enter, unsigned int need_primary_loc
 		}
 	}
 
-	if (disp_low_power_disable_fence_thread == 1)
+	if (disp_low_power_disable_fence_thread == 1) {
 		/* already implemented. */
+	}
 
 	/* only enable SODI in idle mode */
 	if (gEnableSODIWhenIdle) {
@@ -644,7 +650,7 @@ int primary_display_save_power_for_idle(int enter, unsigned int need_primary_loc
 						DISP_REG_SET(handle, DISP_REG_RDMA_INT_ENABLE,
 							     0x3E);
 
-						ddp_dsi_disable_irq_in_idle(0, &handle);
+						ddp_dsi_disable_irq_in_idle(0, handle);
 					}
 
 					cmdqRecFlush(handle);
@@ -695,16 +701,11 @@ static int _disp_primary_path_idle_detect_thread(void *data)
 
 	while (1) {
 		msleep(500);	/* 0.5s trigger once */
+
 		MMProfileLogEx(ddp_mmp_get_events()->idlemgr, MMProfileFlagStart, 1, 0);
 
 		if (gSkipIdleDetect || atomic_read(&isDdp_Idle) == 1)
 			continue;
-#ifdef CONFIG_FOR_SOURCE_PQ
-        if (atomic_read(&isMiraPath)==1) // skip if it is miravision path now
-        {
-            continue;
-        }
-#endif
 		_primary_path_lock(__func__);
 		if (pgc->state == DISP_SLEEPED) {
 			MMProfileLogEx(ddp_mmp_get_events()->esd_check_t, MMProfileFlagPulse, 1, 0);
@@ -737,7 +738,8 @@ static int _disp_primary_path_idle_detect_thread(void *data)
 		ret = wait_event_interruptible(idle_detect_wq,
 			(atomic_read(&idle_detect_flag) != 0));
 		atomic_set(&idle_detect_flag, 0);
-		DISPMSG("[ddp_idle]ret=%d\n", ret);
+		/*DISPMSG("[ddp_idle]ret=%d\n", ret);*/
+        MMProfileLogEx(ddp_mmp_get_events()->idlemgr, MMProfileFlagEnd, 0, 0);
 		if (kthread_should_stop())
 			break;
         MMProfileLogEx(ddp_mmp_get_events()->idlemgr, MMProfileFlagEnd, 0, 0);
@@ -1481,6 +1483,33 @@ void disp_set_sodi(unsigned int enable, void *cmdq_handle)
 	}
 }
 
+static void _start_dummy_trigger_loop(void)
+{
+    /*cmdq will power off and clear all event flag like WDMA0_EOF when no task is running.
+        * take decouple esd check for example,  trigger loop is stoped when esd check recovery,
+        * and ovl-wmda is not working. cmdq will power off because no task is running. WDMA_EOF was
+        *cleared and ovl-wmda will be timeout because wait wdma_eof timeout.
+        * start this dummy trigger loop to disable cmdq power off
+       */
+    int ret = 0;
+    if (pgc->cmdq_dummy_trigger == NULL) {
+           ret = cmdqRecCreate(CMDQ_SCENARIO_TRIGGER_LOOP, &pgc->cmdq_dummy_trigger);
+           if ( ret != 0 ) {
+               DISPERR("fail to create dummy trigger loop handle\n");
+               return;
+           }
+    }
+    cmdqRecReset(pgc->cmdq_dummy_trigger);
+    cmdqRecWait(pgc->cmdq_dummy_trigger, CMDQ_EVENT_DISP_UFOE_EOF);
+    cmdqRecStartLoop(pgc->cmdq_dummy_trigger);
+}
+
+static void _stop_dummy_trigger_loop(void)
+{
+    if(pgc->cmdq_dummy_trigger != NULL)
+        cmdqRecStopLoop(pgc->cmdq_dummy_trigger);
+
+}
 
 static void _cmdq_build_trigger_loop(void)
 {
@@ -1758,7 +1787,7 @@ static void directlink_path_add_memory(WDMA_CONFIG_STRUCT *p_wdma)
 	_cmdq_flush_config_handle_mira(cmdq_handle, 0);
 	DISPMSG("dl_to_dc capture:Flush add memout mva(0x%lx)\n", p_wdma->dstAddress);
 
-	/*wait wdma0 sof, eof is reserved for the first frame in decouple mode */
+	/*wait wdma0 sof */
 	cmdqRecWait(cmdq_wait_handle, CMDQ_EVENT_DISP_WDMA0_SOF);
 	cmdqRecFlush(cmdq_wait_handle);
 	DISPMSG("dl_to_dc capture:Flush wait wdma sof\n");
@@ -1784,6 +1813,7 @@ static int _DL_switch_to_DC_fast(unsigned int lock)
 {
 	int ret = 0;
 	unsigned int rdma_pitch_sec;
+
 	RDMA_CONFIG_STRUCT rdma_config = decouple_rdma_config;
 	WDMA_CONFIG_STRUCT wdma_config = decouple_wdma_config;
 
@@ -1842,6 +1872,7 @@ static int _DL_switch_to_DC_fast(unsigned int lock)
 	/*rdma pitch only use bit[15..0], we use bit[31:30] to store secure information */
 	rdma_pitch_sec = rdma_config.pitch | (rdma_config.security << 30);
 	cmdqRecBackupUpdateSlot(pgc->cmdq_handle_config, pgc->rdma_buff_info, 1, rdma_pitch_sec);
+
 	/* 6 .flush to cmdq */
 	_cmdq_set_config_handle_dirty();
 	_cmdq_flush_config_handle(1, NULL, 0);
@@ -1894,13 +1925,10 @@ static int _DL_switch_to_DC_fast(unsigned int lock)
 			      pgc->cmdq_handle_ovl1to2_config);
 	ret = dpmgr_path_start(pgc->ovl2mem_path_handle, CMDQ_ENABLE);
 
-	/* Reset event for the first frame after dynamic switch to decouple mode */
-	cmdqRecSetEventToken(pgc->cmdq_handle_ovl1to2_config, CMDQ_EVENT_DISP_WDMA0_EOF);
-
 	/* use blocking flush to make sure all config is done. */
 
 	/* cmdqRecDumpCommand(pgc->cmdq_handle_ovl1to2_config); */
-	/* cmdqRecClearEventToken(pgc->cmdq_handle_ovl1to2_config, CMDQ_EVENT_DISP_WDMA0_EOF); */
+	//cmdqRecClearEventToken(pgc->cmdq_handle_ovl1to2_config, CMDQ_EVENT_DISP_WDMA0_EOF);
 	_cmdq_flush_config_handle_mira(pgc->cmdq_handle_ovl1to2_config, 1);
 	cmdqRecReset(pgc->cmdq_handle_ovl1to2_config);
 	cmdqRecWait(pgc->cmdq_handle_ovl1to2_config, CMDQ_EVENT_DISP_WDMA0_EOF);
@@ -1951,12 +1979,14 @@ static int _DC_switch_to_DL_fast(void)
 
 	dpmgr_path_deinit(pgc->ovl2mem_path_handle, pgc->cmdq_handle_ovl1to2_config);
 	dpmgr_destroy_path(pgc->ovl2mem_path_handle, pgc->cmdq_handle_ovl1to2_config);
+	pgc->ovl2mem_path_handle = NULL;
+
 	/*clear sof token for next dl to dc */
 	cmdqRecClearEventToken(pgc->cmdq_handle_ovl1to2_config, CMDQ_EVENT_DISP_WDMA0_SOF);
 
 	_cmdq_flush_config_handle_mira(pgc->cmdq_handle_ovl1to2_config, 1);
 	cmdqRecReset(pgc->cmdq_handle_ovl1to2_config);
-	pgc->ovl2mem_path_handle = NULL;
+	//pgc->ovl2mem_path_handle = NULL;
 
 	/* release output buffer */
 	layer = disp_sync_get_output_timeline_id();
@@ -2775,8 +2805,9 @@ int _trigger_display_interface(int blocking, void *callback, unsigned int userda
 {
 	static unsigned int cnt;
 
-	if (gEnableCMDQProfile == 1)
+	if (gEnableCMDQProfile == 1) {
 		/* cmdqRecProfileMarker(pgc->cmdq_handle_config, "config_done"); */
+    }
 
 	/* 4. enable SODI after config */
 	if (primary_display_is_video_mode() == 1)
@@ -2796,10 +2827,11 @@ int _trigger_display_interface(int blocking, void *callback, unsigned int userda
 	if (_should_start_path())
 		dpmgr_path_start(pgc->dpmgr_handle, primary_display_cmdq_enabled());
 
-	if (_should_trigger_path())
+	if (_should_trigger_path()) {
 		/* trigger_loop_handle is used only for build trigger loop,
 		which should always be NULL for config thread */
 		dpmgr_path_trigger(pgc->dpmgr_handle, NULL, primary_display_cmdq_enabled());
+    }
 
 	if (_should_set_cmdq_dirty()) {
 		_cmdq_set_config_handle_dirty();
@@ -2880,13 +2912,15 @@ int _trigger_ovl_to_memory(disp_path_handle disp_handle,
 			   cmdqRecHandle cmdq_handle,
 			   fence_release_callback callback, unsigned int data)
 {
+	/*unsigned int rdma_pitch_sec;*/
+
 	dpmgr_path_trigger(disp_handle, cmdq_handle, CMDQ_ENABLE);
 	cmdqRecWaitNoClear(cmdq_handle, CMDQ_EVENT_DISP_WDMA0_EOF);
-#ifdef CONFIG_FOR_SOURCE_PQ
-	if (atomic_read(&isMiraPath) == 1)
-		dpmgr_path_build_cmdq(disp_handle, cmdq_handle, CMDQ_AFTER_STREAM_EOF);
-#endif
+
 	cmdqRecBackupUpdateSlot(cmdq_handle, pgc->rdma_buff_info, 0, mem_config.addr);
+	/*rdma pitch only use bit[15..0], we use bit[31:30] to store secure information */
+	/*rdma_pitch_sec = mem_config.pitch | (mem_config.security << 30);
+	cmdqRecBackupUpdateSlot(cmdq_handle, pgc->rdma_buff_info, 1, rdma_pitch_sec);*/
 
 	cmdqRecFlushAsyncCallback(cmdq_handle, callback, data);
 	cmdqRecReset(cmdq_handle);
@@ -3555,6 +3589,7 @@ int primary_display_esd_recovery(void)
 	MMProfileLogEx(ddp_mmp_get_events()->esd_recovery_t, MMProfileFlagPulse, 0, 5);
 
 	DISPCHECK("[ESD]display cmdq trigger loop stop[begin]\n");
+	_start_dummy_trigger_loop();
 	_cmdq_stop_trigger_loop();
 	DISPCHECK("[ESD]display cmdq trigger loop stop[end]\n");
 
@@ -3597,6 +3632,7 @@ int primary_display_esd_recovery(void)
 
 	DISPCHECK("[ESD]start cmdq trigger loop[begin]\n");
 	_cmdq_start_trigger_loop();
+	_stop_dummy_trigger_loop();
 	DISPCHECK("[ESD]start cmdq trigger loop[end]\n");
 
 	MMProfileLogEx(ddp_mmp_get_events()->esd_recovery_t, MMProfileFlagPulse, 0, 11);
@@ -3745,6 +3781,7 @@ void ddp_reset_test(void)
 	dpmgr_path_reset(pgc->dpmgr_handle, CMDQ_DISABLE);
 	cmdqCoreSetEvent(CMDQ_EVENT_DISP_RDMA0_EOF);
 	cmdqCoreSetEvent(CMDQ_SYNC_TOKEN_STREAM_EOF);
+
 }
 
 unsigned int cmdqDdpResetEng(uint64_t engineFlag)
@@ -4011,6 +4048,8 @@ static int _ovl_fence_release_callback(uint32_t userdata)
 	unsigned int addr = 0;
 	int ret = 0;
 	disp_path_handle handle = NULL;
+	/*unsigned int rdma_pitch_sec;*/
+
 	MMProfileLogEx(ddp_mmp_get_events()->session_release, MMProfileFlagStart, 1, userdata);
 	/* releaes OVL1 when primary setting */
 	if (!_is_decouple_mode(pgc->session_mode))
@@ -4068,6 +4107,9 @@ static int _ovl_fence_release_callback(uint32_t userdata)
 			_cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
 			cmdqBackupReadSlot(pgc->rdma_buff_info, 0, &addr);
 			decouple_rdma_config.address = addr;
+			/*cmdqBackupReadSlot(pgc->rdma_buff_info, 1, &(rdma_pitch_sec));
+			decouple_rdma_config.pitch = rdma_pitch_sec & ~(3<<30);
+			decouple_rdma_config.security = rdma_pitch_sec >> 30;*/
 			decouple_rdma_config.security = DISP_NORMAL_BUFFER;
 			_config_rdma_input_data(&decouple_rdma_config, pgc->dpmgr_handle,
 						cmdq_handle);
@@ -5084,10 +5126,9 @@ int primary_display_suspend(void)
 	else
 		dpmgr_path_disable_cascade(pgc->ovl2mem_path_handle, CMDQ_DISABLE);
 
-	if (ovl_get_status() == DDP_OVL1_STATUS_SUB_REQUESTING) {
+	if (ovl_get_status() == DDP_OVL1_STATUS_SUB_REQUESTING)
 		dpmgr_set_ovl1_status(DDP_OVL1_STATUS_SUB);
-		/*wake_up_interruptible(&ovl1_wait_queue);*/
-	} else if (ovl_get_status() != DDP_OVL1_STATUS_SUB)
+	else if (ovl_get_status() != DDP_OVL1_STATUS_SUB)
 		dpmgr_set_ovl1_status(DDP_OVL1_STATUS_IDLE);
 #endif
 
@@ -5154,8 +5195,6 @@ int primary_display_resume(void)
 		goto done;
 	}
 	MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 0, 1);
-
-	disp_update_trigger_time(); /* should not enable idle manager during resume.*/
 
 	DISPCHECK("dpmanager path power on[begin]\n");
 	dpmgr_path_power_on(pgc->dpmgr_handle, CMDQ_DISABLE);
@@ -5744,6 +5783,7 @@ static int _config_ovl_input(disp_session_input_config *session_input,
 	disp_ddp_path_config *data_config = NULL;
 	int max_layer_id_configed = 0;
 	int force_disable_ovl1 = 0;
+
 #ifdef DISP_ENABLE_LAYER_FRAME
 	/* used for draw frame */
 	unsigned int frame_width = 12;
@@ -5786,6 +5826,7 @@ static int _config_ovl_input(disp_session_input_config *session_input,
 			}
 		} else
 			DISPMSG("set AEE layer %d\n", layer);
+        
 		_convert_disp_input_to_ovl(ovl_cfg, input_cfg);
 
 		if (ovl_cfg->layer_en)
@@ -5906,6 +5947,9 @@ static int _config_ovl_input(disp_session_input_config *session_input,
 			max_layer_id_configed = layer;
 
 		data_config->ovl_dirty = 1;
+#ifdef CONFIG_FOR_SOURCE_PQ
+		data_config->dst_dirty = 1;
+#endif
 	}
 
 #ifdef DISP_ENABLE_LAYER_FRAME
@@ -5932,6 +5976,9 @@ static int _config_ovl_input(disp_session_input_config *session_input,
 
 	if (_should_wait_path_idle())
 		dpmgr_wait_event_timeout(disp_handle, DISP_PATH_EVENT_FRAME_DONE, HZ * 1);
+
+	/*if (cmdq_handle)
+		setup_disp_sec(data_config, cmdq_handle, 1);*/
 
 	/*shoud we use cmdq_hand_config ? need to check */
 	ret = dpmgr_path_config(disp_handle, data_config, cmdq_handle);
@@ -5976,12 +6023,11 @@ static int _config_ovl_output(disp_mem_output_config *output)
 	int ret = 0;
 	disp_ddp_path_config *data_config = NULL;
 	disp_path_handle *handle = NULL;
-
+    
     DISPFUNC();
 	data_config = dpmgr_path_get_last_config(pgc->ovl2mem_path_handle);
 
 	data_config->wdma_dirty = 1;
-
 	if (_should_wait_path_idle())
 		dpmgr_wait_event_timeout(pgc->dpmgr_handle, DISP_PATH_EVENT_FRAME_DONE, HZ * 1);
 
@@ -6023,6 +6069,7 @@ int primary_display_config_input_multiple(disp_session_input_config *session_inp
 	disp_ddp_path_config *data_config;
 	disp_path_handle disp_handle;
 	cmdqRecHandle cmdq_handle;
+    
 	_primary_path_lock(__func__);
     DISPFUNC();
 	if (pgc->state == DISP_SLEEPED) {
@@ -6127,25 +6174,6 @@ static int Panel_Master_primary_display_config_dsi(const char *name, UINT32 conf
 	return ret;
 }
 
-#ifdef CONFIG_FOR_SOURCE_PQ
-int primary_display_is_suspend(int lock)
-{
-	unsigned int temp = 0;
-	//DISPFUNC();
-	if (lock)
-    	_primary_path_lock(__func__);
-
-	if(pgc->state == DISP_SLEEPED)
-	{
-		temp = 1;
-	}
-    if (lock)
-    	_primary_path_unlock(__func__);
-
-	return temp;
-}
-#endif
-
 int primary_display_user_cmd(unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -6158,7 +6186,6 @@ int primary_display_user_cmd(unsigned int cmd, unsigned long arg)
 	if (primary_display_is_decouple_mode()) {
 		ret = cmdqRecCreate(CMDQ_SCENARIO_DISP_COLOR, &handle);
 		cmdqRecReset(handle);
-		/*cmdqRecWaitNoClear(handle, CMDQ_EVENT_DISP_WDMA0_EOF);*/
 	} else {
 		ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &handle);
 		cmdqRecReset(handle);
@@ -6187,14 +6214,10 @@ int primary_display_user_cmd(unsigned int cmd, unsigned long arg)
 #endif
 
 #ifdef CONFIG_FOR_SOURCE_PQ
-    if (cmd == DISP_IOCTL_PQ_GET_DISP_STATUS)
-		_primary_path_lock(__func__);
 	if (primary_display_is_decouple_mode())
 		ret = dpmgr_path_user_cmd(pgc->ovl2mem_path_handle, cmd, arg, handle);
 	else
 		ret = dpmgr_path_user_cmd(pgc->dpmgr_handle, cmd, arg, handle);
-	if (cmd == DISP_IOCTL_PQ_GET_DISP_STATUS)
-		_primary_path_unlock(__func__);
 #else
 	ret = dpmgr_path_user_cmd(pgc->dpmgr_handle, cmd, arg, handle);
 #endif
@@ -6645,8 +6668,9 @@ int primary_display_diagnose(void)
 #ifdef MTK_FB_DO_NOTHING
 	return ret;
 #endif
-	if (pgc->dpmgr_handle)
+	if (pgc->dpmgr_handle != NULL)
 		dpmgr_check_status(pgc->dpmgr_handle);
+
 	if (_is_decouple_mode(pgc->session_mode) && pgc->ovl2mem_path_handle != NULL)
 		dpmgr_check_status(pgc->ovl2mem_path_handle);
 	primary_display_check_path(NULL, 0);
@@ -6944,6 +6968,225 @@ int primary_display_vsync_switch(int method)
 
 	return ret;
 }
+
+//lenovo add by jixu@lenovo.com begin
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+int primary_display_setcabc(unsigned int mode)
+{
+	DISPFUNC();
+	int ret=0;
+	printk("%s begin\n",__func__);
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_lock();
+#endif
+	_primary_path_cmd_lock();
+	_primary_path_lock(__func__);
+
+	if(pgc->state == DISP_SLEEPED)
+	{
+		DISPCHECK("Sleep State set cabc invald\n");
+	}
+	else
+	{
+		disp_update_trigger_time();
+		if(primary_display_cmdq_enabled())	
+		{	
+			if(primary_display_is_video_mode())
+			{
+				disp_lcm_set_cabc(pgc->plcm,mode);
+			}
+			else
+			{
+				// CMD mode need to exit top clock off idle mode
+				//_disp_primary_path_exit_idle("primary_display_setcabc", 0);
+				//_set_backlight_by_cmdq(level);
+				//lenovo wangyq13 add for cmd mode 20150306//copy from x2
+				cmdqRecHandle cmdq_handle_cmd = NULL;
+				ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP,&cmdq_handle_cmd);
+				if(ret!=0)
+				{
+					DISPCHECK("fail to create primary cmdq handle for cmd\n");
+					return -1;
+				}
+				cmdqRecReset(cmdq_handle_cmd);
+				_cmdq_insert_wait_frame_done_token_mira(cmdq_handle_cmd);
+				cmdqRecClearEventToken(cmdq_handle_cmd, CMDQ_SYNC_TOKEN_CABC_EOF);
+				//disp_lcm_set_cmd(pgc->plcm, (void*) cmdq_handle_cmd,mode);
+				if (!pgc->plcm->drv->set_cabcmode_cmd) {
+					ret = DISP_STATUS_NOT_IMPLEMENTED;
+					DISPCHECK("[Display]set_gammamode NULL\n");
+					return -1;
+				}
+				pgc->plcm->drv->set_cabcmode_cmd(cmdq_handle_cmd,mode);
+				cmdqRecSetEventToken(cmdq_handle_cmd, CMDQ_SYNC_TOKEN_CABC_EOF);
+				_cmdq_flush_config_handle_mira(cmdq_handle_cmd, 1);
+				DISPCHECK("[Display]_set_cmd_by_cmdq ret=%d\n",ret);
+				cmdqRecDestroy(cmdq_handle_cmd);		
+				cmdq_handle_cmd = NULL;
+			}
+		}
+		else
+		{
+			//to not supported
+			printk("%s not supported if cmdq not enabled.\n",__func__);
+		/*
+			if(primary_display_is_video_mode()==0)
+			{
+                _disp_primary_path_exit_idle("primary_display_setbacklight", 0);
+			}
+			_set_backlight_by_cpu(level);
+		*/
+		}
+	}
+
+	_primary_path_unlock(__func__);
+	_primary_path_cmd_unlock();
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_unlock();
+#endif
+	printk("%s end\n",__func__);
+	return ret;
+}
+int primary_display_setinverse(unsigned int mode)
+{
+	DISPFUNC();
+	int ret=0;
+	printk("%s begin\n",__func__);
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_lock();
+#endif
+	_primary_path_cmd_lock();
+	_primary_path_lock(__func__);
+
+	if(pgc->state == DISP_SLEEPED)
+	{
+		DISPCHECK("Sleep State set inverse invald\n");
+	}
+	else
+	{
+		disp_update_trigger_time();
+		if(primary_display_cmdq_enabled())	
+		{	
+			if(primary_display_is_video_mode())
+			{
+				disp_lcm_set_inverse(pgc->plcm,mode);
+			}
+			else
+			{
+				// CMD mode need to exit top clock off idle mode
+				//_disp_primary_path_exit_idle("primary_display_setcabc", 0);
+				//_set_backlight_by_cmdq(level);
+				//todo not supported
+				printk("%s not supported command mode.\n",__func__);
+			}
+		}
+		else
+		{
+			//to not supported
+			printk("%s not supported if cmdq not enabled.\n",__func__);
+		/*
+			if(primary_display_is_video_mode()==0)
+			{
+                _disp_primary_path_exit_idle("primary_display_setbacklight", 0);
+			}
+			_set_backlight_by_cpu(level);
+		*/
+		}
+	}
+
+	_primary_path_unlock(__func__);
+	_primary_path_cmd_unlock();
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_unlock();
+#endif
+	printk("%s end\n",__func__);
+	return ret;
+}
+#endif
+//lenovo add by jixu@lenovo.com end
+
+//lenovo wangyq13 add for sre 20150402 begin
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+int primary_display_setsre(unsigned int mode)
+{
+	DISPFUNC();
+	int ret=0;
+	printk("%s begin\n",__func__);
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_lock();
+#endif
+	_primary_path_cmd_lock();
+	_primary_path_lock(__func__);
+
+	if(pgc->state == DISP_SLEEPED)
+	{
+		DISPCHECK("Sleep State set sre invald\n");
+	}
+	else
+	{
+		disp_update_trigger_time();
+		if(primary_display_cmdq_enabled())	
+		{	
+			if(primary_display_is_video_mode())
+			{
+				disp_lcm_set_sre_video(pgc->plcm,mode);//provde video mode sre interface wangyq13 comment 20150402//provide video mode,because nova nt35695 use video mode
+				printk("%s not supported command mode.\n",__func__);
+			}
+			else
+			{
+				// CMD mode need to exit top clock off idle mode
+				//_disp_primary_path_exit_idle("primary_display_setcabc", 0);
+				//_set_backlight_by_cmdq(level);
+				//lenovo wangyq13 add for cmd mode 20150306//copy from x2
+				cmdqRecHandle cmdq_handle_cmd = NULL;
+				ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP,&cmdq_handle_cmd);
+				if(ret!=0)
+				{
+					DISPCHECK("fail to create primary cmdq handle for cmd\n");
+					return -1;
+				}
+				cmdqRecReset(cmdq_handle_cmd);
+				_cmdq_insert_wait_frame_done_token_mira(cmdq_handle_cmd);
+				cmdqRecClearEventToken(cmdq_handle_cmd, CMDQ_SYNC_TOKEN_CABC_EOF);
+				//disp_lcm_set_cmd(pgc->plcm, (void*) cmdq_handle_cmd,mode);
+				if (!pgc->plcm->drv->set_sremode) {
+					ret = DISP_STATUS_NOT_IMPLEMENTED;
+					DISPCHECK("[Display]set_gammamode NULL\n");
+					return -1;
+				}
+				pgc->plcm->drv->set_sremode(cmdq_handle_cmd,mode);
+				cmdqRecSetEventToken(cmdq_handle_cmd, CMDQ_SYNC_TOKEN_CABC_EOF);
+				_cmdq_flush_config_handle_mira(cmdq_handle_cmd, 1);
+				DISPCHECK("[Display]_set_cmd_by_cmdq ret=%d\n",ret);
+				cmdqRecDestroy(cmdq_handle_cmd);		
+				cmdq_handle_cmd = NULL;
+			}
+		}
+		else
+		{
+			//to not supported
+			printk("%s not supported if cmdq not enabled.\n",__func__);
+		/*
+			if(primary_display_is_video_mode()==0)
+			{
+                _disp_primary_path_exit_idle("primary_display_setbacklight", 0);
+			}
+			_set_backlight_by_cpu(level);
+		*/
+		}
+	}
+
+	_primary_path_unlock(__func__);
+	_primary_path_cmd_unlock();
+#ifdef DISP_SWITCH_DST_MODE
+	_primary_path_switch_dst_unlock();
+#endif
+	printk("%s end\n",__func__);
+	return ret;
+}
+
+#endif
+//lenovo wangyq13 add for sre 20150402 end
 
 int primary_display_set_cmd(int *lcm_cmd, unsigned int cmd_num)
 {
@@ -7436,11 +7679,13 @@ UINT32 DISP_GetVRamSizeBoot(char *cmdline)
 	} else {
 		p += 5;
 		/*vramSize = simple_strtol(p, NULL, 10);*/
+
         ret = sscanf(p, "%d\n", &vramSize);
         if (ret!=1) {
             pr_err("error to parse cmd %s\n", p);
             return;
         }
+
 		if (0 == vramSize)
 			vramSize = 0x3000000;
 	}

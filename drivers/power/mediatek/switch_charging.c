@@ -51,9 +51,6 @@
 #include <mach/diso.h>
 #endif
 
-#ifdef CONFIG_FORCE_FAST_CHARGE
-#include <linux/config/fastchg.h>
-#endif
  /* ============================================================ // */
  /* define */
  /* ============================================================ // */
@@ -61,10 +58,13 @@
 #define POST_CHARGING_TIME		30 * 60		/* 30mins */
 #define FULL_CHECK_TIMES		6
 
- /* ============================================================ // */
- /* fast charge */
- /* ============================================================ // */
-#include "linux/charge_level.h"
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+#define FIRST_MAINTAIN_CHARGING_TIME		60 * 60 * 60 // 60 hours
+#define SECOND_MAINTAIN_CHARGING_TIME		200 * 60 * 60 // 200 hours
+#define TOTAL_MAINTAIN_CHARGING_TIME		(FIRST_MAINTAIN_CHARGING_TIME+SECOND_MAINTAIN_CHARGING_TIME)
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
  /* ============================================================ // */
  /* global variable */
@@ -76,7 +76,7 @@ CHR_CURRENT_ENUM g_temp_CC_value = CHARGE_CURRENT_0_00_MA;
 CHR_CURRENT_ENUM g_temp_input_CC_value = CHARGE_CURRENT_0_00_MA;
 kal_uint32 g_usb_state = USB_UNCONFIGURED;
 static bool usb_unlimited=false;
-
+BATTERY_VOLTAGE_ENUM cv_voltage;
   /* ///////////////////////////////////////////////////////////////////////////////////////// */
   /* // PUMP EXPRESS */
   /* ///////////////////////////////////////////////////////////////////////////////////////// */
@@ -108,6 +108,11 @@ kal_bool temp_error_recovery_chr_flag = KAL_TRUE;
  /* extern variable */
  /* ============================================================ // */
 extern int g_platform_boot_mode;
+//<2015/01/18-tedwu, For battery over temperature protection.
+#if defined(MTK_TEMPERATURE_RECHARGE_SUPPORT)
+extern kal_uint32 g_batt_temp_status;
+#endif
+//>2015/01/18-tedwu
 
  /* ============================================================ // */
  /* extern function */
@@ -318,8 +323,6 @@ static void battery_pump_express_algorithm_start(void)
 
 static BATTERY_VOLTAGE_ENUM select_jeita_cv(void)
 {
-	BATTERY_VOLTAGE_ENUM cv_voltage;
-
 	if (g_temp_status == TEMP_ABOVE_POS_60) {
 		cv_voltage = JEITA_TEMP_ABOVE_POS_60_CV_VOLTAGE;
 	} else if (g_temp_status == TEMP_POS_45_TO_POS_60) {
@@ -345,8 +348,6 @@ static BATTERY_VOLTAGE_ENUM select_jeita_cv(void)
 
 PMU_STATUS do_jeita_state_machine(void)
 {
-	BATTERY_VOLTAGE_ENUM cv_voltage;
-
 	/* JEITA battery temp Standard */
 
 	if (BMT_status.temperature >= TEMP_POS_60_THRESHOLD) {
@@ -591,10 +592,7 @@ void select_charging_curret(void)
 			g_temp_input_CC_value = CHARGE_CURRENT_500_00_MA;
 		} else {
 			g_temp_input_CC_value = CHARGE_CURRENT_MAX;
-			if(qc_enable)
-			    g_temp_CC_value = ac_level;
-			else
-			    g_temp_CC_value = AC_CHARGE_LEVEL_DEFAULT;
+			g_temp_CC_value = AC_CHARGER_CURRENT;
 
 			battery_log(BAT_LOG_CRTI, "[BATTERY] set_ac_current \r\n");
 		}
@@ -619,34 +617,23 @@ void select_charging_curret(void)
 			}
 #else
 			{
-			    if(qc_enable) {
-			    	g_temp_input_CC_value = usb_level;
-			    	g_temp_CC_value = usb_level;
-			    } else {
-			    	g_temp_input_CC_value = USB_CHARGE_LEVEL_DEFAULT;
-			    	g_temp_CC_value = USB_CHARGE_LEVEL_DEFAULT;
-			    }
+				g_temp_input_CC_value = USB_CHARGER_IN_CURRENT;
+				g_temp_CC_value = USB_CHARGER_CURRENT;
 			}
 #endif
 		} else if (BMT_status.charger_type == NONSTANDARD_CHARGER) {
-			g_temp_input_CC_value = NON_STD_AC_CHARGER_CURRENT;
+			g_temp_input_CC_value = NON_STD_AC_CHARGER_IN_CURRENT;
 			g_temp_CC_value = NON_STD_AC_CHARGER_CURRENT;
 
 		} else if (BMT_status.charger_type == STANDARD_CHARGER) {
-			if(qc_enable) {
-			    g_temp_input_CC_value = ac_level;
-			    g_temp_CC_value = ac_level;
-			} else {
-			    g_temp_input_CC_value = AC_CHARGE_LEVEL_DEFAULT;
-			    g_temp_CC_value = AC_CHARGE_LEVEL_DEFAULT;
-			}
-
+			g_temp_input_CC_value = AC_CHARGER_CURRENT;
+			g_temp_CC_value = AC_CHARGER_CURRENT;
 #if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
         		if(is_ta_connect == KAL_TRUE)
         			set_ta_charging_current();
 #endif
 		} else if (BMT_status.charger_type == CHARGING_HOST) {
-			g_temp_input_CC_value = CHARGING_HOST_CHARGER_CURRENT;
+			g_temp_input_CC_value = CHARGING_HOST_CHARGER_IN_CURRENT;
 			g_temp_CC_value = CHARGING_HOST_CHARGER_CURRENT;
 		} else if (BMT_status.charger_type == APPLE_2_1A_CHARGER) {
 			g_temp_input_CC_value = APPLE_2_1A_CHARGER_CURRENT;
@@ -662,24 +649,41 @@ void select_charging_curret(void)
 			g_temp_CC_value = CHARGE_CURRENT_500_00_MA;
 		}
 
+
 		#if defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
 		if (DISO_data.diso_state.cur_vdc_state == DISO_ONLINE) {
-			if(qc_enable) {
-			    g_temp_input_CC_value = ac_level;
-			    g_temp_CC_value = ac_level;
-			} else {
-			    g_temp_input_CC_value = AC_CHARGE_LEVEL_DEFAULT;
-			    g_temp_CC_value = AC_CHARGE_LEVEL_DEFAULT;
-			}
+			g_temp_input_CC_value = AC_CHARGER_CURRENT;
+			g_temp_CC_value = AC_CHARGER_CURRENT;
 		}
 		#endif
 
-		printk("Fast-Charge (Using charge rate %d mA\n", g_temp_input_CC_value / 100);
+/*[Lavender][bozhi_lin] for battery temperature safety set different current and voltage 20150415 begin*/
+#if defined(COSMOS)
+//<2015/03/30-tedwu, Update for new charge algorithm.
+        if ((g_batt_temp_status == TEMP_POS_WARM) || (g_batt_temp_status == TEMP_POS_COOL)) {
+            if (BMT_status.charger_type == STANDARD_CHARGER)
+			    g_temp_CC_value = SAFETY_CHARGER_CURRENT;
+    	}
+//>2015/03/30-tedwu
+#elif defined(LAVENDER)
+    if ((g_batt_temp_status == TEMP_POS_WARM) || (g_batt_temp_status == TEMP_POS_COOL)) {
+		/*[Lavender][bozhi_lin] only set safety charging current when charging current over 800mA 20150605 begin*/
+		if (g_temp_input_CC_value > SAFETY_CHARGER_IN_CURRENT) {
+			g_temp_input_CC_value = SAFETY_CHARGER_IN_CURRENT;
+			g_temp_CC_value = SAFETY_CHARGER_CURRENT;
+		}
+		/*[Lavender][bozhi_lin] 20150605 end*/
+	}
+//>2015/01/18-tedwu
+#endif
+/*[Lavender][bozhi_lin] 20150415 end*/
 
 #if defined(CONFIG_MTK_JEITA_STANDARD_SUPPORT)
 		set_jeita_charging_current();
 #endif
 	}
+
+
 }
 
 
@@ -690,10 +694,25 @@ static kal_uint32 charging_full_check(void)
 	battery_charging_control(CHARGING_CMD_GET_CHARGING_STATUS, &status);
 	if (status == KAL_TRUE) {
 		g_full_check_count++;
+		//<2015/03/30-tedwu, Update for new charge algorithm.
+		#if defined(PMIC_LOW_VOLTAGE_WORKAROUND) || defined(OVP_VBAT_WORKAROUND)
+			return KAL_FALSE;
+        #else
+        #if defined(COSMOS)
+		if ((g_batt_temp_status != TEMP_POS_NORMAL) || (g_call_state == CALL_ACTIVE))
+			return KAL_FALSE;
+		else if (g_full_check_count >= FULL_CHECK_TIMES) {
+			return KAL_TRUE;
+		} else
+			return KAL_FALSE;
+        #else
 		if (g_full_check_count >= FULL_CHECK_TIMES) {
 			return KAL_TRUE;
 		} else
 			return KAL_FALSE;
+        #endif
+		#endif
+        //>2015/03/30-tedwu
 	} else {
 		g_full_check_count = 0;
 		return status;
@@ -703,9 +722,6 @@ static kal_uint32 charging_full_check(void)
 
 static void pchr_turn_on_charging(void)
 {
-#if !defined(CONFIG_MTK_JEITA_STANDARD_SUPPORT)
-	BATTERY_VOLTAGE_ENUM cv_voltage;
-#endif
 	kal_uint32 charging_enable = KAL_TRUE;
 
 	#if defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
@@ -736,27 +752,23 @@ static void pchr_turn_on_charging(void)
 
 		/* Set Charging Current */
 		if (get_usb_current_unlimited()) {
-			g_temp_input_CC_value = USB_CHARGE_LEVEL_MAX;//AC_CHARGER_CURRENT;
-			g_temp_CC_value = USB_CHARGE_LEVEL_MAX;//AC_CHARGER_CURRENT;
-			battery_log(BAT_LOG_CRTI,
-					    "USB_CURRENT_UNLIMITED, use USB_CHARGE_LEVEL_MAX\n");
+			g_temp_input_CC_value = AC_CHARGER_CURRENT;
+			g_temp_CC_value = AC_CHARGER_CURRENT;
+			battery_log(BAT_LOG_FULL,
+					    "USB_CURRENT_UNLIMITED, use AC_CHARGER_CURRENT\n");
 		} else if (g_bcct_flag == 1) {
 			select_charging_curret_bcct();
 
-			battery_log(BAT_LOG_CRTI,
+			battery_log(BAT_LOG_FULL,
 					    "[BATTERY] select_charging_curret_bcct !\n");
 		} else {
 			select_charging_curret();
 
-			battery_log(BAT_LOG_CRTI, "[BATTERY] select_charging_curret !\n");
+			battery_log(BAT_LOG_FULL, "[BATTERY] select_charging_curret !\n");
 		}
 		battery_log(BAT_LOG_CRTI,
 				    "[BATTERY] Default CC mode charging : %d, input current = %d\r\n",
 				    g_temp_CC_value, g_temp_input_CC_value);
-
-		printk("Fast-Charge: Using charge rate %d mA\n", g_temp_input_CC_value);
-
-
 		if (g_temp_CC_value == CHARGE_CURRENT_0_00_MA
 		    || g_temp_input_CC_value == CHARGE_CURRENT_0_00_MA) {
 
@@ -772,12 +784,77 @@ static void pchr_turn_on_charging(void)
 			/*Set CV Voltage */
 #if !defined(CONFIG_MTK_JEITA_STANDARD_SUPPORT)
 #ifdef CONFIG_HIGH_BATTERY_VOLTAGE_SUPPORT
-			cv_voltage = BATTERY_VOLT_04_340000_V;
+			//<2014/08/14-tedwu, Set CV.
+			//<2015/01/20-tedwu, Add workaround for OVP_vbat of OVP chip due to layout.
+			#if defined(PMIC_LOW_VOLTAGE_WORKAROUND)
+			    cv_voltage = BATTERY_VOLT_03_760000_V;
+            #elif defined(OVP_VBAT_WORKAROUND)
+			    cv_voltage = BATTERY_VOLT_04_200000_V;
+			#else
+/*[Lavender][bozhi_lin] for battery temperature safety set different current and voltage 20150415 begin*/
+			#if defined(COSMOS)
+            //<2015/03/30-tedwu, Update for new charge algorithm.
+			if (g_batt_temp_status == TEMP_POS_NORMAL)
+			    cv_voltage = BATTERY_VOLT_04_360000_V;
+			else
+				cv_voltage = BATTERY_VOLT_04_200000_V;
+
+			if (g_call_state == CALL_ACTIVE)
+				cv_voltage = BATTERY_VOLT_04_200000_V;
+            //>2015/03/30-tedwu
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+			#elif defined(LAVENDER)
+			if (g_batt_temp_status != TEMP_POS_NORMAL) {
+				cv_voltage = BATTERY_VOLT_04_200000_V;
+			}
+/*[Lavender][bozhi_lin] set maximun voltage to 4.2V during call 20150415 begin*/
+			else if (g_call_state == CALL_ACTIVE) {
+				cv_voltage = BATTERY_VOLT_04_200000_V;
+			}
+/*[Lavender][bozhi_lin] 20150415 end*/
+			else {
+				#if defined(CHARGING_MAINTAIN)
+					battery_xlog_printk(BAT_LOG_CRTI, "[B]%s(%d): BMT_status.MAINTAIN_charging_time=%d, FIRST_MAINTAIN_CHARGING_TIME=%d, TOTAL_MAINTAIN_CHARGING_TIME=%d\n", __func__, __LINE__, BMT_status.MAINTAIN_charging_time, FIRST_MAINTAIN_CHARGING_TIME, TOTAL_MAINTAIN_CHARGING_TIME);
+					if ((BMT_status.MAINTAIN_charging_time > FIRST_MAINTAIN_CHARGING_TIME) &&(BMT_status.MAINTAIN_charging_time <= TOTAL_MAINTAIN_CHARGING_TIME)) {
+						cv_voltage = BATTERY_VOLT_04_260000_V;
+					}
+					else if ((BMT_status.MAINTAIN_charging_time > 0) &&(BMT_status.MAINTAIN_charging_time <= FIRST_MAINTAIN_CHARGING_TIME)) {
+						cv_voltage = BATTERY_VOLT_04_300000_V;
+					}
+					else {
+						/*[Lavender][bozhi_lin] battery maximun voltage is 4.35V, set 4.34V to avoid not enter charging done 20150605 begin*/
+						cv_voltage = BATTERY_VOLT_04_340000_V;
+						/*[Lavender][bozhi_lin] 20150605 end*/
+					}
+				#else
+					/*[Lavender][bozhi_lin] battery maximun voltage is 4.35V, set 4.34V to avoid not enter charging done 20150605 begin*/
+					cv_voltage = BATTERY_VOLT_04_340000_V;
+					/*[Lavender][bozhi_lin] 20150605 end*/
+				#endif
+			}
+/*[Lavender][bozhi_lin] 20150522 end*/
+			#else
+			    cv_voltage = BATTERY_VOLT_04_360000_V;
+			#endif
+			#endif
+/*[Lavender][bozhi_lin] 20150415 end*/
+            //>2015/01/20-tedwu
+			//>2014/08/14-tedwu
+
 #else
 			cv_voltage = BATTERY_VOLT_04_200000_V;
 #endif
 			battery_charging_control(CHARGING_CMD_SET_CV_VOLTAGE, &cv_voltage);
 #endif
+
+/*[Lavender][bozhi_lin] set AC timer to 5 hours and USB to 100 hours 20150415 begin*/
+			if (g_temp_input_CC_value > CHARGE_CURRENT_500_00_MA) {
+				BMT_status.charging_timer = AC_CHARGING_TIMER;
+			}
+			else {
+				BMT_status.charging_timer = USB_CHARGING_TIMER;
+			}
+/*[Lavender][bozhi_lin] 20150415 end*/
 		}
 	}
 
@@ -798,10 +875,24 @@ PMU_STATUS BAT_PreChargeModeAction(void)
 	BMT_status.CC_charging_time = 0;
 	BMT_status.TOPOFF_charging_time = 0;
 	BMT_status.total_charging_time += BAT_TASK_PERIOD;
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+	BMT_status.MAINTAIN_charging_time = 0;
+	U32 te_enable = true;
+	te_enable = true;
+	battery_charging_control(CHARGING_CMD_SET_TE,&te_enable);
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
 	/*  Enable charger */
 	pchr_turn_on_charging();
 
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+	if (BMT_status.bat_vol > V_PRE2CC_THRES) {
+		BMT_status.bat_charging_state = CHR_CC;
+	}
+#else
 	if (BMT_status.UI_SOC == 100) {
 		BMT_status.bat_charging_state = CHR_BATFULL;
 		BMT_status.bat_full = KAL_TRUE;
@@ -809,6 +900,8 @@ PMU_STATUS BAT_PreChargeModeAction(void)
 	} else if (BMT_status.bat_vol > V_PRE2CC_THRES) {
 		BMT_status.bat_charging_state = CHR_CC;
 	}
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
 
 
@@ -825,6 +918,15 @@ PMU_STATUS BAT_ConstantCurrentModeAction(void)
 	BMT_status.CC_charging_time += BAT_TASK_PERIOD;
 	BMT_status.TOPOFF_charging_time = 0;
 	BMT_status.total_charging_time += BAT_TASK_PERIOD;
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+	BMT_status.MAINTAIN_charging_time = 0;
+	U32 te_enable = true;
+	
+	te_enable = true;
+	battery_charging_control(CHARGING_CMD_SET_TE,&te_enable);
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
 	/*  Enable charger */
 	pchr_turn_on_charging();
@@ -850,14 +952,48 @@ PMU_STATUS BAT_BatteryFullAction(void)
 	BMT_status.TOPOFF_charging_time = 0;
 	BMT_status.POSTFULL_charging_time = 0;
 	BMT_status.bat_in_recharging_state = KAL_FALSE;
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+	BMT_status.MAINTAIN_charging_time += BAT_TASK_PERIOD;
+	U32 te_enable = false;
+	kal_uint32 charging_enable = KAL_FALSE;
+	
+	battery_xlog_printk(BAT_LOG_CRTI, "[B]%s(%d): Battery Maintain !!\n", __func__, __LINE__);
+	
+	if (BMT_status.MAINTAIN_charging_time == BAT_TASK_PERIOD) {
+		/* enable/disable charging */
+		charging_enable = KAL_FALSE;
+		battery_charging_control(CHARGING_CMD_ENABLE, &charging_enable);
+	
+		te_enable = false;
+		battery_charging_control(CHARGING_CMD_SET_TE,&te_enable);
+	}
+	
+	/*  Enable charger */
+	pchr_turn_on_charging();
+		
+	if (BMT_status.MAINTAIN_charging_time > TOTAL_MAINTAIN_CHARGING_TIME) {
+		BMT_status.bat_in_recharging_state = KAL_TRUE;
+		BMT_status.bat_charging_state = CHR_CC;
+		//battery_meter_reset();//<2015/09/01-JackHu, remove function for GM2.0
+	}
+//<2015/09/22-JackHu, fixed maintenance mode fail
+/*[Lavender][bozhi_lin] fix once enter maintain state, the battery capacity will always keep 100 until remove usb cable 20150608 begin*/	
+	if (BMT_status.bat_vol < V_FULL2CC_THRES) {
+		BMT_status.bat_charging_state = CHR_CC;
+	}
+/*[Lavender][bozhi_lin] 20150608 end*/
+//<2015/09/22-JackHu
 
+#else
 	if (charging_full_check() == KAL_FALSE) {
 		battery_log(BAT_LOG_CRTI, "[BATTERY] Battery Re-charging !!\n\r");
 
 		BMT_status.bat_in_recharging_state = KAL_TRUE;
 		BMT_status.bat_charging_state = CHR_CC;
-		battery_meter_reset();
 	}
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
 
 	return PMU_STATUS_OK;
@@ -870,6 +1006,9 @@ PMU_STATUS BAT_BatteryHoldAction(void)
 
 	battery_log(BAT_LOG_CRTI, "[BATTERY] Hold mode !!\n\r");
 
+	//<2015/02/02-tedwu, Change charging voltage during call mode.
+	battery_xlog_printk(BAT_LOG_FULL, "HoldAction State:%d, bat_vol:%d\n", g_call_state, BMT_status.bat_vol);
+	//>2015/02/02-tedwu
 	if (BMT_status.bat_vol < TALKING_RECHARGE_VOLTAGE || g_call_state == CALL_IDLE) {
 		BMT_status.bat_charging_state = CHR_CC;
 		battery_log(BAT_LOG_CRTI,
@@ -906,6 +1045,11 @@ PMU_STATUS BAT_BatteryStatusFailAction(void)
 	BMT_status.CC_charging_time = 0;
 	BMT_status.TOPOFF_charging_time = 0;
 	BMT_status.POSTFULL_charging_time = 0;
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+#if defined(CHARGING_MAINTAIN)
+	BMT_status.MAINTAIN_charging_time = 0;
+#endif
+/*[Lavender][bozhi_lin] 20150522 end*/
 
 	/*  Disable charger */
 	charging_enable = KAL_FALSE;
@@ -914,6 +1058,22 @@ PMU_STATUS BAT_BatteryStatusFailAction(void)
 	return PMU_STATUS_OK;
 }
 
+/*[Lavender][bozhi_lin] set AC timer to 5 hours and USB to 100 hours 20150415 begin*/
+PMU_STATUS BAT_BatteryStatusTimeoutAction(void)
+{
+	kal_uint32 charging_enable;
+
+	battery_xlog_printk(BAT_LOG_CRTI, "[BATTERY] Battery charging timeout, stop charging, BMT_status.charging_timer=%d !!\n\r", BMT_status.charging_timer);
+
+	BMT_status.total_charging_time = BMT_status.charging_timer;
+
+	/*  Disable charger */
+	charging_enable = KAL_FALSE;
+	battery_charging_control(CHARGING_CMD_ENABLE, &charging_enable);
+
+	return PMU_STATUS_OK;
+}
+/*[Lavender][bozhi_lin] 20150415 end*/
 
 void mt_battery_charging_algorithm(void)
 {
@@ -938,6 +1098,12 @@ void mt_battery_charging_algorithm(void)
 	case CHR_HOLD:
 		BAT_BatteryHoldAction();
 		break;
+
+/*[Lavender][bozhi_lin] set AC timer to 5 hours and USB to 100 hours 20150415 begin*/
+	case CHR_TIMEOUT:
+		BAT_BatteryStatusTimeoutAction();
+		break;
+/*[Lavender][bozhi_lin] 20150415 end*/
 
 	case CHR_ERROR:
 		BAT_BatteryStatusFailAction();

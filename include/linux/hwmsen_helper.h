@@ -66,7 +66,7 @@ enum {
  *      sometimes, the sensor output need to be remapped before reporting to framework.
  *      the 'sign' is only -1 or +1 to align the sign for framework's coordinate system
  *      the 'map'  align the value for framework's coordinate system. Take accelerometer
- *      as an exmaple:
+ *      as an example:
  *      assume HAL receives original acceleration: acc[] = {100, 0, 100}
  *      sign[] = {1, -1, 1, 0};
  *      map[]  = {HWM_CODE_ACC_Y, HWM_CODE_ACC_X, HWM_CODE_ACC_Z, 0};

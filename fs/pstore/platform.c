@@ -230,7 +230,7 @@ static int pstore_write_buf_user_compat(enum pstore_type_id type,
 			       enum kmsg_dump_reason reason,
 			       u64 *id, unsigned int part,
 			       const char __user *buf,
-			       size_t size,
+			       bool compressed, size_t size,
 			       struct pstore_info *psi)
 {
 	unsigned long flags = 0;
@@ -251,7 +251,7 @@ static int pstore_write_buf_user_compat(enum pstore_type_id type,
 			break;
 		}
 		ret = psi->write_buf(type, reason, id, part, psinfo->buf,
-				     c, psi);
+				     compressed, c, psi);
 		if (unlikely(ret < 0))
 			break;
 		i += c;

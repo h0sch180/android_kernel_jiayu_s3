@@ -1,5 +1,3 @@
-
-
 struct mt_irtx {
 	unsigned int pwm_ch;
 	void __iomem *reg_base;
@@ -7,6 +5,11 @@ struct mt_irtx {
 	struct platform_device *plat_dev;
 	unsigned int carrier_freq;
 	atomic_t usage_cnt;
+
+#if !defined(CONFIG_MTK_LEGACY)
+	/* struct clk *clk_irtx_main; */
+	struct clk *clk_irtx_main;
+#endif /* !defined(CONFIG_MTK_LEGACY) */
 };
 
 struct irtx_config {
@@ -23,12 +26,12 @@ struct irtx_config {
 
 #define IRTX_IOC_SET_CARRIER_FREQ _IOW('R', 0, unsigned int)
 
-#define IRTX_IOC_SET_IRTX_LED_EN    _IOW('R', 10, unsigned int)
+#define IRTX_IOC_SET_IRTX_LED_EN	_IOW('R', 10, unsigned int)
 
 #define irtx_write32(b, a, v) mt_reg_sync_writel(v, (b)+(a))
 #define irtx_read32(b, a) ioread32((void __iomem *)((b)+(a)))
 
-#define CLOCK_SRC 26 // MHz
+#define CLOCK_SRC 26 /* MHz */
 
 #define IRTXCFG 0x0
 #define IRTXD0 0x4

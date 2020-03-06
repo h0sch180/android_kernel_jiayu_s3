@@ -473,7 +473,7 @@ void lcm_setbacklight(unsigned int level)
 #elif defined(BUILD_UBOOT)
     printf("%s, %d\n", __func__, level);
 #else
-    printk("lcm_setbacklight = %d\n", level);
+    pr_debug("lcm_setbacklight = %d\n", level);
 #endif
 
 	if(level > 255) 

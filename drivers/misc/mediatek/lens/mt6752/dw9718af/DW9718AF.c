@@ -137,7 +137,7 @@ inline static int getDW9718AFInfo(__user stDW9718AF_MotorInfo * pstMotorInfo)
 void initdrv()
 {
 	char puSendCmd2[2] = { 0x01, 0x39 };
-	char puSendCmd3[2] = { 0x05, 0x65 };
+	char puSendCmd3[2] = { 0x05, 0x01 };//shake period set 12.8ms
 	i2c_master_send(g_pstDW9718AF_I2Cclient, puSendCmd2, 2);
 	i2c_master_send(g_pstDW9718AF_I2Cclient, puSendCmd3, 2);
 }
@@ -289,14 +289,9 @@ static int DW9718AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	DW9718AFDB("[DW9718AF] DW9718AF_Release - Start\n");
 
-    if (g_s4DW9718AF_Opened == 2) 
-    {
-		g_sr = 5;
-	}
-
 	if (g_s4DW9718AF_Opened) {
 		DW9718AFDB("[DW9718AF] feee\n");
-        
+		g_sr = 5;
 		spin_lock(&g_DW9718AF_SpinLock);
 		g_s4DW9718AF_Opened = 0;
 		spin_unlock(&g_DW9718AF_SpinLock);

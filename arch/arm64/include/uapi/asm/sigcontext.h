@@ -39,7 +39,7 @@ struct sigcontext {
  * context. Such structures must be placed after the rt_sigframe on the stack
  * and be 16-byte aligned. The last structure must be a dummy one with the
  * magic and size set to 0.
- */
+*/
 struct _aarch64_ctx {
 	__u32 magic;
 	__u32 size;
@@ -54,21 +54,13 @@ struct fpsimd_context {
 	__uint128_t vregs[32];
 };
 
-/* ESR_EL1 context */
-#define ESR_MAGIC	0x45535201
-
-struct esr_context {
-	struct _aarch64_ctx head;
-	__u64 esr;
-};
-
 #else /* CONFIG_64BIT */
-
+ 
 /*
  * Signal context structure - contains all info to do with the state
  * before the signal handler was invoked.  Note: only add new entries
  * to the end of the structure.
- */
+*/
 struct sigcontext {
 	unsigned long trap_no;
 	unsigned long error_code;

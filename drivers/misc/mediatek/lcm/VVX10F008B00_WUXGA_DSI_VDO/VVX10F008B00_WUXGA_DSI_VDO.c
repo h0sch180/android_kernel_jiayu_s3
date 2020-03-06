@@ -135,7 +135,7 @@ static void lcm_init(void)
 	printf("[LK/LCM] lcm_init() enter\n");
 	
 	#else
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	#endif
 }
@@ -147,7 +147,7 @@ static void lcm_init_power(void)
 		printf("[LK/LCM] lcm_init_power() enter\n");
 		
 #else
-		printk("[Kernel/LCM] lcm_init_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 	
 #endif
 
@@ -159,7 +159,7 @@ static void lcm_suspend_power(void)
 		printf("[LK/LCM] lcm_suspend_power() enter\n");
 			
 #else
-		printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 		
 #endif
 
@@ -171,7 +171,7 @@ static void lcm_resume_power(void)
 		printf("[LK/LCM] lcm_resume_power() enter\n");
 				
 #else
-		printk("[Kernel/LCM] lcm_resume_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 			
 #endif
 
@@ -205,7 +205,7 @@ static void lcm_init(void)
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
 		MDELAY(50);
 
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 
 	//lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	//MDELAY(10);
@@ -233,7 +233,7 @@ static void lcm_suspend(void)
 	//MDELAY(50);
 	
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN,GPIO_OUT_ZERO);
 	MDELAY(100);
@@ -249,8 +249,8 @@ static void lcm_resume(void)
 #ifdef BUILD_LK 
 	printf("[LK/LCM] lcm_resume() enter\n");
 
-	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
-	MDELAY(50);
+	/*lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
+	MDELAY(50);*/
 
 	//VGP1 3.3V
 	//upmu_set_rg_vgp1_vosel(0x7);
@@ -258,19 +258,19 @@ static void lcm_resume(void)
 	//MDELAY(10);
 	
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
-	MDELAY(50);
+	MDELAY(200);
 	
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 
-	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
-	MDELAY(50);
+	/*lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
+	MDELAY(50);*/
 
 	//hwPowerOn(MT65XX_POWER_LDO_VGP1, VOL_3300, "LCM");
 	//MDELAY(100);
 
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
-	MDELAY(50);
+	MDELAY(200);
 	
 #endif
 }

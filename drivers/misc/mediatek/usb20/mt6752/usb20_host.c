@@ -75,6 +75,10 @@ module_param(delay_time,int,0644);
 u32 delay_time1 = 55;
 module_param(delay_time1,int,0644);
 
+extern void bq24157_set_otg_en(kal_uint32 val);
+extern void bq24157_set_opa_mode(kal_uint32 val);
+extern void 	bq24157_set_otg_pl(kal_uint32 val);
+
 void mt_usb_set_vbus(struct musb *musb, int is_on)
 {
     DBG(0,"mt65xx_usb20_vbus++,is_on=%d\r\n",is_on);
@@ -101,15 +105,13 @@ void mt_usb_set_vbus(struct musb *musb, int is_on)
         fan5405_set_opa_mode(1);
         fan5405_set_otg_pl(1);
         fan5405_set_otg_en(1);
-    #elif defined(MTK_BQ24158_SUPPORT)
-        bq24158_set_opa_mode(1);
-        bq24158_set_otg_pl(1);
-        bq24158_set_otg_en(1);
-        mt_set_gpio_mode(GPIO_OTG_DRVVBUS_PIN,GPIO_OTG_DRVVBUS_PIN_M_GPIO);
-        mt_set_gpio_out(GPIO_OTG_DRVVBUS_PIN,GPIO_OUT_ONE);
     #elif defined(CONFIG_MTK_NCP1851_SUPPORT)
         tbl_charger_otg_vbus((work_busy(&musb->id_pin_work.work)<< 8)| 1);
-    #elif defined(CONFIG_MTK_BQ24261_SUPPORT) || defined(CONFIG_MTK_BQ24196_SUPPORT)
+   #elif defined CONFIG_MTK_BQ24157_SUPPORT
+	bq24157_set_opa_mode(1);
+	bq24157_set_otg_pl(1);
+	bq24157_set_otg_en(1); 
+    #elif defined(CONFIG_MTK_BQ24261_SUPPORT) || defined(CONFIG_MTK_BQ24196_SUPPORT) || defined(CONFIG_MTK_BQ24296_SUPPORT) 
         #if !defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT) 
             #ifdef CONFIG_MTK_BQ24261_SUPPORT
                 bq24261_set_en_boost(1);
@@ -119,6 +121,13 @@ void mt_usb_set_vbus(struct musb *musb, int is_on)
                 bq24196_set_otg_config(0x01); //OTG
                 bq24196_set_boost_lim(0x01); //1.3A on VBUS
             #endif
+
+          //  lenovo-sw zhangrc2 support otg interface 2014-01-14 begin  
+	   #ifdef CONFIG_MTK_BQ24296_SUPPORT	   
+                bq24296_set_otg_config(0x01); //OTG
+                bq24296_set_boost_lim(0x00); //1.0A on VBUS
+            #endif		 
+	  //  lenovo-sw zhangrc2 support otg interface 2014-01-14 end	
         #else
             #ifdef CONFIG_OF
             mt_set_gpio_mode(drvvbus_pin, drvvbus_pin_mode);
@@ -129,6 +138,12 @@ void mt_usb_set_vbus(struct musb *musb, int is_on)
             #endif
         #endif
     #else
+	//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+	#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+	lenovo_reset_ncp1854_retry_count();
+	lenovo_ncp1854_for_overload_init();
+	#endif
+	//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
         #ifdef CONFIG_OF
         mt_set_gpio_mode(drvvbus_pin,drvvbus_pin_mode);
         mt_set_gpio_out(drvvbus_pin,GPIO_OUT_ONE);
@@ -140,22 +155,14 @@ void mt_usb_set_vbus(struct musb *musb, int is_on)
     } else {
         //power off VBUS, implement later...
     #ifdef CONFIG_MTK_FAN5405_SUPPORT
-/* Vanzo:songlixin on: Tue, 02 Jun 2015 16:50:25 +0800
- * port from kk
         fan5405_config_interface_liao(0x01,0x30);
 		fan5405_config_interface_liao(0x02,0x8e);
- */
-        fan5405_config_interface(0x01,0x30);
-		fan5405_config_interface(0x02,0x8e);
-// End of Vanzo: songlixin
-    #elif defined(MTK_BQ24158_SUPPORT)         
-        bq24158_config_interface_liao(0x01,0x30);
-        bq24158_config_interface_liao(0x02,0x8e);
-        mt_set_gpio_mode(GPIO_OTG_DRVVBUS_PIN,GPIO_OTG_DRVVBUS_PIN_M_GPIO);
-        mt_set_gpio_out(GPIO_OTG_DRVVBUS_PIN,GPIO_OUT_ONE);
     #elif defined(CONFIG_MTK_NCP1851_SUPPORT)
         tbl_charger_otg_vbus((work_busy(&musb->id_pin_work.work)<< 8)| 0);
-    #elif defined(CONFIG_MTK_BQ24261_SUPPORT) || defined(CONFIG_MTK_BQ24196_SUPPORT)
+		#elif defined CONFIG_MTK_BQ24157_SUPPORT
+	bq24157_set_otg_en(0);
+	bq24157_set_opa_mode(0);
+    #elif defined(CONFIG_MTK_BQ24261_SUPPORT) || defined(CONFIG_MTK_BQ24196_SUPPORT)|| defined(CONFIG_MTK_BQ24296_SUPPORT)
         #if !defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT) 
             #ifdef CONFIG_MTK_BQ24261_SUPPORT
                 bq24261_set_en_boost(0);
@@ -164,6 +171,11 @@ void mt_usb_set_vbus(struct musb *musb, int is_on)
             #ifdef CONFIG_MTK_BQ24196_SUPPORT
                 bq24196_set_otg_config(0x0); //OTG disabled
             #endif
+             //  lenovo-sw zhangrc2 support otg interface 2014-01-14 begin  
+	    #ifdef CONFIG_MTK_BQ24296_SUPPORT
+                bq24296_set_otg_config(0x0); //OTG disabled
+            #endif		
+	     //  lenovo-sw zhangrc2 support otg interface 2014-01-14 end  		
         #else
             #ifdef CONFIG_OF
             mt_set_gpio_mode(drvvbus_pin,drvvbus_pin_mode);
@@ -236,7 +248,13 @@ static bool musb_is_host(void)
 
     DBG(0,"will mask PMIC charger detection\n");
 #ifndef FPGA_PLATFORM
+//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+    pmic_chrdet_int_en(1);
+#else
     pmic_chrdet_int_en(0);
+#endif
+//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
 #endif
 
     musb_platform_enable(mtk_musb);

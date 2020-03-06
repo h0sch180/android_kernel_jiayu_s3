@@ -20,18 +20,18 @@ struct wp_trace_context_t wp_tracer;
  int err;
  volatile int my_watch_data;
  int wp_flag;
- int my_wp_handler1(unsigned long addr)
+ int my_wp_handler1(phys_addr_t addr)
  {
      
      wp_flag++; 
-     pr_notice("[MTK WP] Access my data from an instruction at 0x%lx\n" ,addr);
+     pr_notice("[MTK WP] Access my data from an instruction at %pa\n" ,&addr);
      return 0;
  }
 
- int my_wp_handler2(unsigned long addr)
+ int my_wp_handler2(phys_addr_t addr)
  {
    
-     pr_notice("[MTK WP] In my_wp_handler2 Access my data from an instruction at 0x%lx\n",addr);
+     pr_notice("[MTK WP] In my_wp_handler2 Access my data from an instruction at %pa\n",&addr);
      /* trigger exception */
      return 0;
  }
@@ -363,7 +363,7 @@ int add_hw_watchpoint(struct wp_event *wp_event)
     wp_tracer.wp_events[i].auto_disable = wp_event->auto_disable;
     pr_notice("[MTK WP] Hotplug disable\n");
     cpu_hotplug_disable();
-    pr_notice("[MTK WP] Add watchpoint %d at address 0x%lx\n", i, wp_tracer.wp_events[i].virt);
+    pr_notice("[MTK WP] Add watchpoint %d at address %pa\n", i, &(wp_tracer.wp_events[i].virt));
     for(j = 0; j <  num_possible_cpus(); j++) {
         if(cpu_online(j)){
           cs_cpu_write_64(wp_tracer.debug_regs[j], DBGWVR + (i << 4),wp_tracer.wp_events[i].virt);

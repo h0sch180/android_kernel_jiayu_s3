@@ -30,24 +30,24 @@
 #define LCM_LOG_LEVEL
 #define LCM_MODULE_PART "lk"
 #else
-#define PRINT_FUN printk
+#define PRINT_FUN pr_debug
 #define LCM_LOG_LEVEL   KERN_ERR
 #define LCM_MODULE_PART "kernel"
 #endif
 
 #define LCM_ALOGD(fmt, ...) \
     do { \
-        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-dbg-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __FUNCTION__,##__VA_ARGS__); \
+        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-dbg-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __func__,##__VA_ARGS__); \
     } while (0)
 
 #define LCM_ALOGE(fmt, ...) \
     do { \
-        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-err-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __FUNCTION__,##__VA_ARGS__); \
+        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-err-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __func__,##__VA_ARGS__); \
     } while (0)
 
 #define LCM_ALOGF() \
     do { \
-        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-fun-%s>> [%04d] [@%s] %s() is call!\n", LCM_MODULE_PART, __LINE__, __FUNCTION__, __FUNCTION__); \
+        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-fun-%s>> [%04d] [@%s] %s() is call!\n", LCM_MODULE_PART, __LINE__, __func__, __func__); \
     } while (0)
 
 #else
@@ -56,7 +56,7 @@
 #define LCM_ALOGD(fmt, ...)              do {} while (0)
 #define LCM_ALOGE(fmt, ...) \
     do { \
-        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-err-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __FUNCTION__,##__VA_ARGS__); \
+        PRINT_FUN(LCM_LOG_LEVEL "<<-" LCM_PREFIX "-err-%s>> [%04d] [@%s] " fmt "\n", LCM_MODULE_PART, __LINE__, __func__,##__VA_ARGS__); \
     } while (0)
 
 #endif
@@ -81,6 +81,13 @@
 #define GPIO_LCD_PWR      	GPIO9
 #endif
 
+#ifdef GPIO_LCM_RST
+#define GPIO_LCD_RST      GPIO_LCM_RST
+#else
+#define GPIO_LCD_RST      0xFFFFFFFF
+#endif
+
+
 #define REGFLAG_DELAY             							0xFE
 #define REGFLAG_END_OF_TABLE      							0xFF
 // ---------------------------------------------------------------------------
@@ -88,7 +95,7 @@
 // ---------------------------------------------------------------------------
 static LCM_UTIL_FUNCS lcm_util = {0};
 
-#define SET_RESET_PIN(v)    				(lcm_util.set_reset_pin((v)))
+#define SET_RESET_PIN(v)    				lcm_set_gpio_output(GPIO_LCD_RST, v)
 
 #define UDELAY(n) 							(lcm_util.udelay(n))
 #define MDELAY(n) 							(lcm_util.mdelay(n))
@@ -211,7 +218,7 @@ static void init_lcm_registers(void)
 #ifdef BUILD_LK
 	printf("%s, LK\n", __func__);
 #else
-	printk("%s, KE\n", __func__);
+	pr_debug("%s, KE\n", __func__);
 #endif
 
 #ifdef PUSH_TABLET_USING
@@ -294,13 +301,13 @@ static void init_lcm_registers(void)
 	data_array[10] = 0x13061215;
 	data_array[11] = 0x00181412;	
 	dsi_set_cmdq(data_array, 12, 1);
-	MDELAY(200);
+	/*MDELAY(200);*/
 
 	data_array[0] = 0x00063902;
 	data_array[1] = 0x1e2e1fc9;
 	data_array[2] = 0x101e;
 	dsi_set_cmdq(data_array, 3, 1); 
-	MDELAY(200);
+	/*MDELAY(200);*/
 
 	data_array[0] = 0x00110500;
 	dsi_set_cmdq(data_array, 1, 1);
@@ -359,13 +366,9 @@ static void lcm_set_gpio_output(unsigned int GPIO, unsigned int output)
 		return;
     }
 
-#ifdef BUILD_LK
 	mt_set_gpio_mode(GPIO, GPIO_MODE_00);
 	mt_set_gpio_dir(GPIO, GPIO_DIR_OUT);
 	mt_set_gpio_out(GPIO, (output > 0) ? GPIO_OUT_ONE : GPIO_OUT_ZERO);
-#else
-	gpio_set_value(GPIO, (output > 0) ? GPIO_OUT_ONE : GPIO_OUT_ZERO);
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -398,16 +401,16 @@ static void lcm_get_params(LCM_PARAMS *params)
     params->dsi.PS = LCM_PACKED_PS_24BIT_RGB888;
 
     params->dsi.vertical_sync_active				= 3;
-    params->dsi.vertical_backporch					= 8;//3;//4
-    params->dsi.vertical_frontporch 				= 5;//5;//8
+    params->dsi.vertical_backporch					= 8;
+    params->dsi.vertical_frontporch					= 60;
     params->dsi.vertical_active_line				= FRAME_HEIGHT; 
 
-    params->dsi.horizontal_sync_active				= 48;//12;//20;
-    params->dsi.horizontal_backporch				= 80;//32;//48; //10 OK
+    params->dsi.horizontal_sync_active				= 48;
+    params->dsi.horizontal_backporch				= 80;
     params->dsi.horizontal_frontporch				= 52;
     params->dsi.horizontal_active_pixel 			= FRAME_WIDTH;
 
-    params->dsi.PLL_CLOCK = 299;
+    params->dsi.PLL_CLOCK = 345;
 
     params->dsi.cont_clock = 1;
 }
@@ -426,8 +429,9 @@ static void lcm_power_init(void)
 	MDELAY(10);
 
 	SET_RESET_PIN(1);
-	MDELAY(50);
-	
+	/*MDELAY(50);*/
+	MDELAY(10);
+
 	lcm_set_gpio_output(GPIO_LCD_BL_EN, GPIO_OUT_ONE);
 #else
 #endif
@@ -473,7 +477,8 @@ static void lcm_resume(void)
 	MDELAY(10);
 
 	SET_RESET_PIN(1);
-	MDELAY(50);
+	/*MDELAY(50);*/
+	MDELAY(10);
 
     DSI_clk_HS_mode(DISP_MODULE_DSI0, NULL, 1);
 	init_lcm_registers();

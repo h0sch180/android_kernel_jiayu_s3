@@ -54,13 +54,13 @@ extern "C" {
 #define DEF_TLP_TIMES                       (1)
 
 #define EN_CPU_INPUT_BOOST                  (1)
-#define DEF_CPU_INPUT_BOOST_CPU_NUM         (2)
+#define DEF_CPU_INPUT_BOOST_CPU_NUM         (4)
 
 #define EN_CPU_RUSH_BOOST                   (1)
 #define DEF_CPU_RUSH_BOOST_THRESHOLD        (98)
 #define DEF_CPU_RUSH_BOOST_TIMES            (1)
 
-#define EN_HPS_LOG                          (1)
+#define EN_HPS_LOG                          (0)
 #define EN_ISR_LOG                          (0)
 
 /*
@@ -71,12 +71,10 @@ extern "C" {
 #define hps_crit(fmt, args...)              pr_crit("[HPS] " fmt, ##args)
 #define hps_error(fmt, args...)             pr_err("[HPS] " fmt, ##args)
 #define hps_warn(fmt, args...)              pr_warn("[HPS] " fmt, ##args)
-//#define hps_warn(fmt, args...)              printk(KERN_DEBUG "[HPS] " fmt, ##args)
 //#define hps_warn(fmt, args...)              pr_emerg("[HPS] " fmt, ##args)
-#define hps_notice(fmt, args...)            pr_notice("[HPS] " fmt, ##args)
-#define hps_info(fmt, args...)              pr_info("[HPS] " fmt, ##args)
-//#define hps_debug(fmt, args...)             pr_debug("[HPS] " fmt, ##args)
-#define hps_debug(fmt, args...)             printk(KERN_DEBUG "[HPS] " fmt, ##args)
+#define hps_notice(fmt, args...)            pr_warn("[HPS] " fmt, ##args)
+#define hps_info(fmt, args...)              pr_warn("[HPS] " fmt, ##args)
+#define hps_debug(fmt, args...)             pr_debug("[HPS] " fmt, ##args)
 //#define hps_debug(fmt, args...)             pr_emerg("[HPS] " fmt, ##args)
 
 #if EN_ISR_LOG

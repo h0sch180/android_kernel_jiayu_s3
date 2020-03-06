@@ -1187,7 +1187,7 @@ static int sock_close(struct inode *inode, struct file *filp)
 		#endif
 		return 0;
 	}
-    #ifdef CONFIG_MTK_NET_LOGGING 
+	#ifdef CONFIG_MTK_NET_LOGGING
         struct socket *sock = SOCKET_I(inode);
 	if((sock != NULL) && (sock->sk != NULL))
 		{
@@ -1199,7 +1199,6 @@ static int sock_close(struct inode *inode, struct file *filp)
 		}
 	#endif
 	sock_release(SOCKET_I(inode));
-	
 	return 0;
 }
 
@@ -1454,7 +1453,7 @@ out_release:
 SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 		int __user *, usockvec)
 {
-	struct socket *sock1, *sock2;
+	struct socket *sock1 = NULL, *sock2 = NULL;
 	int fd1, fd2, err;
 	struct file *newfile1, *newfile2;
 	int flags;
@@ -1535,7 +1534,6 @@ SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 	  
 		return 0;
         }
-
 	sys_close(fd2);
 	sys_close(fd1);
 	#ifdef CONFIG_MTK_NET_LOGGING 
@@ -3402,6 +3400,7 @@ static int compat_sock_ioctl_trans(struct file *file, struct socket *sock,
 	case SIOCGMIIPHY:
 	case SIOCGMIIREG:
 	case SIOCSMIIREG:
+	case SIOCKILLADDR:
 		return dev_ifsioc(net, sock, cmd, argp);
 
 	case SIOCSARP:

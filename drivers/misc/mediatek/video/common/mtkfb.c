@@ -62,6 +62,46 @@
 #include "disp_dts_gpio.h"/* set gpio via DTS */
 #endif
 
+/////lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+
+#if 1//kernel 3.10 proc api changed
+static int lcm_debug_open(struct inode *inode, struct file *file);
+static int lcm_info_open(struct inode *inode, struct file *file);
+static int lcm_version_open(struct inode *inode, struct file *file);
+
+static  struct file_operations lcm_debug_proc_fops = { 
+    .open    = lcm_debug_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+
+static  struct file_operations lcm_info_proc_fops = { 
+    .open    = lcm_info_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+
+static  struct file_operations lcm_version_proc_fops = { 
+    .open    = lcm_version_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+#else
+static struct proc_dir_entry *lcm_debug=NULL;
+static struct proc_dir_entry *lcm_info=NULL;
+static struct proc_dir_entry *lcm_version=NULL;
+#endif
+LCM_DRIVER *lcm_drv;
+LCM_PARAMS *lcm_params;
+#endif
+/////lenovo add end by jixu@lenovo.com
+
 #define ALIGN_TO(x, n)  \
 	(((x) + ((n) - 1)) & ~((n) - 1))
 
@@ -177,7 +217,6 @@ static int vsync_cnt;
 /* local function declarations */
 /* --------------------------------------------------------------------------- */
 
-static int init_framebuffer(struct fb_info *info);
 static int mtkfb_get_overlay_layer_info(struct fb_overlay_layer_info *layerInfo);
 
 
@@ -274,11 +313,49 @@ exit:
 	return r;
 }
 
+//lenovo wangyq13 modify for cmd mode lcd 20150305
+#if defined(OTM1902A_FHD_DSI_CMD_TIANMA) || defined(NT35695_FHD_DSI_CMD_YASSY)
+unsigned int cmd_esd_last_backlight_level = 255;
+#endif
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+unsigned int orig_level = 255;
+int super_backlight = 0;
+#endif
 int mtkfb_set_backlight_level(unsigned int level)
 {
+#if defined(OTM1902A_FHD_DSI_CMD_TIANMA) || defined(NT35695_FHD_DSI_CMD_YASSY)
+	unsigned long real_level;
+#endif
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+        orig_level = level;
+#endif
 	MTKFB_FUNC();
 	pr_debug("mtkfb_set_backlight_level:%d Start\n", level);
+#if defined(OTM1902A_FHD_DSI_CMD_TIANMA) || defined(NT35695_FHD_DSI_CMD_YASSY)
+	//copy from K7-QC platform
+	if(level >=0 && level <=10)//(0,0),(10,10) 
+	real_level = (unsigned long)level;
+
+	else if(level <=128 &&  level>10)//(10,10),(128,75)
+	real_level = ((unsigned long)level*65 + 530)/118;
+
+	else if(level <=205 && level>128)//(128,75),(205,155)
+	real_level = ((unsigned long)level* 80 - 4465)/77;
+
+	else if(level <=255 && level>205) //(205,155),(255,255) 
+	real_level = ((unsigned long)level*2) - 255;
+
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+	if(super_backlight != 1)
+#endif
+		level = ((unsigned int)real_level*81)/100; 
+	if((real_level == 1)||(real_level == 2)) //if real_level is one,level is zero,set it to one.
+		level = 2;
+#endif
 	primary_display_setbacklight(level);
+#if defined(OTM1902A_FHD_DSI_CMD_TIANMA) || defined(NT35695_FHD_DSI_CMD_YASSY)
+	cmd_esd_last_backlight_level = level;
+#endif
 	pr_debug("mtkfb_set_backlight_level End\n");
 	return 0;
 }
@@ -829,7 +906,6 @@ static int mtkfb_set_par(struct fb_info *fbi)
 	input = &session_input.config[session_input.config_layer_num++];
 	_convert_fb_layer_to_disp_input(&fb_layer, input);
 	primary_display_config_input_multiple(&session_input);
-
 	/* backup fb_layer information. */
 	memcpy(&fb_layer_context, &fb_layer, sizeof(fb_layer));
 
@@ -942,6 +1018,66 @@ void mtkfb_dump_layer_info(void)
 	/* mtkfb_aee_print("surfaceflinger-mtkfb blocked"); */
 #endif
 }
+
+//////lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+lenovo_disp_feature_info_t disp_feature_info[MTKFB_MAX_DISPLAY_COUNT];
+lenovo_disp_feature_state_t disp_feature_state[MTKFB_MAX_DISPLAY_COUNT];
+static BOOL LCM_Feature_set_resume = FALSE;
+
+static int mtkfb_set_lcm_feature_mode(lenovo_disp_feature_state_t *states)
+{
+	static int cabc_mode,inverse_mode;
+	if (down_interruptible(&sem_flipping)) {
+		printk("[FB Driver] can't get semaphore in mtkfb_set_cabcmode\n");
+		return -ERESTARTSYS;
+	}
+	if (down_interruptible(&sem_early_suspend)) {
+		printk("[FB Driver] can't get semaphore in mtkfb_set_cabcmode\n");
+		return -ERESTARTSYS;
+	}
+	
+    if (is_early_suspended){
+        LCM_Feature_set_resume = TRUE;
+        printk("%s set !!! but FB has been suspended\n",__func__);
+        goto End;
+    }
+	
+	if((states->cabc_mode>=0)&&(cabc_mode!=states->cabc_mode)){
+		cabc_mode = states->cabc_mode;
+		//DISP_SetCabcMode(cabc_mode);
+		primary_display_setcabc(cabc_mode);
+	}
+	if((states->inverse_mode>=0)&&(inverse_mode!=states->inverse_mode)){
+		inverse_mode = states->inverse_mode;
+		//DISP_SetInverseMode(inverse_mode);
+		primary_display_setinverse(inverse_mode);
+	}
+End:
+	up(&sem_early_suspend);
+	up(&sem_flipping);
+    return 0; 
+}
+#endif
+//////lenovo add end by jixu@lenovo.com
+
+//lenovo sw wangyq13 add for super backlight mode 20150320 begin
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+static int superbl_first_time = 0;//wangyq13 add for first time when system on,do not set 255 backlight 20150901
+static set_super_backlight(unsigned int mode)
+{
+	printk( "%s  mode is %d\n",__func__,mode);
+	super_backlight = mode;
+        if(superbl_first_time == 0)
+        {
+            superbl_first_time = 1;
+            if(mode == 0) return;//wangyq13 if not super,return,if user set super before,then set 255 continue
+        }
+	if(orig_level == 255)//lenovo sw wangyq13:if user set super backlight,we set it to 255
+	        mtkfb_set_backlight_level(255);
+}
+#endif
+//lenovo sw wangyq13 add for super backlight mode 20150320 end
 
 static disp_session_input_config session_input;
 static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
@@ -1063,59 +1199,6 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 		return r;
 	}
 
-	case MTKFB_CAPTURE_FRAMEBUFFER:
-	{
-		unsigned long pbuf = 0;
-
-		if (copy_from_user(&pbuf, (void __user *)arg, sizeof(pbuf))) {
-			MTKFB_LOG("[FB]: copy_from_user failed! line:%d\n", __LINE__);
-			r = -EFAULT;
-		} else {
-			dprec_logger_start(DPREC_LOGGER_WDMA_DUMP, 0, 0);
-			primary_display_capture_framebuffer_ovl(pbuf, eBGRA8888);
-			dprec_logger_done(DPREC_LOGGER_WDMA_DUMP, 0, 0);
-		}
-
-		return r;
-	}
-
-	case MTKFB_SLT_AUTO_CAPTURE:
-	{
-		struct fb_slt_catpure capConfig;
-
-		if (copy_from_user(&capConfig, (void __user *)arg, sizeof(capConfig))) {
-			MTKFB_LOG("[FB]: copy_from_user failed! line:%d\n", __LINE__);
-			r = -EFAULT;
-		} else {
-			unsigned int format;
-
-			switch (capConfig.format) {
-			case MTK_FB_FORMAT_RGB888:
-				format = eRGB888;
-				break;
-			case MTK_FB_FORMAT_BGR888:
-				format = eBGR888;
-				break;
-			case MTK_FB_FORMAT_ARGB8888:
-				format = eARGB8888;
-				break;
-			case MTK_FB_FORMAT_RGB565:
-				format = eRGB565;
-				break;
-			case MTK_FB_FORMAT_UYVY:
-				format = eYUV_420_2P_UYVY;
-				break;
-			case MTK_FB_FORMAT_ABGR8888:
-			default:
-				format = eABGR8888;
-				break;
-			}
-			primary_display_capture_framebuffer_ovl((unsigned long)capConfig.outputBuffer, format);
-		}
-
-		return r;
-	}
-
 	case MTKFB_GET_OVERLAY_LAYER_INFO:
 	{
 		struct fb_overlay_layer_info layerInfo;
@@ -1234,20 +1317,6 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 		return 0;
 	}
 
-	case MTKFB_META_RESTORE_SCREEN:
-	{
-		struct fb_var_screeninfo var;
-
-		if (copy_from_user(&var, argp, sizeof(var)))
-			return -EFAULT;
-
-		info->var.yoffset = var.yoffset;
-		init_framebuffer(info);
-
-		return mtkfb_pan_display_impl(&var, info);
-	}
-
-
 	case MTKFB_GET_DEFAULT_UPDATESPEED:
 	{
 		unsigned int speed;
@@ -1306,6 +1375,105 @@ static int mtkfb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg
 		result = mtkfb_fm_auto_test();
 		return copy_to_user(argp, &result, sizeof(result)) ? -EFAULT : 0;
 	}
+//lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+case MTKFB_GET_DISPLAY_FEATURE_INFORMATION:
+{
+	int displayid = 0;
+	#if 0
+	if (copy_from_user(&displayid, (void __user *)arg, sizeof(displayid))) {
+		MTKFB_LOG("[FB]: copy_from_user failed! line:%d \n", __LINE__);
+		return -EFAULT;
+	}
+	printk("%s, display_id=%d\n", __func__, displayid);
+	if (displayid > MTKFB_MAX_DISPLAY_COUNT) {
+		MTKFB_LOG("[FB]: invalid display id:%d \n", displayid);
+		return -EFAULT;
+	}
+	#endif
+	if (copy_to_user((void __user *)arg, &(disp_feature_info[displayid]),  sizeof(lenovo_disp_feature_info_t))) {
+		MTKFB_LOG("[FB]: copy_to_user failed! line:%d \n", __LINE__);
+		r = -EFAULT;
+	}
+	return (r);
+}
+
+case MTKFB_GET_DISPLAY_FEATURE_STATE:
+{
+	int displayid = 0;
+	#if 0
+	if (copy_from_user(&displayid, (void __user *)arg, sizeof(displayid))) {
+		MTKFB_LOG("[FB]: copy_from_user failed! line:%d \n", __LINE__);
+		return -EFAULT;
+	}
+	printk("%s, display_id=%d\n", __func__, displayid);
+	if (displayid > MTKFB_MAX_DISPLAY_COUNT) {
+		MTKFB_LOG("[FB]: invalid display id:%d \n", displayid);
+		return -EFAULT;
+	}
+	#endif
+	if (copy_to_user((void __user *)arg, &(disp_feature_state[displayid]),  sizeof(lenovo_disp_feature_state_t))) {
+		MTKFB_LOG("[FB]: copy_to_user failed! line:%d \n", __LINE__);
+		r = -EFAULT;
+	}
+	return (r);
+}
+case MTKFB_SET_DISPLAY_FEATURE_STATE:
+{
+	lenovo_disp_feature_state_t state;
+	if (copy_from_user(&state, (void __user *)arg, sizeof(state))) {
+		MTKFB_LOG("[FB]: copy_from_user failed! line:%d \n", __LINE__);
+		return -EFAULT;
+	}
+	#if 0
+	if (state.display_id > MTKFB_MAX_DISPLAY_COUNT) {
+		MTKFB_LOG("[FB]: invalid display id:%d \n", state.display_id);
+		return -EFAULT;
+	}
+	#endif
+	if(state.cabc_mode>=0)
+		disp_feature_state[0].cabc_mode= state.cabc_mode;
+	if(state.inverse_mode>=0)
+		disp_feature_state[0].inverse_mode= state.inverse_mode;
+
+	mtkfb_set_lcm_feature_mode(&(disp_feature_state[0]));
+	return (r);
+}
+#endif
+//lenovo add end by jixu@lenovo.com
+//lenovo sw wangyq13 add for super backlight mode 20150320 begin
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+	case MTKFB_SET_SUPER_BACKLIGHT:
+		{
+	    		unsigned int mode;
+			MTKFB_LOG("[MTKFB] change day night mode\n");
+
+			if (copy_from_user(&mode, (void __user *)arg, sizeof(mode))) {
+            			MTKFB_LOG("[FB]: copy_from_user failed! line:%d \n", __LINE__);
+            	  		r = -EFAULT;
+        		} else {
+        			set_super_backlight(mode);
+            			printk("[MTKFB EM]LENOVO_BACKLIGHT_DAYNIGHT succeed mode is %d\n", mode);
+        		}
+        		return (r);
+	}
+
+	case MTKFB_SET_DISPLAY_SRE:
+		{
+	    		unsigned int mode;
+			MTKFB_LOG("[MTKFB] change display sre mode\n");
+
+			if (copy_from_user(&mode, (void __user *)arg, sizeof(mode))) {
+            			MTKFB_LOG("[FB]: copy_from_user failed! line:%d \n", __LINE__);
+            	  		r = -EFAULT;
+        		} else {
+        			primary_display_setsre(mode);
+            			printk("[MTKFB EM]MTKFB_SET_DISPLAY_SRE succeed mode is %d\n", mode);
+        		}
+        		return (r);
+	}
+#endif
+//lenovo sw wangyq13 add for super backlight mode 20150320 end
 	default:
 		pr_debug("mtkfb_ioctl Not support, info=%p, cmd=0x%08x, arg=0x%lx\n", info,
 			 (unsigned int)cmd, arg);
@@ -1354,7 +1522,6 @@ struct compat_fb_overlay_layer {
 #define COMPAT_MTKFB_CONFIG_IMMEDIATE_UPDATE	MTK_IOW(4, compat_ulong_t)
 
 #define COMPAT_MTKFB_GET_POWERSTATE		MTK_IOR(21, compat_ulong_t)
-#define COMPAT_MTKFB_META_RESTORE_SCREEN	MTK_IOW(101, compat_ulong_t)
 
 static void compat_convert(struct compat_fb_overlay_layer *compat_info,
 			   struct fb_overlay_layer *info)
@@ -1434,12 +1601,6 @@ static int mtkfb_compat_ioctl(struct fb_info *info, unsigned int cmd, unsigned l
 	{
 		arg = (unsigned long)compat_ptr(arg);
 		ret = mtkfb_ioctl(info, MTKFB_TRIG_OVERLAY_OUT, arg);
-		break;
-	}
-	case COMPAT_MTKFB_META_RESTORE_SCREEN:
-	{
-		arg = (unsigned long)compat_ptr(arg);
-		ret = mtkfb_ioctl(info, MTKFB_META_RESTORE_SCREEN, arg);
 		break;
 	}
 	case COMPAT_MTKFB_SET_OVERLAY_LAYER:
@@ -1786,18 +1947,6 @@ static void mtkfb_fbinfo_cleanup(struct mtkfb_device *fbdev)
 	(((x) &  0x7E0) << 5) |		\
 	(((x) & 0xF800) << 8) |		\
 	(0xFF << 24)) /* opaque */
-
-/* Init frame buffer content as 3 R/G/B color bars for debug */
-static int init_framebuffer(struct fb_info *info)
-{
-	void *buffer = info->screen_base + info->var.yoffset * info->fix.line_length;
-
-	/* clean whole frame buffer as black */
-	memset(buffer, 0, info->screen_size);
-
-	return 0;
-}
-
 
 /**
  * Free driver resources. Can be called to rollback an aborted initialization
@@ -2194,6 +2343,276 @@ static int update_test_kthread(void *data)
 }
 #endif
 
+////lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+static char lcm_debug_buffer[255];
+static char lenovo_lcm_proc_readback[255];
+static char LENOVO_LCM_PROC_STR_HELP[255]=
+{
+"\n"
+};
+char mtkfb_lcm_version[256] = {0};
+
+
+BOOL mtkfb_find_lcm_version(void)
+{
+	BOOL ret = FALSE;
+	char *p, *q;
+
+	p = strstr(saved_command_line, "lcm_ver=");
+	if(p == NULL)
+	{
+		// we can't find lcm string in the command line, the uboot should be old version
+		//return DISP_SelectDevice(NULL);
+		goto done;
+	}
+
+	p += 8;
+	if((p - saved_command_line) > strlen(saved_command_line+1))
+	{
+		ret = FALSE;
+		goto done;
+	}
+
+	printk("%s, %s\n", __func__, p);
+	q = p;
+	while(*q != ' ' && *q != '\0')
+		q++;
+
+	memset((void*)mtkfb_lcm_version, 0, sizeof(mtkfb_lcm_version));
+	strncpy((char*)mtkfb_lcm_version, (const char*)p, (int)(q-p));
+
+	printk("%s, %s\n", __func__, mtkfb_lcm_version);
+	
+	ret = TRUE;
+
+done:
+	return ret;
+}
+
+static void lenovo_lcm_proc_process_opt(const char *opt)
+{
+
+ if (0 == strncmp(opt, "lcmregw:", 8))
+    {
+        char *p = (char *)opt + 8;
+        unsigned long addr = simple_strtoul(p, &p, 16);
+        unsigned long val  = simple_strtoul(p + 1, &p, 16);
+		lcm_reg lcmregs;
+		lcmregs.cmd = addr;
+		lcmregs.data = val;
+		printk("Write register 0x%x: 0x%x\n", lcmregs.cmd, lcmregs.data);
+        if (addr) {
+            //DISP_SetLCMReg(&lcmregs);
+        } else {
+            goto Error;
+        }
+    }
+    else if (0 == strncmp(opt, "lcmregr:", 8))
+    {
+        char *p = (char *)opt + 8;
+        unsigned int addr = (unsigned int) simple_strtoul(p, &p, 16);
+		lcm_reg lcmregs;
+		lcmregs.cmd=addr;
+        if (addr) {
+            //DISP_GetLCMReg(&lcmregs);
+			printk("Read register 0x%08x: 0x%08x\n", lcmregs.cmd, lcmregs.data);
+			sprintf(lenovo_lcm_proc_readback,"0x%x",lcmregs.data);
+        } else {
+            goto Error;
+        }
+    }
+    else
+	{
+		goto Error;
+	}
+
+    return;
+
+Error:
+    printk("[JX] parse command error!\n\n%s", LENOVO_LCM_PROC_STR_HELP);
+}
+
+static s32 lcm_debug_write(struct file *filp, const char __user *buff, unsigned long len, void *data)
+{
+    const int lenovo_lcm_proc_buffermax = sizeof(lcm_debug_buffer) - 1;
+	unsigned long ret;
+	char *tok;
+
+	ret = len;
+
+	if (len > lenovo_lcm_proc_buffermax) 
+        len = lenovo_lcm_proc_buffermax;
+
+	if (copy_from_user(&lcm_debug_buffer, buff, len))
+		return -EFAULT;
+
+	lcm_debug_buffer[len] = 0;
+	printk("[JX] %s buffer=%s \n",__func__,lcm_debug_buffer);
+	//while ((tok = strsep(&lcm_debug_buffer, " ")) != NULL)
+   // {
+    //	printk("[JX] %s %s\n",__func__,tok);
+    
+        lenovo_lcm_proc_process_opt(lcm_debug_buffer);
+   // }
+	//memcpy(lenovo_lcm_proc_readback,lcm_debug_buffer,sizeof(lcm_debug_buffer));
+	//printk("[JX] parse command error!\n\n%s", LENOVO_LCM_PROC_STR_HELP);
+
+    return ret;
+
+}
+static int lcm_debug_read(char *page, char **start, off_t off, int count, int *eof, void *data)
+{
+    char *p = page;
+    int len = 0;
+
+    p += sprintf(p,"name=%s; width=%d; height=%d; mode=%s; lane=%d;\n",
+			lcm_drv->name,
+			lcm_params->width,
+			lcm_params->height,
+			(lcm_params->dsi.mode==0)?"CMD":"VDO",
+			lcm_params->dsi.LANE_NUM);
+
+
+    *start = page + off;
+
+    len = p - page;
+    if (len > off)
+        len -= off;
+    else
+        len = 0;
+
+    return len < count ? len : count;
+}
+
+static int lcm_info_read(char *page, char **start, off_t off, int count, int *eof, void *data)
+{
+	printk("[JX] test for lcm_info_read\n");
+	return 0;
+#if 0
+    char *p = page;
+    int len = 0;
+
+    p += sprintf(p,"name=%s; width=%d; height=%d; mode=%s; lane=%d; \n",
+			lcm_drv->name,
+			lcm_params->width,
+			lcm_params->height,
+			(lcm_params->dsi.mode==0)?"CMD":"VDO",
+			lcm_params->dsi.LANE_NUM);
+
+
+    *start = page + off;
+
+    len = p - page;
+    if (len > off)
+        len -= off;
+    else
+        len = 0;
+
+    return len < count ? len : count;
+#endif
+}
+
+static int lcm_version_read(char *page, char **start, off_t off, int count, int *eof, void *data)
+{
+    char *p = page;
+    int len = 0;
+	if(lcm_drv->version!=NULL)
+    p += sprintf(p,"version=%s\n",
+			lcm_drv->version);
+
+
+    *start = page + off;
+
+    len = p - page;
+    if (len > off)
+        len -= off;
+    else
+        len = 0;
+
+    return len < count ? len : count;
+}
+#ifdef LENOVO_LCD_BACKLIGHT_COMPATIBLE_SUPPORT
+
+static int isLCMBacklight;
+BOOL lcm_backlight_detect(void)
+{
+	BOOL ret = FALSE;
+	char *p;
+
+	p = strstr(saved_command_line, "lcmbl=");
+	if(p == NULL)
+	{
+		// we can't find lcm string in the command line, the uboot should be old version
+		//return DISP_SelectDevice(NULL);
+		goto done;
+	}
+
+	p += 6;
+	if((p - saved_command_line) > strlen(saved_command_line+1))
+	{
+		ret = FALSE;
+		goto done;
+	}
+    isLCMBacklight  = strncmp(p, "0", 1);
+	
+    printk("[jx] LCM backlight is %sConnected\n", ((isLCMBacklight)?"":"Not "));
+
+	printk("%s, %s\n", __func__, p);
+
+	ret = TRUE;
+
+done:
+	return ret;
+}
+
+
+int DISP_IsLcmBacklight(void)
+{
+	return isLCMBacklight;
+}
+#endif
+static int lcm_debug_show(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "lcm debug show\n");
+
+	return 0;
+}
+static int lcm_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, lcm_debug_show, inode->i_private);
+}
+
+static int lcm_info_show(struct seq_file *s, void *unused)
+{
+
+seq_printf(s,"name=%s; width=%d; height=%d; mode=%s; lane=%d; \n",
+			lcm_drv->name,
+			lcm_params->width,
+			lcm_params->height,
+			(lcm_params->dsi.mode==0)?"CMD":"VDO",
+			lcm_params->dsi.LANE_NUM);
+
+	return 0;
+}
+static int lcm_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, lcm_info_show, inode->i_private);
+}
+
+static int lcm_version_show(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "lcm version show\n");
+
+	return 0;
+}
+static int lcm_version_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, lcm_version_show, inode->i_private);
+}
+#endif
+////lenovo add end by jixu@lenovo.com
+
 static int mtkfb_probe(struct device *dev)
 {
 	struct platform_device *pdev;
@@ -2202,6 +2621,10 @@ static int mtkfb_probe(struct device *dev)
 	int init_state;
 	int r = 0;
 	long dts_gpio_state;
+
+	int fps[12] = {0};
+	unsigned int value = 0;
+	unsigned int i = 0;
 
 	DISPFUNC();
 	/*DISPPRINT("%s\n", __func__);*/
@@ -2218,9 +2641,18 @@ static int mtkfb_probe(struct device *dev)
 			pr_debug("[FB driver]can not get fps from uboot\n");
 		} else {
 			p += 4;
-			r = kstrtol(p, 10, &lcd_fps);
+
+			for (i=0; i<12; i++) {
+			if (*(p+i)<=57 && *(p+i)>=48)
+				fps[i] = *(p+i);
+			else
+				fps[i] = 0;
+			}
+			r = kstrtol(fps, 10, &value);
 			if (r)
 				pr_err("DISP/%s: errno %d\n", __func__, r);
+			lcd_fps = (unsigned int)value;			
+
 			if (0 == lcd_fps)
 				lcd_fps = 6000;
 		}
@@ -2258,7 +2690,7 @@ static int mtkfb_probe(struct device *dev)
 #ifdef CONFIG_OF
 		/* printk("mtkfb_probe:get FB MEM REG\n"); */
 		_parse_tag_videolfb();
-		/* printk("mtkfb_probe: fb_pa = %p\n",(void *)fb_base); */
+		pr_debug("mtkfb_probe: fb_pa = %p\n",(void *)fb_base);
 
 		disp_hal_allocate_framebuffer(fb_base, (fb_base + vramsize - 1),
 					      (unsigned long *)&fbdev->fb_va_base, &fb_pa);
@@ -2313,8 +2745,9 @@ static int mtkfb_probe(struct device *dev)
 
 	MTK_FB_BPP = primary_display_get_bpp();
 	MTK_FB_PAGES = primary_display_get_pages();
-	/* DISPMSG("MTK_FB_XRES=%d, MTKFB_YRES=%d, MTKFB_BPP=%d, MTK_FB_PAGES=%d, MTKFB_LINE=%d, MTKFB_SIZEV=%d\n",
-		   MTK_FB_XRES, MTK_FB_YRES, MTK_FB_BPP, MTK_FB_PAGES, MTK_FB_LINE, MTK_FB_SIZEV); */
+	DISPMSG("MTK_FB_XRES=%d, MTKFB_YRES=%d, MTKFB_BPP=%d, MTK_FB_PAGES=%d, MTKFB_LINE=%d, MTKFB_SIZEV=%d\n",
+		   MTK_FB_XRES, MTK_FB_YRES, MTK_FB_BPP, MTK_FB_PAGES, MTK_FB_LINE, MTK_FB_SIZEV);
+
 	fbdev->fb_size_in_byte = MTK_FB_SIZEV;
 
 	/* Allocate and initialize video frame buffer */
@@ -2403,13 +2836,98 @@ static int mtkfb_probe(struct device *dev)
 	}
 #endif
 
+////lenovo add begin by jixu@lenovo.com
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+		#ifdef LENOVO_LCD_BACKLIGHT_COMPATIBLE_SUPPORT
+		lcm_backlight_detect();
+		#endif
+
+		do{
+			lcm_params = DISP_GetLcmPara();
+			lcm_drv = DISP_GetLcmDrv();
+			if(lcm_drv==NULL){
+				printk("[JX] lcm_drv is NULL\n");
+				break;
+			}
+			#ifdef LENOVO_LCM_VERSION
+			if((lcm_drv->version)!= NULL){
+				mtkfb_find_lcm_version();
+	
+				sprintf(lcm_drv->version,"%s_%s;\n", lcm_drv->version, mtkfb_lcm_version);
+			}
+			#endif
+			#if 1//kernel 3.10 proc api changed
+			proc_create("lcm_debug", 0660, NULL, &lcm_debug_proc_fops);
+			#else
+			lcm_debug = create_proc_entry("lcm_debug",0660,NULL);	
+			if(lcm_debug==NULL){
+				printk("[JX] Creat lcm_debug failed!!!\n");
+			}
+			else{
+				printk("[JX] Create lcm_debug entry success!\n");
+				lcm_debug->write_proc = lcm_debug_write;
+				lcm_debug->read_proc = lcm_debug_read;
+			}
+			#endif
+			#if 1//kernel 3.10 proc api changed
+			proc_create("lcm_info", 0444, NULL, &lcm_info_proc_fops);
+			#else
+			lcm_info = create_proc_entry("lcm_info",0444,NULL);
+			if(lcm_info==NULL){
+				printk("[JX] Creat lcm_info failed!!!\n");
+			}
+			else{
+				printk("[JX] Create lcm_info entry success!\n");
+				lcm_info->read_proc = lcm_info_read;
+			}
+			#endif
+			#ifdef LENOVO_LCM_VERSION
+			#if 1//kernel 3.10 proc api changed
+			proc_create("lcm_version", 0660, NULL, &lcm_version_proc_fops);
+			#else
+			lcm_version = create_proc_entry("lcm_version",0444,NULL);
+			if(lcm_version==NULL){
+				printk("[JX] Creat lcm_version failed!!!\n");
+			}
+			else{
+				printk("[JX] Create lcm_version entry success!\n");
+				lcm_version->read_proc = lcm_version_read;
+			}
+			#endif
+			#endif
+	
+		}while(0);
+
+	memset((void*)(&disp_feature_info[MTKFB_DISPIF_PRIMARY_LCD]), 0, sizeof(lenovo_disp_feature_info_t));
+	if(lcm_drv)
+	{
+		if(lcm_drv->set_cabcmode)
+			disp_feature_info[MTKFB_DISPIF_PRIMARY_LCD].cabc_support = 1;
+		if(lcm_drv->set_inversemode)
+			disp_feature_info[MTKFB_DISPIF_PRIMARY_LCD].inverse_support = 1;
+	}
+	else
+	{
+		printk("[JX] DISP Info: Fatal Error!!, lcm_drv is null\n");
+	}
+    memset((void*)(&disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD]), 0, sizeof(lenovo_disp_feature_state_t));
+	disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD].cabc_mode = 3;//set move mode as default
+//	DISP_SetCabcMode(disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD].cabc_mode);
+//	DISP_SetInverseMode(disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD].inverse_mode);
+	if(lcm_drv){
+	primary_display_setcabc(disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD].cabc_mode);
+	primary_display_setinverse(disp_feature_state[MTKFB_DISPIF_PRIMARY_LCD].inverse_mode);
+	}
+#endif
+////lenovo add end by jixu@lenovo.com
+
 	MSG_FUNC_LEAVE();
 	return 0;
 
 cleanup:
 	mtkfb_free_resources(fbdev, init_state);
+	pr_debug("mtkfb_probe end\n");
 
-	/* printk("mtkfb_probe end\n"); */
 	return r;
 }
 
@@ -2653,6 +3171,15 @@ static void mtkfb_late_resume(struct early_suspend *h)
 
 	/* workaround (2015/5/18) */
 	ipoh_wkarnd_on_late_resume_done(IPOH_WORKAROUND_RDMA_UNDERFLOW, h);
+
+	//lenovo add by jixu@lenovo.com begin
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+	if(LCM_Feature_set_resume){
+		mtkfb_set_lcm_feature_mode(&(disp_feature_state[0]));
+		LCM_Feature_set_resume = FALSE;
+	}
+#endif
+	//lenovo add by jixu@lenovo.com end
 
 	pr_debug("[FB Driver] leave late_resume\n");
 	return;

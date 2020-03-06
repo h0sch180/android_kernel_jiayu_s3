@@ -30,7 +30,7 @@ struct cqdma_env_info {
 static struct cqdma_env_info env_info;
 
 #define LDVT
-
+#define pr_debug
 /* 
  * DMA information
  */
@@ -147,6 +147,8 @@ int mt_req_gdma(DMA_CHAN chan)
 	unsigned long flags;
 	int i;
 
+	enable_clock(MT_CG_INFRA_GCE, "CQDMA");
+
 	spin_lock_irqsave(&dma_drv_lock, flags);
 
 	if (chan == GDMA_ANY) {
@@ -173,6 +175,7 @@ int mt_req_gdma(DMA_CHAN chan)
 		mt_reset_gdma_conf(i);
 		return i;
 	} else {
+		disable_clock(MT_CG_INFRA_GCE, "CQDMA");
 		return -DMA_ERR_NO_FREE_CH;
 	}
 }
@@ -288,22 +291,22 @@ int mt_config_gdma(int channel, struct mt_gdma_conf *config, DMA_CONF_FLAG flag)
 	}
 
 	if (config->sfix) {
-		pr_notice("GMDA fixed address mode doesn't support\n");
+		pr_err("GMDA fixed address mode doesn't support\n");
 		return -DMA_ERR_INV_CONFIG;
 	}
 
 	if (config->dfix) {
-		pr_notice("GMDA fixed address mode doesn't support\n");
+		pr_err("GMDA fixed address mode doesn't support\n");
 		return -DMA_ERR_INV_CONFIG;
 	}
 
 	if (config->count > MAX_TRANSFER_LEN1) {
-		pr_notice("GDMA transfer length cannot exceeed 0x%x.\n", MAX_TRANSFER_LEN1);
+		pr_err("GDMA transfer length cannot exceeed 0x%x.\n", MAX_TRANSFER_LEN1);
 		return -DMA_ERR_INV_CONFIG;
 	}
 
 	if (config->limiter > MAX_SLOW_DOWN_CNTER) {
-		pr_notice("GDMA slow down counter cannot exceeed 0x%x.\n", MAX_SLOW_DOWN_CNTER);
+		pr_err("GDMA slow down counter cannot exceeed 0x%x.\n", MAX_SLOW_DOWN_CNTER);
 		return -DMA_ERR_INV_CONFIG;
 	}
 
@@ -318,24 +321,24 @@ int mt_config_gdma(int channel, struct mt_gdma_conf *config, DMA_CONF_FLAG flag)
 
 			/*setup security channel */
 			if (config->sec){
-				pr_notice("1:ChSEC:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]1:ChSEC:%x\n", readl(DMA_GDMA_SEC_EN));
 				mt_reg_sync_writel((DMA_SEC_EN_BIT|readl(DMA_GDMA_SEC_EN)), DMA_GDMA_SEC_EN);
-				pr_notice("2:ChSEC:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]2:ChSEC:%x\n", readl(DMA_GDMA_SEC_EN));
 			} else {
-				pr_notice("1:ChSEC:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]1:ChSEC:%x\n", readl(DMA_GDMA_SEC_EN));
 				mt_reg_sync_writel(((~DMA_SEC_EN_BIT)&readl(DMA_GDMA_SEC_EN)), DMA_GDMA_SEC_EN);
-				pr_notice("2:ChSEC:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]2:ChSEC:%x\n", readl(DMA_GDMA_SEC_EN));
 			}
 
 			/*setup domain_cfg */
 			if (config->domain){
-				pr_notice("1:Domain_cfg:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]1:Domain_cfg:%x\n", readl(DMA_GDMA_SEC_EN));
 				mt_reg_sync_writel(((config->domain << 1) | readl(DMA_GDMA_SEC_EN)), DMA_GDMA_SEC_EN);
-				pr_notice("2:Domain_cfg:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]2:Domain_cfg:%x\n", readl(DMA_GDMA_SEC_EN));
 			} else {
-				pr_notice("1:Domain_cfg:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]1:Domain_cfg:%x\n", readl(DMA_GDMA_SEC_EN));
 				mt_reg_sync_writel((0x1 & readl(DMA_GDMA_SEC_EN)), DMA_GDMA_SEC_EN);
-				pr_notice("2:Domain_cfg:%x\n",readl(DMA_GDMA_SEC_EN));
+				pr_debug("[CQDMA]2:Domain_cfg:%x\n", readl(DMA_GDMA_SEC_EN));
 			}
 
 			if (config->wpen) {
@@ -427,6 +430,8 @@ int mt_free_gdma(int channel)
 
 	mt_stop_gdma(channel);
 
+	disable_clock(MT_CG_INFRA_GCE, "CQDMA");
+
 	dma_ctrl[channel].isr_cb = NULL;
 	dma_ctrl[channel].data = NULL;
 	dma_ctrl[channel].in_use = 0;
@@ -443,9 +448,9 @@ EXPORT_SYMBOL(mt_free_gdma);
 int mt_dump_gdma(int channel)
 {
 	unsigned int i;
-	pr_notice("Channel 0x%x\n",channel);
+	pr_debug("[CQDMA]Channel 0x%x\n", channel);
 	for (i = 0; i < 96; i++) {
-		pr_notice("addr:%p, value:%x\n", env_info.base + i * 4, readl(env_info.base + i * 4));
+		pr_debug("[CQDMA]addr:%p, value:%x\n", env_info.base + i * 4, readl(env_info.base + i * 4));
 	}
 
 	return 0;
@@ -500,7 +505,7 @@ int mt_hard_reset_gdma(int channel)
 		return -DMA_ERR_CH_FREE;
 	}
 
-	pr_notice("GDMA_%d Hard Reset !!\n", channel);
+	pr_debug("[CQDMA]GDMA_%d Hard Reset !!\n", channel);
 
 	mt_reg_sync_writel(DMA_HARD_RST_BIT, DMA_RESET);
 	mt_reg_sync_writel(DMA_HARD_RST_CLR_BIT, DMA_RESET);
@@ -545,7 +550,7 @@ EXPORT_SYMBOL(mt_reset_gdma);
 static irqreturn_t gdma1_irq_handler(int irq, void *dev_id)
 {
 	volatile unsigned glbsta = readl(DMA_INT_FLAG);
-
+//	pr_debug("[CQDMA] In dma handler\n");
 	if (glbsta & 0x1){
 		if (dma_ctrl[G_DMA_1].isr_cb) {
 			dma_ctrl[G_DMA_1].isr_cb(dma_ctrl[G_DMA_1].data);
@@ -553,7 +558,7 @@ static irqreturn_t gdma1_irq_handler(int irq, void *dev_id)
 
 		mt_reg_sync_writel(DMA_INT_FLAG_CLR_BIT, DMA_INT_FLAG);
 	} else {
-		pr_debug("[CQDMA] discard interrupt\n");
+//		pr_debug("[CQDMA] discard interrupt\n");
 		return IRQ_NONE;
 	}
 
@@ -600,7 +605,7 @@ static void irq_dma_handler(void * data)
 	}
 	DMA_INT_DONE=1;
 	if (i == LEN) {
-		pr_notice("DMA verified ok\n");
+		pr_debug("[CQDMA]DMA verified ok\n");
 	}
 	mt_free_gdma(channel);
 }
@@ -620,14 +625,14 @@ static void APDMA_test_transfer(int testcase)
 
 	channel = mt_req_gdma(GDMA_ANY);
 
-	pr_notice("GDMA channel:%ld\n",channel);
+	pr_debug("[CQDMA]GDMA channel:%ld\n", channel);
 	if(channel < 0 ){
 		pr_err("[CQDMA] ERROR Register DMA\n");
 		return;
 	}
 
 	mt_reset_gdma_conf(channel);
-  
+
 	dma_dst_array_v = dma_alloc_coherent(&apdma_test_dev, TEST_LEN, &dma_dst_array_p, GFP_KERNEL ); // 25 unsinged int
 	if (!dma_dst_array_v) {
 		pr_err("allooc dst memory failed\n");
@@ -659,39 +664,39 @@ static void APDMA_test_transfer(int testcase)
 		dma_dst_array_v[i] = 0;
 		dma_src_array_v[i] = i;
 	}
-    
+
 	if (mt_config_gdma(channel, &dma_conf, ALL) != 0) {
 		pr_err("ERROR set DMA\n");
 		goto _exit;
 	}
-    
+
 	start_dma = mt_start_gdma(channel);
 
 	switch(testcase) {
 	case 1:
 		while(!DMA_INT_DONE);
 		DMA_INT_DONE=0;
-		pr_notice("CQDMA INT mode PASS!!\n");
+		pr_debug("[CQDMA]CQDMA INT mode PASS!!\n");
 		break;
 	case 2:
 		if (mt_polling_gdma(channel, GDMA_WARM_RST_TIMEOUT) != 0) {
                 	pr_err("Polling transfer failed\n");
 			break;
 		}
-            
+
 		for(i = 0; i < LEN; i++) {
                 	if(dma_dst_array_v[i] != dma_src_array_v[i]) {
 				pr_err("fails at %d\n", i);
 				goto _exit;
                 	}
 		}
-		pr_notice("Polling succeeded\n");
+		pr_debug("[CQDMA]Polling succeeded\n");
 		break;
 	case 3:
 		mt_warm_reset_gdma(channel);
 		for(i = 0; i < LEN; i++) {
 			if(dma_dst_array_v[i] != dma_src_array_v[i]) {
-				pr_notice("Warm reset succeeded\n");
+				pr_debug("[CQDMA]Warm reset succeeded\n");
 				break;
 			}
 		}
@@ -700,12 +705,12 @@ static void APDMA_test_transfer(int testcase)
 			pr_err("Warm reset failed\n");
 		}
 		break;
-            
+
 	case 4:
 		mt_hard_reset_gdma(channel);
 		for(i = 0; i < LEN; i++) {
 			if(dma_dst_array_v[i] != dma_src_array_v[i]) {
-				pr_notice("Hard reset succeeded\n");
+				pr_debug("[CQDMA]Hard reset succeeded\n");
 				break;
 			}
 		}
@@ -714,7 +719,7 @@ static void APDMA_test_transfer(int testcase)
 			pr_err("Hard reset failed\n");
 		}
 		break;
-            
+
 	default:
 		break;
 	}
@@ -814,28 +819,27 @@ static int __init init_cqdma(void)
     
 	env_info.base = of_iomap(node, 0);
 	if (!env_info.base) {
-		pr_warn("unable to map CQDMA base registers!!!\n");
+		pr_err("unable to map CQDMA base registers!!!\n");
 		return -ENODEV;
 	}
-	pr_notice("[CQDMA] vbase = 0x%p\n", env_info.base );
+	pr_debug("[CQDMA] vbase = 0x%p\n", env_info.base );
 
 	irq = irq_of_parse_and_map(node, 0);
-	pr_notice("[CQDMA] irq = %d\n", irq);
+	pr_debug("[CQDMA] irq = %d\n", irq);
 
 	/* get the interrupt line behaviour */
 	if (of_property_read_u32_array(node, "interrupts", dma_info, ARRAY_SIZE(dma_info))){
 		pr_err("[CQDMA] get irq flags from DTS fail!!\n");
 		return -ENODEV;
 	}
-	pr_notice("[CQDMA] int attr = %x\n", dma_info[2]);
-
+	pr_debug("[CQDMA] int attr = %x\n", dma_info[2]);
 	
 	of_property_read_u32(node, "nr_channel", &nr_channel);
 	if (!nr_channel) {
 		pr_err("[CQDMA] no channel found\n");
 		return -ENODEV;
 	}
-	pr_notice("[CQDMA] DMA channel = %d\n", nr_channel);
+	pr_debug("[CQDMA] DMA channel = %d\n", nr_channel);
 	cqdma_reset(nr_channel);
 
 	ret = request_irq(irq, gdma1_irq_handler, dma_info[2] | IRQF_SHARED, "CQDMA", &dma_ctrl);
@@ -847,6 +851,7 @@ static int __init init_cqdma(void)
 	if (ret) {
 		pr_err("CQDMA init FAIL, ret 0x%x!!!\n", ret);
 	}
+
 #ifdef LDVT
 	ret = driver_create_file(&mt_cqdma_drv.driver, &driver_attr_cqdma_dvt);
     	if (ret) {

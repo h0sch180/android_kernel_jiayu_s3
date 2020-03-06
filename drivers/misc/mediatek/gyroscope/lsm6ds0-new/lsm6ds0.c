@@ -52,7 +52,6 @@
 //#define LSM6DS0_DEFAULT_FS		LSM6DS0_FS_1000
 //#define LSM6DS0_DEFAULT_LSB		LSM6DS0_FS_250_LSB
 /*---------------------------------------------------------------------------*/
-#define DEBUG 1
 /*----------------------------------------------------------------------------*/
 #define CONFIG_LSM6DS0_LOWPASS   /*apply low pass filter on output*/       
 /*----------------------------------------------------------------------------*/
@@ -171,13 +170,13 @@ static bool sensor_power = false;
 
 /*----------------------------------------------------------------------------*/
 #define GYRO_TAG                  "[Gyroscope] "
-//#define GYRO_FUN(f)               printk(KERN_INFO GYRO_TAG"%s\n", __FUNCTION__)
-//#define GYRO_ERR(fmt, args...)    printk(KERN_ERR GYRO_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+//#define GYRO_FUN(f)               printk(KERN_INFO GYRO_TAG"%s\n", __func__)
+//#define GYRO_ERR(fmt, args...)    printk(KERN_ERR GYRO_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 
 //#define GYRO_LOG(fmt, args...)    printk(KERN_INFO GYRO_TAG fmt, ##args)
 
-#define GYRO_FUN(f)               printk(GYRO_TAG"%s\n", __FUNCTION__)
-#define GYRO_ERR(fmt, args...)    printk(KERN_ERR GYRO_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define GYRO_FUN(f)               printk(GYRO_TAG"%s\n", __func__)
+#define GYRO_ERR(fmt, args...)    printk(KERN_ERR GYRO_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define GYRO_LOG(fmt, args...)    printk(GYRO_TAG fmt, ##args)
 
 /*----------------------------------------------------------------------------*/
@@ -764,7 +763,7 @@ static ssize_t store_trace_value(struct device_driver *ddri, const char *buf, si
 	}	
 	else
 	{
-		GYRO_ERR("invalid content: '%s', length = %d\n", buf, count);
+		GYRO_ERR("invalid content: '%s', length = %ld\n", buf, count);
 	}
 	
 	return count;    
@@ -1413,7 +1412,7 @@ static int LSM6DS0_i2c_probe(struct i2c_client *client, const struct i2c_device_
         GYRO_ERR("gyro_register_data_path fail = %d\n", err);
         goto exit_kfree;
         }
-    err = batch_register_support_info(ID_GYROSCOPE,obj->hw->is_batch_supported,100, 0);
+    err = batch_register_support_info(ID_GYROSCOPE,obj->hw->is_batch_supported,0, 0);
     if(err)
     {
         GYRO_ERR("register gyro batch support err = %d\n", err);

@@ -16,7 +16,7 @@
 #elif defined(BUILD_UBOOT)
     #define LCM_PRINT printf
 #else
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 #endif
 
 // ---------------------------------------------------------------------------

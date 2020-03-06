@@ -1,7 +1,7 @@
 #include <linux/bug.h>
 #include <linux/mm.h>
 #include <linux/module.h>
-#include <asm/ptrace.h>
+#include <linux/ptrace.h>
 #include "mrdump_private.h"
 
 void mrdump_save_current_backtrace(struct pt_regs *regs)
@@ -21,18 +21,18 @@ void mrdump_print_crash(struct pt_regs *regs)
 	__show_regs(regs);
 
 	/* Print current backtrace */
-	printk("Backtrace: ");
+	pr_err("Backtrace: ");
 	fp = regs->ARM_fp;
 	mode = processor_mode(regs);
 
 	if (!fp) {
-		printk("no frame pointer");
+		pr_err("no frame pointer");
 		ok = 0;
 	} else if ((fp < PAGE_OFFSET) || ((high_memory != NULL) && (fp > (unsigned long) high_memory))) {
-		printk("invalid frame pointer 0x%08x", fp);
+		pr_err("invalid frame pointer 0x%08x", fp);
 		ok = 0;
 	}
-	printk("\n");
+	pr_err("\n");
 
 	if (ok)
 		c_backtrace(fp, mode);

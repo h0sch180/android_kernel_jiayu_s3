@@ -79,6 +79,11 @@ ifeq ($(MTK_PLATFORM),mt6735)
   ALL_DRVGEN_FILE += cust_md1_eint.dtsi
   ALL_DRVGEN_FILE += cust_kpd.dtsi
   ALL_DRVGEN_FILE += cust_clk_buf.dtsi
+  ALL_DRVGEN_FILE += cust_gpio.dtsi
+  ALL_DRVGEN_FILE += cust_adc.dtsi
+  ALL_DRVGEN_FILE += cust_pmic.dtsi
+  ALL_DRVGEN_FILE += inc/mt6735-pinfunc.h
+  ALL_DRVGEN_FILE += inc/pinctrl-mtk-mt6735.h
 endif
 
 DRVGEN_FILE_LIST := $(addprefix $(DRVGEN_OUT)/,$(ALL_DRVGEN_FILE))
@@ -161,19 +166,39 @@ $(DRVGEN_OUT)/cust_i2c.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 
 $(DRVGEN_OUT)/cust_adc.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
-	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) adc_dtsi
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) adc_dtsi
 
 $(DRVGEN_OUT)/cust_md1_eint.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
-	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) md1_eint_dtsi
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) md1_eint_dtsi
 
 $(DRVGEN_OUT)/cust_kpd.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
-	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) kpd_dtsi
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) kpd_dtsi
 
 $(DRVGEN_OUT)/cust_clk_buf.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
 	@mkdir -p $(dir $@)
-	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) clk_buf_dtsi
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) clk_buf_dtsi
+
+$(DRVGEN_OUT)/cust_gpio.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
+	@mkdir -p $(dir $@)
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) gpio_dtsi
+
+$(DRVGEN_OUT)/cust_adc.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
+	@mkdir -p $(dir $@)
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) adc_dtsi
+
+$(DRVGEN_OUT)/cust_pmic.dtsi: $(DRVGEN_TOOL) $(DWS_FILE)
+	@mkdir -p $(dir $@)
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT) $(DRVGEN_OUT_PATH) pmic_dtsi
+
+$(DRVGEN_OUT)/inc/mt6735-pinfunc.h: $(DRVGEN_TOOL) $(DWS_FILE)
+	@mkdir -p $(dir $@)
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) mt6735_pinfunc_h
+
+$(DRVGEN_OUT)/inc/pinctrl-mtk-mt6735.h: $(DRVGEN_TOOL) $(DWS_FILE)
+	@mkdir -p $(dir $@)
+	@$(DRVGEN_TOOL) $(DWS_FILE) $(DRVGEN_OUT_PATH) $(DRVGEN_OUT_PATH) pinctrl_mtk_mt6735_h
 
 else
 $(DRVGEN_FILE_LIST): $(DRVGEN_OUT)/% : $(DRVGEN_PREBUILT_PATH)/%

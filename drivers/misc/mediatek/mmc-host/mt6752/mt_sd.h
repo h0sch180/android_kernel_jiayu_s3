@@ -24,7 +24,7 @@
 #endif
 #endif
 
-#define K2_HQA
+#define MSDC_HQA
 
 #define HOST_MAX_NUM        (4)
 
@@ -48,7 +48,7 @@
 #ifdef FPGA_EARLY_PORTING
 #define FPGA_PLATFORM
 #else
-#define MTK_MSDC_BRINGUP_DEBUG
+/* #define MTK_MSDC_BRINGUP_DEBUG */
 #endif
 //#define MTK_MSDC_DUMP_FIFO
 
@@ -1833,6 +1833,7 @@ struct msdc_host
     u32                         xfer_size;      /* total transferred size */
 
     struct msdc_dma             dma;            /* dma channel */
+	u64                         dma_mask;
     u32                         dma_addr;       /* dma transfer address */
     u32                         dma_left_size;  /* dma transfer left size */
     u32                         dma_xfer_size;  /* dma transfer size in bytes */
@@ -1891,7 +1892,7 @@ struct msdc_host
     u32                         sw_timeout;
     u32                         power_cycle; /* power cycle done in tuning flow*/
     bool                        power_cycle_enable;/*Enable power cycle*/    
-    bool                        error_tune_enable; /* Enable error tune flow */
+	u32							continuous_fail_request_count; /* Detecting bad card */
     u32                         sd_30_busy;
     bool                        tune;
     MSDC_POWER_DOMAIN           power_domain;
@@ -1936,7 +1937,6 @@ struct dma_addr{
    struct dma_addr *next;
 };
 
-/* K2 no need */
 //#define MSDC_TOP_RESET_ERROR_TUNE 
 #if 1 
 struct msdc_reg_control {

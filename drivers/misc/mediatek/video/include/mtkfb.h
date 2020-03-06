@@ -27,7 +27,6 @@
 #define MTKFB_SET_OVERLAY_LAYER                MTK_IOW(0, struct fb_overlay_layer)
 #define MTKFB_TRIG_OVERLAY_OUT                 MTK_IO(1)
 #define MTKFB_SET_VIDEO_LAYERS                 MTK_IOW(2, struct fb_overlay_layer)
-#define MTKFB_CAPTURE_FRAMEBUFFER              MTK_IOW(3, unsigned long)
 #define MTKFB_CONFIG_IMMEDIATE_UPDATE          MTK_IOW(4, unsigned long)
 #define MTKFB_SET_MULTIPLE_LAYERS              MTK_IOW(5, struct fb_overlay_layer)
 #define MTKFB_REGISTER_OVERLAYBUFFER           MTK_IOW(6, struct fb_overlay_buffer_info)
@@ -59,8 +58,22 @@
 #define MTKFB_GET_FRAMEBUFFER_MVA              MTK_IOR(26, unsigned int)
 #define MTKFB_SLT_AUTO_CAPTURE                 MTK_IOWR(27, struct fb_slt_catpure)
 
+/////lenovo add begin by jixu@lenovo.com
+#if 1//def CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+#define MTKFB_GET_DISPLAY_FEATURE_INFORMATION  MTK_IOR(100, lenovo_disp_feature_info_t)
+#define MTKFB_GET_DISPLAY_FEATURE_STATE  MTK_IOR(99, lenovo_disp_feature_state_t)
+#define MTKFB_SET_DISPLAY_FEATURE_STATE  MTK_IOW(98, lenovo_disp_feature_state_t)
+#endif
+/////lenovo add end by jixu@lenovo.com
+
+/* lenovo-sw wangyq13 add for super backlight 20150320 start */
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+#define MTKFB_SET_SUPER_BACKLIGHT  MTK_IOW(97, unsigned int)
+#define MTKFB_SET_DISPLAY_SRE  MTK_IOW(96, unsigned int)
+#endif
+/* lenovo-sw wangyq13 add for super backlight 20150320 end  */
+
 //error handling
-#define MTKFB_META_RESTORE_SCREEN              MTK_IOW(101, unsigned long)
 #define MTKFB_ERROR_INDEX_UPDATE_TIMEOUT       MTK_IO(103)
 #define MTKFB_ERROR_INDEX_UPDATE_TIMEOUT_AEE   MTK_IO(104)
 

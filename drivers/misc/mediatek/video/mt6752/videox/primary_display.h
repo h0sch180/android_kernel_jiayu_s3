@@ -243,6 +243,8 @@ typedef struct {
 	cmdqRecHandle cmdq_handle_config;
 	disp_path_handle dpmgr_handle;
 
+	cmdqRecHandle cmdq_dummy_trigger;
+
 	cmdqRecHandle cmdq_handle_ovl1to2_config;
 	disp_path_handle ovl2mem_path_handle;
 
@@ -259,6 +261,7 @@ typedef struct {
 
 	cmdqBackupSlotHandle rdma_buff_info;
 	cmdqBackupSlotHandle ovl_status_info;
+	int is_primary_sec;
 
 #ifdef DISP_DUMP_EVENT_STATUS
 	cmdqBackupSlotHandle event_status;
@@ -344,6 +347,16 @@ int primary_display_get_original_height(void);
 int primary_display_enable_path_cg(int enable);
 int primary_display_lcm_ATA(void);
 int primary_display_setbacklight(unsigned int level);
+//lenovo jixu add for custom cabc
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+int primary_display_setcabc(unsigned int mode);
+int primary_display_setinverse(unsigned int mode);
+#endif
+//lenovo jixu add end
+//lenovo wangyq13 add for sre 20150402
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+int primary_display_setsre(unsigned int mode);
+#endif
 int fbconfig_get_esd_check_test(UINT32 dsi_id, UINT32 cmd, UINT8 *buffer, UINT32 num);
 int primary_display_pause(PRIMARY_DISPLAY_CALLBACK callback, unsigned int user_data);
 int primary_display_switch_dst_mode(int mode);
@@ -380,6 +393,7 @@ extern unsigned int ddp_ovl_get_cur_addr(bool rdma_mode, int layerid);
 extern unsigned int ddp_wdma_get_cur_addr(void);
 
 extern bool is_ipoh_bootup;
+
 extern unsigned int gEnableMutexRisingEdge;
 extern unsigned int _need_wait_esd_eof(void);
 extern unsigned int _need_register_eint(void);
@@ -459,7 +473,9 @@ int _trigger_display_interface(int blocking, void *callback, unsigned int userda
 extern void disp_m4u_tf_disable(void);
 void disp_update_trigger_time(void);
 /********mtkfb.c*************/
+
 extern unsigned int vramsize;
+
 extern unsigned int disp_running;
 extern wait_queue_head_t disp_done_wq;
 extern BOOL is_engine_in_suspend_mode;
@@ -467,7 +483,9 @@ extern BOOL is_lcm_in_suspend_mode;
 #ifdef CONFIG_OF
 extern int _parse_tag_videolfb(void);
 #endif
+
 extern char *saved_command_line;
+
 int ddp_lcd_test_dpi(void);
 extern DISP_HELPER_STAGE disp_helper_get_stage(void);
 unsigned int mtkfb_fm_auto_test(void);

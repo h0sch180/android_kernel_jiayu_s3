@@ -12,6 +12,10 @@
 
 #include "mach/mtk_thermal_monitor.h"
 
+/*Begin lenovo sw chailu1 add 20150320 */
+#include <cust_leds.h>
+/*End lenovo sw chailu1 add 20150320 */
+
 /* This API function is implemented in mediatek/kernel/drivers/leds/leds.c */
 extern int setMaxbrightness(int max_level, int enable);
 
@@ -38,7 +42,13 @@ static void mtk_cl_backlight_set_max_brightness_limit(void)
 			setMaxbrightness(255, 0);	/* 100% */
 			break;
 		case 1:
+		/*Begin lenovo sw chailu1 add 20150320 */	
+		#ifdef LENOVO_THERMAl_BL_LEVEL1_LIMMIT_SUPPORT
+		       setMaxbrightness(LENOVO_THERMAl_BL_LEVEL1_LIMMIT, 1);	
+		#else
 			setMaxbrightness(178, 1);	/* 70% */
+		#endif
+		/*End lenovo sw chailu1 add 20150320 */
 			break;
 		case 2:
 			setMaxbrightness(102, 1);	/* 40% */

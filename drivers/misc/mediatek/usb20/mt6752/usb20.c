@@ -41,11 +41,15 @@
 #endif
 #include <mach/mt_boot_common.h>
 
+#ifdef CONFIG_MTK_USB2JTAG_SUPPORT
+#include <mach/mt_usb2jtag.h>
+#endif
+
 extern BOOTMODE g_boot_mode;
 extern struct musb *mtk_musb;
 static DEFINE_SEMAPHORE(power_clock_lock);
 static bool platform_init_first = true;
-extern bool mtk_usb_power;
+
 static u32 cable_mode = CABLE_MODE_NORMAL;
 extern CHARGER_TYPE mt_get_charger_type(void);
 //add for linux kernel 3.10
@@ -286,6 +290,23 @@ static void mt_usb_disable(struct musb *musb)
 /* ================================ */
 /* connect and disconnect functions */
 /* ================================ */
+static int usb_rdy; /* default value 0 */
+
+void set_usb_rdy(void)
+{
+	DBG(0, "set usb_rdy, wake up bat\n");
+	usb_rdy = 1;
+	wake_up_bat();
+}
+
+kal_bool is_usb_rdy(void)
+{
+	if (usb_rdy)
+		return KAL_TRUE;
+	else
+		return KAL_FALSE;
+}
+
 bool mt_usb_is_device(void)
 {
 	DBG(4,"called\n");
@@ -321,6 +342,14 @@ void mt_usb_connect(void)
     #endif
 
     DBG(0,"cable_mode=%d\n",cable_mode);
+
+#ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+	if (get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT
+	    || get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT) {
+		cable_mode = CABLE_MODE_NORMAL;
+		DBG(0, "KPOC & CHARGING_HOST, force cable mode to %d\n", cable_mode);
+	}
+#endif
 
 	mutex_lock(&musb_connect_lock);
 	if(cable_mode != CABLE_MODE_NORMAL)
@@ -394,6 +423,14 @@ bool usb_cable_connected(void)
 #ifdef FPGA_PLATFORM
 	return true;
 #else
+#ifdef CONFIG_POWER_EXT
+#ifdef CONFIG_MTK_LM_MODE
+	return true;
+#endif
+#endif
+
+	if (is_usb_rdy() == KAL_FALSE && mtk_musb->is_ready)
+		set_usb_rdy();
 
 #ifdef CONFIG_USB_MTK_OTG
 	//ALPS00775710
@@ -407,17 +444,11 @@ bool usb_cable_connected(void)
 	//ALPS00775710
 #endif
 
-//#ifdef CONFIG_POWER_EXT
-	//if (mt_get_charger_type()
-	 if((mt_get_charger_type()==STANDARD_HOST) || (mt_get_charger_type()==CHARGING_HOST)
-//#else
-//	if (upmu_is_chr_det()
-//#endif
-	   ) {
+	 if((mt_get_charger_type()==STANDARD_HOST) || (mt_get_charger_type()==CHARGING_HOST))
 		return true;
-	} else {
+	else
 		return false;
-	}
+
 #endif // end FPGA_PLATFORM
 }
 
@@ -1195,6 +1226,12 @@ static struct platform_driver mt_usb_dts_driver = {
 static int __init usb20_init(void)
 {
 	DBG(0,"usb20 init\n");
+#ifdef CONFIG_MTK_USB2JTAG_SUPPORT
+        if (usb2jtag_mode()) {
+                pr_err("[USB2JTAG] in usb2jtag mode, not to initialize usb driver\n");
+                return 0;
+        }
+#endif
 
 #ifdef FPGA_PLATFORM
     add_usb_i2c_driver();

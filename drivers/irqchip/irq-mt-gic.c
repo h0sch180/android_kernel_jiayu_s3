@@ -446,7 +446,7 @@ static void __init gic_dist_init(struct gic_chip_data *gic)
 	writel_relaxed(1, base + GIC_DIST_CTRL);
 }
 
-static void __cpuinit gic_cpu_init(struct gic_chip_data *gic)
+static void gic_cpu_init(struct gic_chip_data *gic)
 {
 	void __iomem *dist_base = gic_data_dist_base(gic);
 	void __iomem *base = gic_data_cpu_base(gic);
@@ -753,7 +753,7 @@ void mt_gic_register_sgi(unsigned int gic_nr, int irq)
 }
 
 #ifdef CONFIG_SMP
-static int __cpuinit gic_secondary_init(struct notifier_block *nfb,
+static int gic_secondary_init(struct notifier_block *nfb,
 										unsigned long action, void *hcpu)
 {
 	if (action == CPU_STARTING || action == CPU_STARTING_FROZEN)
@@ -765,7 +765,7 @@ static int __cpuinit gic_secondary_init(struct notifier_block *nfb,
  * Notifier for enabling the GIC CPU interface. Set an arbitrarily high
  * priority because the GIC needs to be up before the ARM generic timers.
  */
-static struct notifier_block __cpuinitdata gic_cpu_notifier =
+static struct notifier_block gic_cpu_notifier =
 {
 	.notifier_call = gic_secondary_init,
 	.priority = 100,
@@ -1025,6 +1025,14 @@ u32 mt_irq_get_pending(unsigned int irq)
 	dist_base = gic_data_dist_base(&gic_data[0]);
 	
 	return ((readl_relaxed(dist_base + GIC_DIST_PENDING_SET + irq / 32 * 4) & bit)? 1 : 0);
+}
+
+void mt_irq_set_pending(unsigned int irq)
+{
+        void __iomem *dist_base;
+        u32 bit = 1 << (irq % 32);
+        dist_base = gic_data_dist_base(&gic_data[0]);
+        writel(bit, dist_base + GIC_DIST_PENDING_SET + irq / 32 * 4);
 }
 
 /*

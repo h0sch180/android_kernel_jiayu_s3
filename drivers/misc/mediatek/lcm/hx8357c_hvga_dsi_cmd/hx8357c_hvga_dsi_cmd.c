@@ -547,8 +547,8 @@ static void lcm_update(unsigned int x, unsigned int y,
 
     dsi_set_cmdq(&data_array, 7, 0);
 #ifndef BUILD_UBOOT
-	printk("\n\n\n\n\n\n\n\n\n\n\nx=%x,x0=%x",x,x0);
-	printk("\nx1=%x,x10=%x",(x0 + width - 1 ),x1);
+	pr_debug("\n\n\n\n\n\n\n\n\n\n\nx=%x,x0=%x",x,x0);
+	pr_debug("\nx1=%x,x10=%x",(x0 + width - 1 ),x1);
 
 #endif
 }

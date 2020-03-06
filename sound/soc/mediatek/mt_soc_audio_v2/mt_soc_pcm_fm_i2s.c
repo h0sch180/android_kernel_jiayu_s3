@@ -242,7 +242,7 @@ static int mtk_pcm_fm_i2s_close(struct snd_pcm_substream *substream)
     {
         SetI2SASRCEnable(false);
         SetI2SASRCConfig(false, 0); // Setting to bypass ASRC
-        Set2ndI2SInEnable(false);
+		Afe_Set_Reg(AFE_I2S_CON, 0x0, 0x1);
     }
 
     SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, false);
@@ -251,9 +251,18 @@ static int mtk_pcm_fm_i2s_close(struct snd_pcm_substream *substream)
         SetI2SDacEnable(false);
     }
 
+	/* stop I2S output */
+	SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_2, false);
+	if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_2) == false)
+		Afe_Set_Reg(AFE_I2S_CON3, 0x0, 0x1);
+
     // interconnection setting
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I00, Soc_Aud_InterConnectionOutput_O13);
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I01, Soc_Aud_InterConnectionOutput_O14);
+	SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I10,
+		      Soc_Aud_InterConnectionOutput_O00);
+	SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I11,
+		      Soc_Aud_InterConnectionOutput_O01);
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I10, Soc_Aud_InterConnectionOutput_O03);
     SetConnection(Soc_Aud_InterCon_DisConnect, Soc_Aud_InterConnectionInput_I11, Soc_Aud_InterConnectionOutput_O04);
 
@@ -270,6 +279,8 @@ static int mtk_pcm_fm_i2s_close(struct snd_pcm_substream *substream)
 
 static int mtk_pcm_fm_i2s_prepare(struct snd_pcm_substream *substream)
 {
+	uint32 MclkDiv3 = 0;
+	uint32 u32AudioI2S = 0;
     AudioDigtalI2S m2ndI2SInAttribute;
 
     struct snd_pcm_runtime *runtime = substream->runtime;
@@ -282,6 +293,10 @@ static int mtk_pcm_fm_i2s_prepare(struct snd_pcm_substream *substream)
         // interconnection setting
         SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I00, Soc_Aud_InterConnectionOutput_O13);
         SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I01, Soc_Aud_InterConnectionOutput_O14);
+		SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I10,
+			      Soc_Aud_InterConnectionOutput_O00);
+		SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I11,
+			      Soc_Aud_InterConnectionOutput_O01);
         SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I10, Soc_Aud_InterConnectionOutput_O03);
         SetConnection(Soc_Aud_InterCon_Connection, Soc_Aud_InterConnectionInput_I11, Soc_Aud_InterConnectionOutput_O04);
 
@@ -301,12 +316,17 @@ static int mtk_pcm_fm_i2s_prepare(struct snd_pcm_substream *substream)
         {
             SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_DAC, true);
         }
+
         if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2) == false)
         {
-            //set merge interface
+			/* set merge interface */
             SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2, true);
 
-            // Config 2nd I2S IN
+			/* reset I2S In for 4pin I2S control */
+			if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_4PIN_IN_OUT) == true)
+				Afe_Set_Reg(AFE_I2S_CON, 0x0, 0x1);
+
+			/* Config 2nd I2S IN */
             memset((void *)&m2ndI2SInAttribute, 0, sizeof(m2ndI2SInAttribute));
 
             m2ndI2SInAttribute.mLR_SWAP = Soc_Aud_LR_SWAP_NO_SWAP;
@@ -318,15 +338,40 @@ static int mtk_pcm_fm_i2s_prepare(struct snd_pcm_substream *substream)
             m2ndI2SInAttribute.mI2S_WLEN = Soc_Aud_I2S_WLEN_WLEN_16BITS;
             Set2ndI2SIn(&m2ndI2SInAttribute);
 
-            SetI2SASRCConfig(true, 44100);  // Covert from 32000 Hz to 44100 Hz
+	    if (runtime->rate == 48000)
+		    SetI2SASRCConfig(true, 48000);  /* Covert from 32000 Hz to 48000 Hz */
+	    else
+		    SetI2SASRCConfig(true, 44100);  /* Covert from 32000 Hz to 44100 Hz */
             SetI2SASRCEnable(true);
 
-            Set2ndI2SInEnable(true);
+			Afe_Set_Reg(AFE_I2S_CON, 0x1, 0x1);
         }
         else
         {
             SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_IN_2, true);
         }
+
+		/* I2S out Setting */
+		if (GetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_2) == true)
+			SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_2, true);
+		else {
+			SetMemoryPathEnable(Soc_Aud_Digital_Block_I2S_OUT_2, true);
+			u32AudioI2S = SampleRateTransform(runtime->rate) << 8;
+			u32AudioI2S |= Soc_Aud_I2S_FORMAT_I2S << 3; /* us3 I2s format */
+			u32AudioI2S |= Soc_Aud_I2S_WLEN_WLEN_32BITS << 1; /* 32 BITS */
+
+			if (get_low_jitter_mode() == true) {
+				MclkDiv3 = SetCLkMclk(Soc_Aud_I2S1, runtime->rate); /* select I2S */
+				MclkDiv3 = SetCLkMclk(Soc_Aud_I2S3, runtime->rate); /* select I2S */
+				SetCLkBclk(MclkDiv3,  runtime->rate, runtime->channels,
+					   Soc_Aud_I2S_WLEN_WLEN_32BITS);
+				u32AudioI2S |= Soc_Aud_LOW_JITTER_CLOCK << 12 ; /* Low jitter mode */
+			} else
+				u32AudioI2S &=  ~(Soc_Aud_LOW_JITTER_CLOCK << 12) ;
+
+			Afe_Set_Reg(AFE_I2S_CON3, u32AudioI2S | 1, AFE_MASK_ALL);
+		}
+
 
         EnableAfe(true);
         mPrepareDone = true;

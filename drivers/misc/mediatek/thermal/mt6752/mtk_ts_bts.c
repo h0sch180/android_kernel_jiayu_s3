@@ -6,7 +6,6 @@
 #include <linux/thermal.h>
 #include <linux/platform_device.h>
 #include <linux/aee.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
@@ -67,7 +66,7 @@ extern int mtktsxtal_get_xtal_temp(void);
 #define mtkts_bts_dprintk(fmt, args...)   \
 do {                                    \
 	if (mtkts_bts_debug_log) {                \
-		xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", fmt, ##args); \
+		pr_notice("Power/BTS_Thermal" fmt, ##args); \
 	}                                   \
 } while(0)
 
@@ -102,14 +101,14 @@ typedef struct{
 
 
 
-#define CH_IN0_NTC (0) //NTC6301
+#define AUX_IN0_NTC (0) //NTC6301
 
 #if 1 //K2
 static int g_RAP_pull_up_R = 390000;//390K,pull up resister
 static int g_TAP_over_critical_low =4251000 ;//base on 100K NTC temp default value -40 deg
 static int g_RAP_pull_up_voltage = 1800;//1.8V ,pull up voltage
 static int g_RAP_ntc_table = 6;  //default is //NTCG104EF104F(100K)
-static int g_RAP_ADC_channel = CH_IN0_NTC;  //default is 0
+static int g_RAP_ADC_channel = AUX_IN0_NTC;  //default is 0
 #else
 static int g_RAP_pull_up_R = 39000;//39K,pull up resister
 static int g_TAP_over_critical_low = 188500;//base on 10K NTC temp default value -40 deg
@@ -421,7 +420,7 @@ static INT16 mtkts_bts_thermistor_conver_temp(INT32 Res)
     INT32 TAP_Value=-200,TMP1=0,TMP2=0;
 
 	asize=(sizeof(BTS_Temperature_Table)/sizeof(BTS_TEMPERATURE));
-	//xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : asize = %d, Res = %d\n",asize,Res);
+	//mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : asize = %d, Res = %d\n",asize,Res);
     if(Res>=BTS_Temperature_Table[0].TemperatureR)
     {
         TAP_Value = -40;//min
@@ -434,7 +433,7 @@ static INT16 mtkts_bts_thermistor_conver_temp(INT32 Res)
     {
         RES1=BTS_Temperature_Table[0].TemperatureR;
         TMP1=BTS_Temperature_Table[0].BTS_Temp;
-		//xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "%d : RES1 = %d,TMP1 = %d\n",__LINE__,RES1,TMP1);
+		//mtkts_bts_dprintk("%d : RES1 = %d,TMP1 = %d\n",__LINE__,RES1,TMP1);
 
         for(i=0;i < asize;i++)
         {
@@ -442,14 +441,14 @@ static INT16 mtkts_bts_thermistor_conver_temp(INT32 Res)
             {
                 RES2=BTS_Temperature_Table[i].TemperatureR;
                 TMP2=BTS_Temperature_Table[i].BTS_Temp;
-                //xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "%d :i=%d, RES2 = %d,TMP2 = %d\n",__LINE__,i,RES2,TMP2);
+                //mtkts_bts_dprintk("%d :i=%d, RES2 = %d,TMP2 = %d\n",__LINE__,i,RES2,TMP2);
                 break;
             }
             else
             {
                 RES1=BTS_Temperature_Table[i].TemperatureR;
                 TMP1=BTS_Temperature_Table[i].BTS_Temp;
-                //xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "%d :i=%d, RES1 = %d,TMP1 = %d\n",__LINE__,i,RES1,TMP1);
+                //mtkts_bts_dprintk("%d :i=%d, RES1 = %d,TMP1 = %d\n",__LINE__,i,RES1,TMP1);
             }
         }
 
@@ -457,12 +456,12 @@ static INT16 mtkts_bts_thermistor_conver_temp(INT32 Res)
     }
 
     #if 0
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : TAP_Value = %d\n",TAP_Value);
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : Res = %d\n",Res);
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : RES1 = %d\n",RES1);
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : RES2 = %d\n",RES2);
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : TMP1 = %d\n",TMP1);
-    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_thermistor_conver_temp() : TMP2 = %d\n",TMP2);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : TAP_Value = %d\n",TAP_Value);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : Res = %d\n",Res);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : RES1 = %d\n",RES1);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : RES2 = %d\n",RES2);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : TMP1 = %d\n",TMP1);
+    mtkts_bts_dprintk("mtkts_bts_thermistor_conver_temp() : TMP2 = %d\n",TMP2);
     #endif
 
     return TAP_Value;
@@ -505,7 +504,7 @@ static int get_hw_bts_temp(void)
 {
 
 	int ret = 0, data[4], i, ret_value = 0, ret_temp = 0, output;
-	int times=1, Channel=g_RAP_ADC_channel;//(CH_IN0_NTC)
+	int times=1, Channel=g_RAP_ADC_channel;//6752=0(AUX_IN0_NTC)
 	static int valid_temp;
 
 	if( IMM_IsAdcInitReady() == 0 )
@@ -527,8 +526,8 @@ static int get_hw_bts_temp(void)
 			valid_temp = ret_temp;
 		}
 		ret += ret_temp;
-		mtkts_bts_dprintk("[thermal_auxadc_get_data(CH_IN0_NTC)]: ret_temp=%d\n",ret_temp);
-        mtkts_bts_dprintk("[thermal_auxadc_get_data(CH_IN0_NTC)]: ret_temp=%d\n",ret_temp);
+		mtkts_bts_dprintk("[thermal_auxadc_get_data(AUX_IN0_NTC)]: ret_temp=%d\n",ret_temp);
+        mtkts_bts_dprintk("[thermal_auxadc_get_data(AUX_IN0_NTC)]: ret_temp=%d\n",ret_temp);
 	}
 
 
@@ -573,7 +572,7 @@ static int mtkts_bts_get_temp(struct thermal_zone_device *thermal,
 	*t = mtkts_bts_get_hw_temp();
 
 	//if ((int) *t > 52000)
-	//    xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "T=%d\n", (int) *t);
+	//    mtkts_bts_dprintk("T=%d\n", (int) *t);
 
     if ((int) *t >= polling_trip_temp1)
         thermal->polling_delay = interval*1000;
@@ -911,7 +910,7 @@ void mtkts_bts_copy_table(BTS_TEMPERATURE *des,BTS_TEMPERATURE *src)
     int j=0;
 
     j = (sizeof(BTS_Temperature_Table)/sizeof(BTS_TEMPERATURE));
-	//xlog_printk(ANDROID_LOG_INFO, "Power/BTS_Thermal", "mtkts_bts_copy_table() : j = %d\n",j);
+	//mtkts_bts_dprintk("mtkts_bts_copy_table() : j = %d\n",j);
     for(i=0;i<j;i++)
 	{
 		des[i] = src[i];
@@ -1039,13 +1038,13 @@ static ssize_t mtkts_bts_param_write(struct file *file, const char __user *buffe
 
 	    //external pin: 0/1/12/13/14/15, can't use pin:2/3/4/5/6/7/8/9/10/11,choose "adc_channel=11" to check if there is any param input
         if((adc_channel >= 2) && (adc_channel <= 11))
-            g_RAP_ADC_channel = CH_IN0_NTC;//check unsupport pin value, if unsupport, set channel = 1 as default setting.
+            g_RAP_ADC_channel = AUX_IN0_NTC;//check unsupport pin value, if unsupport, set channel = 1 as default setting.
 		else{
 			if(adc_channel!=11){//check if there is any param input, if not using default g_RAP_ADC_channel:1
 				g_RAP_ADC_channel = adc_channel;
 			}
 	        else{
-	            g_RAP_ADC_channel = CH_IN0_NTC;
+	            g_RAP_ADC_channel = AUX_IN0_NTC;
 	        }
 		}
         mtkts_bts_dprintk("adc_channel=%d\n",adc_channel);

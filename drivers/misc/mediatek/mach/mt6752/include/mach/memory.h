@@ -15,9 +15,13 @@
 #define IO_VIRT_TO_PHYS(v) (0x10000000 | ((v) & 0x0fffffff))
 #define IO_PHYS_TO_VIRT(p) (0xf0000000 | ((p) & 0x0fffffff))
 #ifndef __ASSEMBLER__
+#ifdef CONFIG_MTK_LM_MODE
+unsigned int enable_4G(void);
+#else
 static inline unsigned int enable_4G(void)
 {
      return 0;
 }
+#endif
 #endif
 #endif  /* !__MT_MEMORY_H__ */

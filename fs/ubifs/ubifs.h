@@ -751,8 +751,9 @@ struct ubifs_zbranch {
 		struct ubifs_znode *znode;
 		void *leaf;
 	};
-	int lnum;
+	int dummy;
 	int offs;
+	int lnum;
 	int len;
 };
 

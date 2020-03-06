@@ -433,9 +433,9 @@ struct CWMCU_data {
 
 #endif /* __KERNEL */
 
-#define CW_INFO(fmt,arg...)         printk("-CWMCU_INF- "fmt"\n",##arg)
-#define CW_ERROR(fmt,arg...)        printk("-CWMCU_ERR- "fmt"\n",##arg)
-#define CW_DEBUG(fmt,arg...)		printk("-CWMCU_DBG- "fmt"\n",##arg)
+#define CW_INFO(fmt, arg...)         pr_warn("-CWMCU_INF- "fmt"\n", ##arg)
+#define CW_ERROR(fmt, arg...)        pr_error("-CWMCU_ERR- "fmt"\n", ##arg)
+#define CW_DEBUG(fmt, arg...)		pr_debug("-CWMCU_DBG- "fmt"\n", ##arg)
 
 extern int CWMCU_bus_register(void);
 extern void CWMCU_bus_unregister(void);

@@ -1077,8 +1077,10 @@ struct sched_entity {
 	/* Per-entity load-tracking */
 	struct sched_avg	avg;
 #endif
-#ifdef CONFIG_MTPROF_CPUTIME
+#if defined(CONFIG_MTPROF_CPUTIME) || defined(CONFIG_MT_RT_THROTTLE_MON)
 	u64			mtk_isr_time;
+#endif
+#ifdef CONFIG_MTPROF_CPUTIME
 	int			mtk_isr_count;
 	struct mtk_isr_info  *mtk_isr;
 #endif
@@ -1127,10 +1129,10 @@ struct thread_group_info_t {
   #ifdef CONFIG_MT_SCHED_DEBUG
 #define mt_sched_printf(event,x...) \
  do{                    \
-        char strings[128]="";  \
-        snprintf(strings, 128, x); \
-        printk(KERN_NOTICE x);          \
-        trace_##event(strings); \
+	char strings[128] = "";  \
+	snprintf(strings, 128, x); \
+	pr_warn(x);          \
+	trace_##event(strings); \
  }while (0)
   #else
 #define mt_sched_printf(event,x...) \
@@ -1155,6 +1157,9 @@ struct task_struct {
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
+	struct task_struct *last_wakee;
+	unsigned long wakee_flips;
+	unsigned long wakee_flip_decay_ts;
 #endif
 	int on_rq;
 
@@ -1206,6 +1211,9 @@ struct task_struct {
 #endif
 
 	struct list_head tasks;
+#ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
+	struct rb_node adj_node;
+#endif
 #ifdef CONFIG_SMP
 	struct plist_node pushable_tasks;
 #endif
@@ -1546,6 +1554,10 @@ struct task_struct {
 	unsigned int	sequential_io;
 	unsigned int	sequential_io_avg;
 #endif
+#ifdef CONFIG_PREEMPT_MONITOR
+	unsigned long preempt_dur;
+#endif
+
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
@@ -1572,6 +1584,14 @@ static inline struct pid *task_tgid(struct task_struct *task)
 {
 	return task->group_leader->pids[PIDTYPE_PID].pid;
 }
+
+#ifdef CONFIG_ANDROID_LMK_ADJ_RBTREE
+extern void add_2_adj_tree(struct task_struct *task);
+extern void delete_from_adj_tree(struct task_struct *task);
+#else
+static inline void add_2_adj_tree(struct task_struct *task) { }
+static inline void delete_from_adj_tree(struct task_struct *task) { }
+#endif
 
 /*
  * Without tasklist or rcu lock it is not safe to dereference
@@ -2054,14 +2074,6 @@ extern int sched_setscheduler(struct task_struct *, int,
 extern int sched_setscheduler_nocheck(struct task_struct *, int,
 				      const struct sched_param *);
 
-#ifdef CONFIG_MT_PRIO_TRACER
-extern void set_user_nice_core(struct task_struct *p, long nice);
-extern int sched_setscheduler_core(struct task_struct *, int,
-				   const struct sched_param *);
-extern int sched_setscheduler_nocheck_core(struct task_struct *, int,
-					   const struct sched_param *);
-#endif
-
 extern struct task_struct *idle_task(int cpu);
 /**
  * is_idle_task - is the specified task an idle task?
@@ -2256,7 +2268,7 @@ static inline void mmdrop(struct mm_struct * mm)
 }
 
 /* mmput gets rid of the mappings and all user-space */
-extern int mmput(struct mm_struct *);
+extern void mmput(struct mm_struct *);
 /* Grab a reference to a task's mm, if it is not already going away */
 extern struct mm_struct *get_task_mm(struct task_struct *task);
 /*
@@ -2529,7 +2541,7 @@ static inline int test_and_clear_tsk_thread_flag(struct task_struct *tsk, int fl
 
 static inline int test_tsk_thread_flag(struct task_struct *tsk, int flag)
 {
-	return test_ti_thread_flag(task_thread_info(tsk), flag);
+	return test_ti_thread_flag_relaxed(task_thread_info(tsk), flag);
 }
 
 static inline void set_tsk_need_resched(struct task_struct *tsk)

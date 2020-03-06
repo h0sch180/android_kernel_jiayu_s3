@@ -2249,7 +2249,7 @@ static void lcm_resume(void)
     #ifdef BUILD_LK
 	  printf("[LK]---cmd---nt35590----%s------\n",__func__);
     #else
-	  printk("[KERNEL]---cmd---nt35590----%s------\n",__func__);
+	  pr_debug("[KERNEL]---cmd---nt35590----%s------\n",__func__);
     #endif	
 }
          
@@ -2310,7 +2310,7 @@ static unsigned int lcm_compare_id(void)
     #ifdef BUILD_LK
 		printf("%s, LK nt35590 debug: nt35590 id = 0x%08x\n", __func__, id);
     #else
-		printk("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
+		pr_debug("%s, kernel nt35590 horse debug: nt35590 id = 0x%08x\n", __func__, id);
     #endif
 
     if(id == LCM_ID_NT35590)

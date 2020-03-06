@@ -28,22 +28,11 @@
 #include <board-custom.h>
 #include <linux/seq_file.h>
 
-#include "mach/mt_fhreg.h"
+#include "mt_fhreg.h"
 
 #include <linux/xlog.h> //ccyeh: for 6572
 
-#if 0 //ccyeh: we don't need these header files here.
-#include "mach/mt_clkmgr.h"
-#include "mach/mt_typedefs.h"
-#include "mach/mt_gpio.h"
-#include "mach/mt_gpufreq.h"
-#include "mach/mt_cpufreq.h"
-#include "mach/emi_bwl.h"
-#include "mach/sync_write.h"
-#include "mach/mt_sleep.h"
-#endif
-
-#include <mach/mt_freqhopping_drv.h>
+#include "mt_freqhopping_drv.h"
 
 
 #define FREQ_HOPPING_DEVICE "mt-freqhopping"
@@ -302,6 +291,10 @@ static ssize_t freqhopping_userdefine_proc_write(struct file *file, const char *
 	fh_ctl.ssc_setting.dds 		= p7;
 	fh_ctl.ssc_setting.freq		= 0;
 
+	/* Check validity of PLL ID */
+	if (fh_ctl.pll_id >= FH_PLL_COUNT)
+		return -1;
+
 
 	if( p1 == FH_CMD_ENABLE){
 		ret = mt_fh_enable_usrdef(&fh_ctl);
@@ -428,6 +421,9 @@ static ssize_t freqhopping_status_proc_write(struct file *file, const char *buff
 	fh_ctl.ssc_setting.upbnd= 0;
 	fh_ctl.ssc_setting.lowbnd= 0;
 
+	/* Check validity of PLL ID */
+	if (fh_ctl.pll_id >= FH_PLL_COUNT)
+		return -1;
 	if( p1 == 0){
 		mt_freqhopping_ioctl(NULL,FH_CMD_DISABLE,(unsigned long)(&fh_ctl));
 	}
@@ -529,7 +525,9 @@ static ssize_t freqhopping_debug_proc_write(struct file *file, const char *buffe
 	fh_ctl.ssc_setting.lowbnd	= p7;
 	fh_ctl.ssc_setting.freq		= 0;
 
-
+	/* Check validity of PLL ID */
+	if (fh_ctl.pll_id >= FH_PLL_COUNT)
+		return -1;
 	if (cmd < FH_CMD_INTERNAL_MAX_CMD) {
 		mt_freqhopping_ioctl(NULL,cmd,(unsigned long)(&fh_ctl));
 	}
@@ -582,39 +580,45 @@ static int freqhopping_userdefine_proc_open(struct inode *inode, struct file *fi
 }
 
 static const struct file_operations freqhopping_debug_fops = {
-	.owner		= THIS_MODULE,
+	.owner      = THIS_MODULE,
 	.open       = freqhopping_debug_proc_open,
 	.read       = seq_read,
 	.write      = freqhopping_debug_proc_write,
+	.release    = single_release,
 };
 static const struct file_operations dramc_fops = {
-	.owner		= THIS_MODULE,
+	.owner      = THIS_MODULE,
 	.open       = freqhopping_dramc_proc_open,
 	.read       = seq_read,
 	.write      = freqhopping_dramc_proc_write,
+	.release    = single_release,
 };
 static const struct file_operations dvfs_fops = {
-	.owner		= THIS_MODULE,
+	.owner      = THIS_MODULE,
 	.open       = freqhopping_dvfs_proc_open,
 	.read       = seq_read,
 	.write      = freqhopping_dvfs_proc_write,
+	.release    = single_release,
 };
 static const struct file_operations dumpregs_fops = {
-	.owner		= THIS_MODULE,
+	.owner      = THIS_MODULE,
 	.open       = freqhopping_dumpregs_proc_open,
 	.read       = seq_read,
+	.release    = single_release,
 };
 static const struct file_operations status_fops = {
-	.owner			= THIS_MODULE,
-	.open				=	freqhopping_status_proc_open,
+	.owner      = THIS_MODULE,
+	.open       = freqhopping_status_proc_open,
 	.read       = seq_read,
 	.write      = freqhopping_status_proc_write,
+	.release    = single_release,
 };
 static const struct file_operations userdef_fops = {
-	.owner		= THIS_MODULE,
+	.owner      = THIS_MODULE,
 	.open       = freqhopping_userdefine_proc_open,
 	.read       = seq_read,
 	.write      = freqhopping_userdefine_proc_write,
+	.release    = single_release,
 };
 
 static int freqhopping_debug_proc_init(void)

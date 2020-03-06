@@ -44,14 +44,14 @@
 #include <linux/sensors_io.h>
 #include <cust_alsps.h>
 #include "gesture.h"
-#include <tmg399x.h>
+#include "tmg399x.h"
 #include <alsps.h>
 #include <linux/batch.h>
 
 
 #define APS_TAG                  "[ALS/PS] "
-#define APS_FUN(f)               printk(KERN_ERR APS_TAG"%s\n", __FUNCTION__)
-#define APS_ERR(fmt, args...)    printk(KERN_ERR  APS_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define APS_FUN(f)               printk(KERN_ERR APS_TAG"%s\n", __func__)
+#define APS_ERR(fmt, args...)    printk(KERN_ERR  APS_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define APS_LOG(fmt, args...)    printk(KERN_ERR APS_TAG fmt, ##args)
 #define APS_DBG(fmt, args...)    printk(KERN_ERR APS_TAG fmt, ##args)
 extern int hwmsen_get_interrupt_data(int sensor, hwm_sensor_data *data);
@@ -2816,15 +2816,6 @@ static int tmg399x_probe(struct i2c_client *client,
 	for (i = 0; i < ARRAY_SIZE(tmg399x_ids); i++) {
 		if (id == tmg399x_ids[i])
 			break;
-	}
-	if (i < ARRAY_SIZE(tmg399x_names)) {
-		printk(KERN_ERR"%s: '%s rev. %d' detected i=%d\n", __func__,
-				tmg399x_names[i], rev),i;
-		chip->device_index = i;
-	} else {
-		printk( "%s: not supported chip id\n", __func__);
-		ret = -EOPNOTSUPP;
-		goto id_failed;
 	}
 	pdata->parameters.prox_th_min=aphw->ps_threshold_low;
 	pdata->parameters.prox_th_max=aphw->ps_threshold_high;

@@ -276,7 +276,7 @@ static int ubifs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 	err = ubifs_init_security(dir, inode, &dentry->d_name);
 	if (err) {
 		ubifs_err("cannot initialize extended attribute, error %d", err);
-		goto out_cancel;
+		goto out_inode;
 	}
 
 	mutex_lock(&dir_ui->ui_mutex);
@@ -299,6 +299,7 @@ out_cancel:
 	dir_ui->ui_size = dir->i_size;
 	mutex_unlock(&dir_ui->ui_mutex);
 	make_bad_inode(inode);
+out_inode:
 	iput(inode);
 out_budg:
 	ubifs_release_budget(c, &req);
@@ -794,7 +795,7 @@ static int ubifs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	if (err) {
 		ubifs_err("cannot initialize extended attribute, error %d",
 			  err);
-		goto out_cancel;
+		goto out_inode;
 	}
 
 	mutex_lock(&dir_ui->ui_mutex);
@@ -822,6 +823,7 @@ out_cancel:
 	drop_nlink(dir);
 	mutex_unlock(&dir_ui->ui_mutex);
 	make_bad_inode(inode);
+out_inode:
 	iput(inode);
 out_budg:
 	ubifs_release_budget(c, &req);
@@ -883,7 +885,7 @@ static int ubifs_mknod(struct inode *dir, struct dentry *dentry,
 	if (err) {
 		ubifs_err("cannot initialize extended attribute, error %d",
 			  err);
-		goto out_cancel;
+		goto out_inode;
 	}
 
 	mutex_lock(&dir_ui->ui_mutex);
@@ -906,6 +908,7 @@ out_cancel:
 	dir_ui->ui_size = dir->i_size;
 	mutex_unlock(&dir_ui->ui_mutex);
 	make_bad_inode(inode);
+out_inode:
 	iput(inode);
 out_budg:
 	ubifs_release_budget(c, &req);
@@ -967,7 +970,7 @@ static int ubifs_symlink(struct inode *dir, struct dentry *dentry,
 	if (err) {
 		ubifs_err("cannot initialize extended attribute, error %d",
 			  err);
-		goto out_cancel;
+		goto out_inode;
 	}
 
 	mutex_lock(&dir_ui->ui_mutex);

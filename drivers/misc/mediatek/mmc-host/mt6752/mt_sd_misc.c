@@ -105,7 +105,7 @@ void msdc_check_init_done(void)
     BUG_ON(!host->mmc);
     host->mmc->card_init_wait(host->mmc);
     BUG_ON(!host->mmc->card);
-    printk("[%s]: get the emmc init done signal\n", __func__); 
+	pr_err("[%s]: get the emmc init done signal\n", __func__);
     return;
 }
 
@@ -151,12 +151,12 @@ static int simple_sd_ioctl_multi_rw(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want access %d partition\n",msdc_ctl->partition);
+	pr_err("user want access %d partition\n", sdc_ctl->partition);
 #endif
 
     ret = mmc_send_ext_csd(host_ctl->mmc->card, l_buf);
     if (ret) {
-        printk("mmc_send_ext_csd error, multi rw\n");
+		pr_err("mmc_send_ext_csd error, multi rw\n");
         goto multi_end;
     }
 
@@ -244,7 +244,7 @@ static int simple_sd_ioctl_multi_rw(struct msdc_ioctl* msdc_ctl)
     msdc_cmd.arg = msdc_ctl->address;
 
     if (!mmc_card_blockaddr(host_ctl->mmc->card)){
-        printk("this device use byte address!!\n");
+		pr_err("this device use byte address!!\n");
         msdc_cmd.arg <<= 9;
     }
     msdc_cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_ADTC;
@@ -259,19 +259,16 @@ static int simple_sd_ioctl_multi_rw(struct msdc_ioctl* msdc_ctl)
     msdc_data.sg_len = 1;
 
 #if DEBUG_MMC_IOCTL
-    printk("total size is %d\n",msdc_ctl->total_size);
+	pr_err("total size is %d\n", sdc_ctl->total_size);
 #endif
     sg_init_one(&msdc_sg, sg_msdc_multi_buffer, msdc_ctl->total_size);
     mmc_set_data_timeout(&msdc_data, host_ctl->mmc->card);
     mmc_wait_for_req(host_ctl->mmc, &msdc_mrq);
 
-    /* clear the global buffer of R/W IOCTL */
-    memset(sg_msdc_multi_buffer, 0 , 512);
-    
     if (msdc_ctl->partition){
         ret = mmc_send_ext_csd(host_ctl->mmc->card,l_buf);
         if (ret) {
-            printk("mmc_send_ext_csd error, multi rw\n");
+			pr_err("mmc_send_ext_csd error, multi rw\n");
             goto multi_end;
         }
 
@@ -296,6 +293,10 @@ static int simple_sd_ioctl_multi_rw(struct msdc_ioctl* msdc_ctl)
             memcpy(msdc_ctl->buffer, sg_msdc_multi_buffer, msdc_ctl->total_size);
         }
     }
+
+	/* clear the global buffer of R/W IOCTL */
+	memset(sg_msdc_multi_buffer, 0 , msdc_ctl->total_size);
+
     goto multi_end_without_release;
 
 multi_end:
@@ -361,12 +362,12 @@ static int simple_sd_ioctl_single_rw(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want access %d partition\n",msdc_ctl->partition);
+	pr_err("user want access %d partition\n", sdc_ctl->partition);
 #endif
 
     ret = mmc_send_ext_csd(host_ctl->mmc->card, l_buf);
     if (ret) {
-        printk("mmc_send_ext_csd error, single rw\n");
+		pr_err("mmc_send_ext_csd error, single rw\n");
         goto single_end;
     }
 #ifdef CONFIG_MTK_EMMC_SUPPORT 
@@ -404,7 +405,7 @@ static int simple_sd_ioctl_single_rw(struct msdc_ioctl* msdc_ctl)
     }
 
 #if DEBUG_MMC_IOCTL
-    printk("start MSDC_SINGLE_READ_WRITE !!\n");
+	pr_err("start MSDC_SINGLE_READ_WRITE !!\n");
 #endif    
     memset(&msdc_data, 0, sizeof(struct mmc_data));
     memset(&msdc_mrq, 0, sizeof(struct mmc_request));
@@ -433,7 +434,7 @@ static int simple_sd_ioctl_single_rw(struct msdc_ioctl* msdc_ctl)
     msdc_cmd.arg = msdc_ctl->address;
 
     if (!mmc_card_blockaddr(host_ctl->mmc->card)){
-        printk("the device is used byte address!\n");
+		pr_err("the device is used byte address!\n");
         msdc_cmd.arg <<= 9;
     }
 
@@ -445,20 +446,17 @@ static int simple_sd_ioctl_single_rw(struct msdc_ioctl* msdc_ctl)
     msdc_data.sg_len = 1;
 
 #if DEBUG_MMC_IOCTL
-    printk("single block: ueser buf address is 0x%p!\n",msdc_ctl->buffer);
+	pr_err("single block: ueser buf address is 0x%p!\n", sdc_ctl->buffer);
 #endif    
     sg_init_one(&msdc_sg, sg_msdc_multi_buffer, msdc_ctl->total_size);
     mmc_set_data_timeout(&msdc_data, host_ctl->mmc->card);
 
     mmc_wait_for_req(host_ctl->mmc, &msdc_mrq);
 
-    /* clear the global buffer of R/W IOCTL */
-    memset(sg_msdc_multi_buffer, 0 , msdc_ctl->total_size);
-    
     if (msdc_ctl->partition){
         ret = mmc_send_ext_csd(host_ctl->mmc->card,l_buf);
         if (ret) {
-            printk("mmc_send_ext_csd error, single rw\n");
+			pr_err("mmc_send_ext_csd error, single rw\n");
             goto single_end;
         }
 
@@ -483,6 +481,10 @@ static int simple_sd_ioctl_single_rw(struct msdc_ioctl* msdc_ctl)
             memcpy(msdc_ctl->buffer,sg_msdc_multi_buffer,512);
         }
     }
+
+	/* clear the global buffer of R/W IOCTL */
+	memset(sg_msdc_multi_buffer, 0 , 512);
+
     goto single_end_without_release;
 
 single_end:
@@ -524,14 +526,14 @@ static int simple_sd_ioctl_get_cid(struct msdc_ioctl* msdc_ctl)
     BUG_ON(!host_ctl->mmc->card);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want the cid in msdc slot%d \n",msdc_ctl->host_num);
+	pr_err("user want the cid in msdc slot%d\n", sdc_ctl->host_num);
 #endif
 
     if (copy_to_user(msdc_ctl->buffer, &host_ctl->mmc->card->raw_cid, 16))
         return -EFAULT;
 
 #if DEBUG_MMC_IOCTL
-    printk("cid:0x%x,0x%x,0x%x,0x%x\n",host_ctl->mmc->card->raw_cid[0],
+	pr_err("cid:0x%x, x%x, x%x, x%x\n", ost_ctl->mmc->card->raw_cid[0],
             host_ctl->mmc->card->raw_cid[1],
             host_ctl->mmc->card->raw_cid[2],
             host_ctl->mmc->card->raw_cid[3]);
@@ -551,14 +553,14 @@ static int simple_sd_ioctl_get_csd(struct msdc_ioctl* msdc_ctl)
     BUG_ON(!host_ctl->mmc->card);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want the csd in msdc slot%d \n",msdc_ctl->host_num);
+	pr_err("user want the csd in msdc slot%d\n", sdc_ctl->host_num);
 #endif
 
     if (copy_to_user(msdc_ctl->buffer, &host_ctl->mmc->card->raw_csd, 16))
         return -EFAULT;
 
 #if DEBUG_MMC_IOCTL
-    printk("csd:0x%x,0x%x,0x%x,0x%x\n",host_ctl->mmc->card->raw_csd[0],
+	pr_err("csd:0x%x, x%x, x%x, x%x\n", ost_ctl->mmc->card->raw_csd[0],
             host_ctl->mmc->card->raw_csd[1],
             host_ctl->mmc->card->raw_csd[2],
             host_ctl->mmc->card->raw_csd[3]);
@@ -587,17 +589,17 @@ static int simple_sd_ioctl_get_bootpart(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want get boot partition info in msdc slot%d \n", msdc_ctl->host_num);
+	pr_err("user want get boot partition info in msdc slot%d\n", msdc_ctl->host_num);
 #endif
     ret = mmc_send_ext_csd(host_ctl->mmc->card, l_buf);
     if (ret) {
-        printk("mmc_send_ext_csd error, get boot part\n");
+		pr_err("mmc_send_ext_csd error, get boot part\n");
         goto end;
     }
     bootpart = (l_buf[EXT_CSD_PART_CFG] & 0x38) >> 3;
 
 #if DEBUG_MMC_IOCTL
-    printk("bootpart Byte[EXT_CSD_PART_CFG] =%x, booten=%x \n", l_buf[EXT_CSD_PART_CFG],bootpart);
+	pr_err("bootpart Byte[EXT_CSD_PART_CFG] =%x, booten=%x\n", l_buf[EXT_CSD_PART_CFG], ootpart);
 #endif
 
     if (MSDC_CARD_DUNM_FUNC != msdc_ctl->opcode) {
@@ -620,7 +622,7 @@ end:
 int simple_sd_get_bootpart(struct msdc_ioctl* msdc_ctl)
 {
     if ((msdc_ctl == NULL) || (msdc_ctl->opcode != MSDC_CARD_DUNM_FUNC)) {
-        printk("[sd_misc]simple_sd_get_bootpart, invalid argument.\n");
+		pr_err("[sd_misc]simple_sd_get_bootpart, invalid argument.\n");
         return -EINVAL;
     }
 
@@ -647,11 +649,11 @@ static int simple_sd_ioctl_set_bootpart(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want set boot partition in msdc slot%d \n",msdc_ctl->host_num);
+	pr_err("user want set boot partition in msdc slot%d\n", sdc_ctl->host_num);
 #endif
     ret = mmc_send_ext_csd(host_ctl->mmc->card, l_buf);
     if (ret) {
-        printk("mmc_send_ext_csd error, set boot partition \n");
+		pr_err("mmc_send_ext_csd error, set boot partition\n");
         goto end;
     }
 
@@ -661,7 +663,7 @@ static int simple_sd_ioctl_set_bootpart(struct msdc_ioctl* msdc_ctl)
     }
 
     if ((bootpart != EMMC_BOOT1_EN) && (bootpart != EMMC_BOOT2_EN) && (bootpart != EMMC_BOOT_USER)) {
-        printk("set boot partition error, not support %d\n", bootpart);
+		pr_err("set boot partition error, not support %d\n", bootpart);
         ret = -EFAULT;
         goto end;
     }
@@ -670,10 +672,10 @@ static int simple_sd_ioctl_set_bootpart(struct msdc_ioctl* msdc_ctl)
         /* active boot partition */
         l_buf[EXT_CSD_PART_CFG] &= ~0x38;
         l_buf[EXT_CSD_PART_CFG] |= (bootpart << 3);
-        printk("mmc_switch set %x \n", l_buf[EXT_CSD_PART_CFG]);
+		pr_err("mmc_switch set %x\n", l_buf[EXT_CSD_PART_CFG]);
         ret = mmc_switch(host_ctl->mmc->card, 0, EXT_CSD_PART_CFG, l_buf[EXT_CSD_PART_CFG], 1000);
         if (ret) {
-            printk("mmc_switch error, set boot partition \n");
+			pr_err("mmc_switch error, set boot partition\n");
         } else {
             host_ctl->mmc->card->ext_csd.part_config = l_buf[EXT_CSD_PART_CFG];
         }
@@ -700,11 +702,11 @@ static int simple_sd_ioctl_get_partition_size(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want get size of partition=%d\n",msdc_ctl->partition);
+	pr_err("user want get size of partition=%d\n", sdc_ctl->partition);
 #endif
     ret = mmc_send_ext_csd(host_ctl->mmc->card, l_buf);
     if (ret) {
-        printk("mmc_send_ext_csd error, get boot part\n");
+		pr_err("mmc_send_ext_csd error, get boot part\n");
         ret = -EFAULT;
         goto end;
     }
@@ -724,12 +726,12 @@ static int simple_sd_ioctl_get_partition_size(struct msdc_ioctl* msdc_ctl)
                 partitionsize  = (u64)(host_ctl->mmc->card->csd.capacity << (host_ctl->mmc->card->csd.read_blkbits - 9)) * 512 ;
             break;
         default:
-            printk("not support partition =%d \n", msdc_ctl->partition);
+			pr_err("not support partition =%d\n", msdc_ctl->partition);
             partitionsize = 0;
             break;
     }
 #if DEBUG_MMC_IOCTL
-    printk("bootpart partitionsize =%llx \n", partitionsize);
+	pr_err("bootpart partitionsize =%llx\n", partitionsize);
 #endif
     if (copy_to_user(msdc_ctl->buffer, &partitionsize, 8)) {
         ret = -EFAULT;
@@ -760,7 +762,7 @@ static int simple_sd_ioctl_get_excsd(struct msdc_ioctl* msdc_ctl)
     mmc_claim_host(host_ctl->mmc);
 
 #if DEBUG_MMC_IOCTL
-    printk("user want the extend csd in msdc slot%d \n",msdc_ctl->host_num);
+	pr_err("user want the extend csd in msdc slot%d\n", sdc_ctl->host_num);
 #endif
     mmc_send_ext_csd(host_ctl->mmc->card,l_buf);
     if (copy_to_user(msdc_ctl->buffer, l_buf, 512))
@@ -769,9 +771,9 @@ static int simple_sd_ioctl_get_excsd(struct msdc_ioctl* msdc_ctl)
 #if DEBUG_MMC_IOCTL
     for (i = 0; i < 512; i++)
     {
-        printk("%x", l_buf[i]);
+		pr_err("%x", l_buf[i]);
         if (0 == ((i + 1) % 16)){
-            printk("\n");
+			pr_err("\n");
         }
     }
 #endif
@@ -800,27 +802,27 @@ static int simple_sd_ioctl_set_driving(struct msdc_ioctl* msdc_ctl)
 
     if (msdc_ctl->host_num == 0){
 #ifndef CFG_DEV_MSDC0
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 1) {
 #ifndef CFG_DEV_MSDC1
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 2) {
 #ifndef CFG_DEV_MSDC2
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 3) {
 #ifndef CFG_DEV_MSDC3
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 4) {
 #ifndef CFG_DEV_MSDC4
-            printk("host%d is not config\n", msdc_ctl->host_num);
+			pr_err("host%d is not config\n", msdc_ctl->host_num);
             return -1;
 #endif
     }
@@ -828,11 +830,11 @@ static int simple_sd_ioctl_set_driving(struct msdc_ioctl* msdc_ctl)
 #ifndef FPGA_PLATFORM
    enable_clock(msdc_cg_clk_id[msdc_ctl->host_num], "SD"); 
 #if DEBUG_MMC_IOCTL
-    printk("set: clk driving is 0x%x\n", msdc_ctl->clk_pu_driving);
-    printk("set: cmd driving is 0x%x\n", msdc_ctl->cmd_pu_driving);
-    printk("set: dat driving is 0x%x\n", msdc_ctl->dat_pu_driving);
-    printk("set: rst driving is 0x%x\n", msdc_ctl->rst_pu_driving);
-    printk("set: ds driving is 0x%x\n", msdc_ctl->ds_pu_driving);
+	pr_err("set: clk driving is 0x%x\n", msdc_ctl->clk_pu_driving);
+	pr_err("set: cmd driving is 0x%x\n", msdc_ctl->cmd_pu_driving);
+	pr_err("set: dat driving is 0x%x\n", msdc_ctl->dat_pu_driving);
+	pr_err("set: rst driving is 0x%x\n", msdc_ctl->rst_pu_driving);
+	pr_err("set: ds driving is 0x%x\n", msdc_ctl->ds_pu_driving);
 #endif
     host = mtk_msdc_host[msdc_ctl->host_num];
     host->hw->clk_drv = msdc_ctl->clk_pu_driving;
@@ -864,27 +866,27 @@ static int simple_sd_ioctl_get_driving(struct msdc_ioctl* msdc_ctl)
     
     if (msdc_ctl->host_num == 0){
 #ifndef CFG_DEV_MSDC0
-          printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 1) {
 #ifndef CFG_DEV_MSDC1
-          printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 2) {
 #ifndef CFG_DEV_MSDC2
-          printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 3) {
 #ifndef CFG_DEV_MSDC3
-          printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 4) {
 #ifndef CFG_DEV_MSDC4
-            printk("host%d is not config\n", msdc_ctl->host_num);
+			pr_err("host%d is not config\n", msdc_ctl->host_num);
             return -1;
 #endif
     }
@@ -893,11 +895,11 @@ static int simple_sd_ioctl_get_driving(struct msdc_ioctl* msdc_ctl)
     enable_clock(msdc_cg_clk_id[msdc_ctl->host_num], "SD");
     msdc_get_driving(mtk_msdc_host[msdc_ctl->host_num], msdc_ctl); 
 #if DEBUG_MMC_IOCTL
-    printk("read: clk driving is 0x%x\n", msdc_ctl->clk_pu_driving);
-    printk("read: cmd driving is 0x%x\n", msdc_ctl->cmd_pu_driving);
-    printk("read: dat driving is 0x%x\n", msdc_ctl->dat_pu_driving);
-    printk("read: rst driving is 0x%x\n", msdc_ctl->rst_pu_driving);
-    printk("read: ds driving is 0x%x\n", msdc_ctl->ds_pu_driving);
+	pr_err("read: clk driving is 0x%x\n", msdc_ctl->clk_pu_driving);
+	pr_err("read: cmd driving is 0x%x\n", msdc_ctl->cmd_pu_driving);
+	pr_err("read: dat driving is 0x%x\n", msdc_ctl->dat_pu_driving);
+	pr_err("read: rst driving is 0x%x\n", msdc_ctl->rst_pu_driving);
+	pr_err("read: ds driving is 0x%x\n", msdc_ctl->ds_pu_driving);
 #endif
 #endif
 
@@ -912,27 +914,27 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 
     if (msdc_ctl->host_num == 0){
 #ifndef CFG_DEV_MSDC0
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 1) {
 #ifndef CFG_DEV_MSDC1
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 2) {
 #ifndef CFG_DEV_MSDC2
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 3) {
 #ifndef CFG_DEV_MSDC3
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     } else if (msdc_ctl->host_num == 4) {
 #ifndef CFG_DEV_MSDC4
-        printk("host%d is not config\n", msdc_ctl->host_num);
+		pr_err("host%d is not config\n", msdc_ctl->host_num);
         return -1;
 #endif
     }
@@ -946,7 +948,7 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #else
             msdc_host_mode2[id] &= (~MMC_CAP2_HS200_1_8V_SDR);
 #endif
-            printk("[****SD_Debug****]host will support Highspeed\n");
+			pr_err("[****SD_Debug****]host will support Highspeed\n");
             break;
         case UHS_SDR12:
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12;
@@ -956,7 +958,7 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #else
             msdc_host_mode2[id] &= (~MMC_CAP2_HS200_1_8V_SDR);
 #endif
-            printk("[****SD_Debug****]host will support UHS-SDR12\n");
+			pr_err("[****SD_Debug****]host will support UHS-SDR12\n");
             break;
         case UHS_SDR25: 
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12|MMC_CAP_UHS_SDR25;
@@ -966,7 +968,7 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #else
             msdc_host_mode2[id] &= (~MMC_CAP2_HS200_1_8V_SDR);
 #endif
-            printk("[****SD_Debug****]host will support UHS-SDR25\n");
+			pr_err("[****SD_Debug****]host will support UHS-SDR25\n");
             break;
         case UHS_SDR50:
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12|MMC_CAP_UHS_SDR25|MMC_CAP_UHS_SDR50;
@@ -976,7 +978,7 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #else
             msdc_host_mode2[id] &= (~MMC_CAP2_HS200_1_8V_SDR);
 #endif
-            printk("[****SD_Debug****]host will support UHS-SDR50\n");
+			pr_err("[****SD_Debug****]host will support UHS-SDR50\n");
             break;
         case UHS_SDR104: 
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12|MMC_CAP_UHS_SDR25|MMC_CAP_UHS_SDR50|MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR|MMC_CAP_UHS_SDR104;
@@ -984,7 +986,7 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #ifdef CONFIG_EMMC_50_FEATURE
             msdc_host_mode2[id] &= (~MMC_CAP2_HS400_1_8V_DDR);
 #endif
-            printk("[****SD_Debug****]host will support UHS-SDR104\n");
+			pr_err("[****SD_Debug****]host will support UHS-SDR104\n");
             break;
         case UHS_DDR50: 
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12|MMC_CAP_UHS_SDR25|MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR;
@@ -994,43 +996,43 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
 #else
             msdc_host_mode2[id] &= (~MMC_CAP2_HS200_1_8V_SDR);
 #endif
-            printk("[****SD_Debug****]host will support UHS-DDR50\n");
+			pr_err("[****SD_Debug****]host will support UHS-DDR50\n");
             break;
 #ifdef CONFIG_EMMC_50_FEATURE
         case 6: //EMMC_HS400: 
             msdc_host_mode[id] |= MMC_CAP_UHS_SDR12|MMC_CAP_UHS_SDR25|MMC_CAP_UHS_SDR50|MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR|MMC_CAP_UHS_SDR104;
             msdc_host_mode2[id] |= MMC_CAP2_HS200_1_8V_SDR | MMC_CAP2_HS400_1_8V_DDR;
-            printk("[****SD_Debug****]host will support EMMC_HS400\n");
+			pr_err("[****SD_Debug****]host will support EMMC_HS400\n");
             break;
 #endif
         default             : 
-            printk("[****SD_Debug****]invalid sd30_mode:%d\n", msdc_ctl->sd30_mode); 
+			pr_err("[****SD_Debug****]invalid sd30_mode:%d\n", msdc_ctl->sd30_mode);
             break;
     }
 
-        printk(KERN_ERR "\n [%s]: msdc%d, line:%d, msdc_host_mode2=%d\n", __func__, id, __LINE__, msdc_host_mode2[id]); 
+	pr_err("\n [%s]: msdc%d, line:%d, msdc_host_mode2=%d\n", __func__, id, __LINE__, msdc_host_mode2[id]);
     switch(msdc_ctl->sd30_drive){
         case DRIVER_TYPE_A : 
             msdc_host_mode[id] |= MMC_CAP_DRIVER_TYPE_A;
             msdc_host_mode[id] &= (~MMC_CAP_DRIVER_TYPE_C)&(~MMC_CAP_DRIVER_TYPE_D);
-            printk("[****SD_Debug****]host will support DRIVING TYPE A\n");
+			pr_err("[****SD_Debug****]host will support DRIVING TYPE A\n");
             break;
         case DRIVER_TYPE_B : 
             msdc_host_mode[id] &= (~MMC_CAP_DRIVER_TYPE_A)&(~MMC_CAP_DRIVER_TYPE_C)&(~MMC_CAP_DRIVER_TYPE_D);
-            printk("[****SD_Debug****]host will support DRIVING TYPE B\n");
+			pr_err("[****SD_Debug****]host will support DRIVING TYPE B\n");
             break;
         case DRIVER_TYPE_C : 
             msdc_host_mode[id] |= MMC_CAP_DRIVER_TYPE_C;
             msdc_host_mode[id] &= (~MMC_CAP_DRIVER_TYPE_A)&(~MMC_CAP_DRIVER_TYPE_D);
-            printk("[****SD_Debug****]host will support DRIVING TYPE C\n");
+			pr_err("[****SD_Debug****]host will support DRIVING TYPE C\n");
             break;
         case DRIVER_TYPE_D : 
             msdc_host_mode[id] |= MMC_CAP_DRIVER_TYPE_D;
             msdc_host_mode[id] &= (~MMC_CAP_DRIVER_TYPE_A)&(~MMC_CAP_DRIVER_TYPE_C);
-            printk("[****SD_Debug****]host will support DRIVING TYPE D\n");
+			pr_err("[****SD_Debug****]host will support DRIVING TYPE D\n");
             break;
         default: 
-            printk("[****SD_Debug****]invalid sd30_drive:%d\n", msdc_ctl->sd30_drive); 
+			pr_err("[****SD_Debug****]invalid sd30_drive:%d\n", msdc_ctl->sd30_drive);
             break;
     }
 #if 0
@@ -1038,37 +1040,37 @@ static int simple_sd_ioctl_sd30_mode_switch(struct msdc_ioctl* msdc_ctl)
         case MAX_CURRENT_200 : 
             msdc_host_mode[id] |= MMC_CAP_MAX_CURRENT_200;
             msdc_host_mode[id] &= (~MMC_CAP_MAX_CURRENT_400)&(~MMC_CAP_MAX_CURRENT_600)&(~MMC_CAP_MAX_CURRENT_800);
-            printk("[****SD_Debug****]host will support MAX_CURRENT_200\n");
+			pr_err("[****SD_Debug****]host will support MAX_CURRENT_200\n");
             break;
         case MAX_CURRENT_400 : 
             msdc_host_mode[id] |= MMC_CAP_MAX_CURRENT_200 | MMC_CAP_MAX_CURRENT_400;
             msdc_host_mode[id] &= (~MMC_CAP_MAX_CURRENT_600)&(~MMC_CAP_MAX_CURRENT_800);
-            printk("[****SD_Debug****]host will support MAX_CURRENT_400\n");
+			pr_err("[****SD_Debug****]host will support MAX_CURRENT_400\n");
             break;
         case MAX_CURRENT_600 : 
             msdc_host_mode[id] |= MMC_CAP_MAX_CURRENT_200 | MMC_CAP_MAX_CURRENT_400|MMC_CAP_MAX_CURRENT_600;
             msdc_host_mode[id] &= (~MMC_CAP_MAX_CURRENT_800);
-            printk("[****SD_Debug****]host will support MAX_CURRENT_600\n");
+			pr_err("[****SD_Debug****]host will support MAX_CURRENT_600\n");
             break;
         case MAX_CURRENT_800 : 
             msdc_host_mode[id] |= MMC_CAP_MAX_CURRENT_200 | MMC_CAP_MAX_CURRENT_400|MMC_CAP_MAX_CURRENT_600|MMC_CAP_MAX_CURRENT_800;
-            printk("[****SD_Debug****]host will support MAX_CURRENT_800\n");
+			pr_err("[****SD_Debug****]host will support MAX_CURRENT_800\n");
             break;
         default : 
-            printk("[****SD_Debug****]invalid sd30_max_current:%d\n", msdc_ctl->sd30_max_current); 
+			pr_err("[****SD_Debug****]invalid sd30_max_current:%d\n", msdc_ctl->sd30_max_current);
             break;
     }
     switch(msdc_ctl->sd30_power_control){
         case SDXC_NO_POWER_CONTROL : 
             msdc_host_mode[id] &= (~MMC_CAP_SET_XPC_330) & (~MMC_CAP_SET_XPC_300) & (~MMC_CAP_SET_XPC_180);
-            printk("[****SD_Debug****]host will not support SDXC power control\n");
+			pr_err("[****SD_Debug****]host will not support SDXC power control\n");
             break;
         case SDXC_POWER_CONTROL:
             msdc_host_mode[id] |= MMC_CAP_SET_XPC_330 | MMC_CAP_SET_XPC_300 | MMC_CAP_SET_XPC_180;
-            printk("[****SD_Debug****]host will support SDXC power control\n");
+			pr_err("[****SD_Debug****]host will support SDXC power control\n");
             break;
         default :
-            printk("[****SD_Debug****]invalid sd30_power_control:%d\n", msdc_ctl->sd30_power_control);  
+			pr_err("[****SD_Debug****]invalid sd30_power_control:%d\n", msdc_ctl->sd30_power_control);
             break;
     }
 #endif
@@ -1127,7 +1129,7 @@ int msdc_get_info(STORAGE_TPYE storage_type,GET_STORAGE_INFO info_type,struct st
             host_function = MSDC_SD;
             break;
         default :
-            printk(KERN_ERR "No supported storage type!");
+			pr_err("No supported storage type!");
             return 0;
             break;
         }
@@ -1137,7 +1139,7 @@ int msdc_get_info(STORAGE_TPYE storage_type,GET_STORAGE_INFO info_type,struct st
             if(host->mmc && host->mmc->card)
                 info->card = host->mmc->card;
             else{
-                printk(KERN_ERR "CARD was not ready<get card>!");
+				pr_err("CARD was not ready<get card>!");
                 return 0;
             }
             break;
@@ -1145,7 +1147,7 @@ int msdc_get_info(STORAGE_TPYE storage_type,GET_STORAGE_INFO info_type,struct st
             if(host->mmc && host->mmc->card)
                 info->disk = mmc_get_disk(host->mmc->card);
             else{
-                printk(KERN_ERR "CARD was not ready<get disk>!");
+				pr_err("CARD was not ready<get disk>!");
                 return 0;
             }
             break;
@@ -1161,7 +1163,7 @@ int msdc_get_info(STORAGE_TPYE storage_type,GET_STORAGE_INFO info_type,struct st
 #endif
             break;
         default :
-            printk(KERN_ERR "Please check INFO_TYPE");
+			pr_err("Please check INFO_TYPE");
             return 0;
     }
     return 1;
@@ -1195,7 +1197,7 @@ static int simple_mmc_get_disk_info(struct mbr_part_info* mpi, unsigned char* na
     disk_part_iter_init(&piter, disk, 0);
     while ((part = disk_part_iter_next(&piter))){
 #if DEBUG_MMC_IOCTL
-        printk("part_name = %s    name = %s\n", part->info->volname, name);
+		pr_err("part_name = %s    name = %s\n", part->info->volname, name);
 #endif                
         if (!strncmp(part->info->volname, name, PARTITION_NAME_LENGTH)){
             mpi->start_sector = part->start_sect;           
@@ -1246,7 +1248,7 @@ static int simple_mmc_get_disk_info(struct mbr_part_info* mpi, unsigned char* na
         for (i = 0; i < PART_NUM; i++) {
             if (PartInfo[i].partition_idx != 0 && PartInfo[i].partition_idx == part->partno) {
 #if DEBUG_MMC_IOCTL
-                printk("part_name = %s    name = %s\n", PartInfo[i].name, name);
+				pr_err("part_name = %s    name = %s\n", PartInfo[i].name, name);
 #endif                
                 if (!strncmp(PartInfo[i].name, name, PARTITION_NAME_LENGTH)){
                     mpi->start_sector = part->start_sect;           
@@ -1297,16 +1299,16 @@ static int simple_mmc_erase_func(unsigned int start, unsigned int size)
          */
         arg = __MMC_ERASE_ARG; 
     }else {
-        printk("[%s]: emmc card can't support trim / discard / erase\n", __func__);
+		pr_err("[%s]: emmc card can't support trim / discard / erase\n", __func__);
         goto end;
     }
     
-    printk("[%s]: start=0x%x, size=%d, arg=0x%x, can_trim=(0x%x),EXT_CSD_SEC_GB_CL_EN=0x%lx\n", 
+	pr_err("[%s]: start=0x%x, size=%d, arg=0x%x, can_trim=(0x%x), XT_CSD_SEC_GB_CL_EN=0x%lx\n",
                     __func__, start, size, arg, host->mmc->card->ext_csd.sec_feature_support, EXT_CSD_SEC_GB_CL_EN); 
     mmc_erase(host->mmc->card, start, size, arg);
 
 #if DEBUG_MMC_IOCTL
-    printk("[%s]: erase done....arg=0x%x\n", __func__, arg);
+	pr_err("[%s]: erase done....arg=0x%x\n", __func__, arg);
 #endif
 end:
     mmc_release_host(host->mmc);
@@ -1366,7 +1368,7 @@ static int simple_sd_ioctl_erase_selected_area(struct msdc_ioctl* msdc_ctl)
 		arg = MMC_ERASE_ARG;
 
 #if DEBUG_MMC_IOCTL		
-    printk("Erase range %x~%x\n",from, from+nr-1);
+	pr_err("Erase range %x~%x\n", rom, from+nr-1);
 #endif
 
     if ( mmc_card_mmc(card) ) {
@@ -1410,7 +1412,8 @@ static int simple_mmc_erase_partition(unsigned char* name)
 
         if (l_ret == 0){
             /* do erase */
-            printk("erase %s start sector: 0x%x size: 0x%x \n", mbr_part.part_name, mbr_part.start_sector, mbr_part.nr_sects);
+			pr_err("erase %s start sector: 0x%x size: 0x%x\n",
+				mbr_part.part_name, mbr_part.start_sector, mbr_part.nr_sects);
             simple_mmc_erase_func(mbr_part.start_sector, mbr_part.nr_sects);
         }
     }
@@ -1446,7 +1449,7 @@ static long simple_sd_ioctl(struct file *file, unsigned int cmd, unsigned long a
                 ret = sd_ioctl_reinit((struct msdc_ioctl*)arg);
                 break;
             default:
-                printk("mt_sd_ioctl:this opcode value is illegal!!\n");
+				pr_err("mt_sd_ioctl:this opcode value is illegal!!\n");
                 return -EINVAL;
         }
         return ret;        
@@ -1455,7 +1458,10 @@ static long simple_sd_ioctl(struct file *file, unsigned int cmd, unsigned long a
     if (copy_from_user(&msdc_ctl, (struct msdc_ioctl*)arg, sizeof(struct msdc_ioctl))){
         return -EFAULT; 
     }
-    
+
+	if (msdc_ctl.host_num >= HOST_MAX_NUM || msdc_ctl.host_num < 0)
+		return -EFAULT;
+
     switch (msdc_ctl.opcode){
         case MSDC_SINGLE_READ_WRITE:
             msdc_ctl.result = simple_sd_ioctl_single_rw(&msdc_ctl);
@@ -1473,7 +1479,7 @@ static long simple_sd_ioctl(struct file *file, unsigned int cmd, unsigned long a
             msdc_ctl.result = simple_sd_ioctl_get_excsd(&msdc_ctl);
             break;
         case MSDC_DRIVING_SETTING:
-            printk("in ioctl to change driving\n");
+			pr_err("in ioctl to change driving\n");
             if (1 == msdc_ctl.iswrite){
                 msdc_ctl.result = simple_sd_ioctl_set_driving(&msdc_ctl);
             } else {
@@ -1499,7 +1505,7 @@ static long simple_sd_ioctl(struct file *file, unsigned int cmd, unsigned long a
             msdc_ctl.result = simple_sd_ioctl_get_partition_size(&msdc_ctl);
             break;
         default:
-            printk("simple_sd_ioctl:this opcode value is illegal!! %d\n",msdc_ctl.opcode);
+			pr_err("simple_sd_ioctl:this opcode value is illegal!! %d\n", msdc_ctl.opcode);
             return -EINVAL;
     }
 
@@ -1528,7 +1534,7 @@ static int simple_sd_probe(struct platform_device *pdev)
 {
     int ret = 0;
 
-    printk("in misc_sd_probe function\n");
+	pr_err("in misc_sd_probe function\n");
 
     return ret;
 }
@@ -1554,20 +1560,20 @@ static int __init simple_sd_init(void)
 
     sg_msdc_multi_buffer =(u32*)kmalloc(64*1024,GFP_KERNEL);
     if( sg_msdc_multi_buffer ==NULL)
-        printk("allock 64KB memory failed\n");
+		pr_err("allock 64KB memory failed\n");
 
     ret = platform_driver_register(&simple_sd_driver);
     if (ret) {
-        printk(KERN_ERR DRV_NAME_MISC ": Can't register driver\n");
+		pr_err(DRV_NAME_MISC ": Can't register driver\n");
         return ret;
     }
-    printk(KERN_INFO DRV_NAME_MISC ": MediaTek simple SD/MMC Card Driver\n");
+	pr_info(DRV_NAME_MISC ": MediaTek simple SD/MMC Card Driver\n");
 
     /*msdc0 is for emmc only, just for emmc*/
     //ret = misc_register(&simple_msdc_em_dev[host->id]);
     ret = misc_register(&simple_msdc_em_dev[0]);
     if (ret) {
-        printk("register MSDC Slot[0] misc driver failed (%d)\n",ret);
+		pr_err("register MSDC Slot[0] misc driver failed (%d)\n", ret);
         return ret;
     }
 

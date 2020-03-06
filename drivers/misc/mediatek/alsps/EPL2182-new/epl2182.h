@@ -90,19 +90,76 @@
 #define EPL_PST_8_TIME		(2 << 2)
 #define EPL_PST_16_TIME		(3 << 2)
 
-#define EPL_INTT_PS_32	    2
-#define EPL_INTT_PS_48		3
-#define EPL_INTT_PS_80		4
-#define EPL_INTT_PS_144		5
-#define EPL_INTT_PS_272		6
-#define EPL_INTT_PS_384		7
-#define EPL_INTT_PS_520		8
-#define EPL_INTT_PS_656		9
-#define EPL_INTT_PS_784	    10
-#define EPL_INTT_PS_1040	11
-#define EPL_INTT_PS_2064	12
-#define EPL_INTT_PS_4112	13
-#define EPL_INTT_PS_6160	14
-#define EPL_INTT_PS_8280	15
+/*----------------------------------------------------------------------------*/
+typedef enum{
+    EPL2182_NOTIFY_PROXIMITY_CHANGE = 1,
+    EPL2182_NOTIFY_ALS_RAW_DATA,
+    EPL2182_NOTIFY_PS_RAW_DATA,
+    EPL2182_NOTIFY_PROXIMITY_NOT_CHANGE
+}EPL2182_NOTIFY_TYPE;
+/*----------------------------------------------------------------------------*/
+typedef enum{
+    EPL2182_CUST_ACTION_SET_CUST = 1,
+    EPL2182_CUST_ACTION_CLR_CALI,
+    EPL2182_CUST_ACTION_SET_CALI,
+    EPL2182_CUST_ACTION_SET_PS_THRESHODL,
+    EPL2182_CUST_ACTION_SET_EINT_INFO,
+    EPL2182_CUST_ACTION_GET_ALS_RAW_DATA,
+    EPL2182_CUST_ACTION_GET_PS_RAW_DATA,
+}EPL2182_CUST_ACTION;
+/*----------------------------------------------------------------------------*/
+typedef struct
+{
+    uint16_t    action;
+}EPL2182_CUST;
+/*----------------------------------------------------------------------------*/
+typedef struct
+{
+    uint16_t    action;
+    uint16_t    part;
+    int32_t    data[0];
+}EPL2182_SET_CUST;
+/*----------------------------------------------------------------------------*/
+typedef EPL2182_CUST EPL2182_CLR_CALI;
+/*----------------------------------------------------------------------------*/
+typedef struct
+{
+    uint16_t    action;
+    int32_t     cali;
+}EPL2182_SET_CALI;
+/*----------------------------------------------------------------------------*/
+typedef struct
+{
+    uint16_t    action;
+    int32_t     threshold[2];
+}EPL2182_SET_PS_THRESHOLD;
+/*----------------------------------------------------------------------------*/
+typedef struct
+{
+    uint16_t    action;
+    uint32_t    gpio_pin;
+    uint32_t    gpio_mode;
+    uint32_t    eint_num;
+	uint32_t    eint_is_deb_en;
+	uint32_t    eint_type;
+}EPL2182_SET_EINT_INFO;
+/*----------------------------------------------------------------------------*/
+typedef EPL2182_CUST EPL2182_GET_ALS_RAW_DATA;
+/*----------------------------------------------------------------------------*/
+typedef EPL2182_CUST EPL2182_GET_PS_RAW_DATA;
+/*----------------------------------------------------------------------------*/
+typedef union
+{
+    uint32_t                    data[10];
+    EPL2182_CUST                cust;
+    EPL2182_SET_CUST            setCust;
+    EPL2182_CLR_CALI            clearCali;
+    EPL2182_SET_CALI            setCali;
+    EPL2182_SET_PS_THRESHOLD    setPSThreshold;
+    EPL2182_SET_EINT_INFO       setEintInfo;
+    EPL2182_GET_ALS_RAW_DATA    getALSRawData;
+    EPL2182_GET_PS_RAW_DATA     getPSRawData;
+}EPL2182_CUST_DATA;
+/*----------------------------------------------------------------------------*/
 
 #endif

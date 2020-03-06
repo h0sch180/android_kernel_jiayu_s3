@@ -43,9 +43,6 @@
 
 #include "siHdmiTx_902x_TPI.h"
 
-#define SINK_480P      (1<< 0)
-#define SINK_720P60    (1<< 1)
-#define SINK_1080P30   (1<< 9)
 
 
 
@@ -253,38 +250,6 @@ static int sii9024_video_config(HDMI_VIDEO_RESOLUTION vformat, HDMI_VIDEO_INPUT_
 	return 0;
 }
 
-/*----------------------------------------------------------------------------*/
-
-/*----------------------------------------------------------------------------*/
-
-static void sii9024_get_params(HDMI_PARAMS *params)
-{
-	memset(params, 0, sizeof(HDMI_PARAMS));
-
-	pr_debug("720p\n");
-	params->init_config.vformat = HDMI_VIDEO_1280x720p_60Hz;
-	params->init_config.aformat = HDMI_AUDIO_48K_2CH;
-
-	params->clk_pol = HDMI_POLARITY_RISING;
-	params->de_pol = HDMI_POLARITY_RISING;
-	params->vsync_pol = HDMI_POLARITY_FALLING;
-	params->hsync_pol = HDMI_POLARITY_FALLING;
-
-	params->hsync_pulse_width = 128;
-	params->hsync_back_porch = 152;
-	params->hsync_front_porch = 40;
-	params->vsync_pulse_width = 3;
-	params->vsync_back_porch = 12;
-	params->vsync_front_porch = 10;
-
-	params->rgb_order = HDMI_COLOR_ORDER_RGB;
-
-	params->io_driving_current = IO_DRIVING_CURRENT_2MA;
-	params->intermediat_buffer_num = 4;
-	params->output_mode = HDMI_OUTPUT_MODE_LCD_MIRROR;
-	params->is_force_awake = 1;
-	params->is_force_landscape = 1;
-}
 
 /*----------------------------------------------------------------------------*/
 
@@ -384,6 +349,153 @@ static int hdmi_timer_kthread(void *data)
 	}
 
 	return 0;
+}
+
+static CABLE_INSERT_CALLBACK hdmi_callback_table[1];
+int hdmi_register_cable_insert_callback(CABLE_INSERT_CALLBACK cb)
+{
+	if(cb != NULL)
+		hdmi_callback_table[0] = cb;
+	else
+		pr_err("ERROR callback: %p\n", hdmi_callback_table[0]);
+	return 0;
+}
+
+int hdmi_unregister_cable_insert_callback(CABLE_INSERT_CALLBACK cb)
+{
+	if(cb != NULL)
+		hdmi_callback_table[0] = NULL;
+	else
+		pr_err("ERROR unregister callback: %p\n", hdmi_callback_table[0]);
+	return 0;
+}
+
+void hdmi_invoke_cable_callbacks(HDMI_STATE state)
+{
+	if (hdmi_callback_table[0])
+		hdmi_callback_table[0](state);
+	else
+		pr_err("ERROR invoke callback: %p\n", hdmi_callback_table[0]);
+}
+
+static HDMI_CABLE_TYPE MHL_Connect_type = HDMI_CABLE;
+static unsigned int HDCP_Supported_Info = 0;
+bool MHL_3D_Support = false;
+int MHL_3D_format=0x00;
+static void sii9024_get_params(HDMI_PARAMS *params)
+{
+	HDMI_VIDEO_RESOLUTION input_resolution = params->init_config.vformat;
+	memset(params, 0, sizeof(HDMI_PARAMS));
+
+	switch (input_resolution)
+	{
+		case HDMI_VIDEO_720x480p_60Hz:
+			params->clk_pol = HDMI_POLARITY_RISING;
+			params->de_pol    = HDMI_POLARITY_RISING;
+			params->hsync_pol = HDMI_POLARITY_RISING;
+			params->vsync_pol = HDMI_POLARITY_RISING;;
+
+			params->hsync_pulse_width = 62;
+			params->hsync_back_porch  = 60;
+			params->hsync_front_porch = 16;
+
+			params->vsync_pulse_width = 6;
+			params->vsync_back_porch  = 30;
+			params->vsync_front_porch = 9;
+
+			params->width       = 720;
+			params->height      = 480;
+			params->input_clock = 27027;
+
+			params->init_config.vformat = HDMI_VIDEO_720x480p_60Hz;
+		break;
+		case HDMI_VIDEO_1280x720p_60Hz:
+			params->clk_pol = HDMI_POLARITY_RISING;
+			params->de_pol = HDMI_POLARITY_RISING;
+			params->vsync_pol = HDMI_POLARITY_FALLING;
+			params->hsync_pol = HDMI_POLARITY_FALLING;
+
+			params->hsync_pulse_width = 40;
+			params->hsync_back_porch  = 220;
+			params->hsync_front_porch = 110;
+
+			params->vsync_pulse_width = 5;
+			params->vsync_back_porch  = 20;
+			params->vsync_front_porch = 5;
+
+			params->width       = 1280;
+			params->height      = 720;
+#ifdef CONFIG_MTK_SMARTBOOK_SUPPORT
+			if (MHL_Connect_type == MHL_SMB_CABLE)
+			{
+				params->width  = 1366;
+				params->height = 768;
+			}
+#endif
+			params->input_clock = 74250;
+
+			params->init_config.vformat = HDMI_VIDEO_1280x720p_60Hz;
+			params->output_mode = HDMI_OUTPUT_MODE_LCD_MIRROR;
+
+		break;
+		case HDMI_VIDEO_1920x1080p_30Hz:
+			params->clk_pol = HDMI_POLARITY_RISING;
+			params->de_pol    = HDMI_POLARITY_RISING;
+			params->hsync_pol = HDMI_POLARITY_FALLING;
+			params->vsync_pol = HDMI_POLARITY_FALLING;;
+
+			params->hsync_pulse_width = 44;
+			params->hsync_back_porch  = 148;
+			params->hsync_front_porch = 88;
+
+			params->vsync_pulse_width = 5;
+			params->vsync_back_porch  = 36;
+			params->vsync_front_porch = 4;
+
+			params->width       = 1920;
+			params->height      = 1080;
+			params->input_clock = 74250;
+
+			params->init_config.vformat = HDMI_VIDEO_1920x1080p_30Hz;
+		break;
+		case HDMI_VIDEO_1920x1080p_60Hz:
+			params->clk_pol   = HDMI_POLARITY_RISING;
+			params->de_pol    = HDMI_POLARITY_RISING;
+			params->hsync_pol = HDMI_POLARITY_FALLING;
+			params->vsync_pol = HDMI_POLARITY_FALLING;;
+
+			params->hsync_pulse_width = 44;
+			params->hsync_back_porch  = 148;
+			params->hsync_front_porch = 88;
+
+			params->vsync_pulse_width = 5;
+			params->vsync_back_porch  = 36;
+			params->vsync_front_porch = 4;
+
+			params->width       = 1920;
+			params->height      = 1080;
+			params->input_clock = 148500;
+
+			params->init_config.vformat = HDMI_VIDEO_1920x1080p_60Hz;
+		break;
+		default:
+			pr_err("Unknow support resolution\n");
+		break;
+	}
+
+	params->init_config.aformat			= HDMI_AUDIO_44K_2CH;
+	params->rgb_order					= HDMI_COLOR_ORDER_RGB;
+	params->io_driving_current			= IO_DRIVING_CURRENT_2MA;
+	params->intermediat_buffer_num		= 4;
+	params->scaling_factor				= 0;
+	params->cabletype					= MHL_Connect_type;
+	params->HDCPSupported				= HDCP_Supported_Info;
+	params->is_force_awake				= 1;
+#ifdef CONFIG_MTK_HDMI_3D_SUPPORT
+	if(MHL_Connect_type== MHL_3D_GLASSES)
+	params->cabletype					= MHL_CABLE;
+	params->is_3d_support				= MHL_3D_Support;
+#endif
 }
 
 static int sii9024_enter(void)	/* ch7035 re-power on */
@@ -694,16 +806,16 @@ static int hdmi_sii_probe(struct i2c_client *client, const struct i2c_device_id 
                    ret =  request_irq(hdmi_irq,&_sil9024_irq_handler,IRQF_TRIGGER_LOW,"EINT_HDMI_HPD-eint",NULL);
                    if(ret)
                    {
-                       printk("HDMI IRQ LINE NOT AVAILABLE\n");    
+                       pr_err("HDMI IRQ LINE NOT AVAILABLE\n");
                    }
                    else
                    {
                        disable_irq(hdmi_irq);
-                   }                           
+                   }
 		}
-                else 
+                else
                 {
-                   printk("[%s] can't find hdmi eint node\n",__func__);
+                   pr_err("[%s] can't find hdmi eint node\n",__func__);
                 }
 	        #else
                 mt_eint_set_sens(CUST_EINT_EINT_HDMI_HPD_NUM, MT_LEVEL_SENSITIVE);
@@ -788,7 +900,8 @@ const HDMI_DRIVER *HDMI_GetDriver(void)
 		.get_state = sii9024_get_state,
 		.log_enable     = sii9024_log_enable,
 		.getedid          = hdmi_AppGetEdidInfo,
-
+		.register_callback = hdmi_register_cable_insert_callback,
+		.unregister_callback = hdmi_unregister_cable_insert_callback,
 	};
 
 	return &HDMI_DRV;

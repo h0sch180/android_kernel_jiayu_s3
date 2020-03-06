@@ -5,7 +5,6 @@
 #include <linux/fs.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/android_pmem.h>
 #include <linux/memblock.h>
 #include <asm/setup.h>
 #include <asm/mach/arch.h>
@@ -579,7 +578,7 @@ static struct resource resource_xhci[] = {
 
 static void xhci_hcd_release (struct device *dev)
 {
-    printk(KERN_INFO "dev = 0x%08X.\n", (uint32_t)dev);
+	pr_info("dev = 0x%08X.\n", (uint32_t)dev);
 }
 
 static struct platform_device mtk_xhci_dev = {
@@ -1106,38 +1105,6 @@ struct platform_device mt3326_device_gps = {
 };
 #endif
 
-/*=======================================================================*/
-/* MT6573 PMEM                                                           */
-/*=======================================================================*/
-#if defined(CONFIG_ANDROID_PMEM)
-static struct android_pmem_platform_data  pdata_multimedia = {
-        .name = "pmem_multimedia",
-        .no_allocator = 0,
-        .cached = 1,
-        .buffered = 1
-};
-
-static struct platform_device pmem_multimedia_device = {
-        .name = "android_pmem",
-        .id = 1,
-        .dev = { .platform_data = &pdata_multimedia }
-};
-#endif
-
-#if defined(CONFIG_ANDROID_VMEM)
-static struct android_vmem_platform_data  pdata_vmultimedia = {
-        .name = "vmem_multimedia",
-        .no_allocator = 0,
-        .cached = 1,
-        .buffered = 1
-};
-
-static struct platform_device vmem_multimedia_device = {
-        .name = "android_vmem",
-        .id = -1,
-        .dev = { .platform_data = &pdata_vmultimedia }
-};
-#endif
 
 /*=======================================================================*/
 /* MT6575 SYSRAM                                                         */
@@ -1220,8 +1187,8 @@ static int __init parse_tag_devinfo_data_fixup(const struct tag *tags)
     }
 
     /* print chip id for debugging purpose */
-    printk("tag_devinfo_data_rid, indx[%d]:0x%x\n", 12,g_devinfo_data[12]);
-    printk("tag_devinfo_data size:%d\n", size);
+	pr_alert("tag_devinfo_data_rid, indx[%d]:0x%x\n", 12, g_devinfo_data[12]);
+	pr_alert("tag_devinfo_data size:%d\n", size);
 	return 0;
 }
 #ifdef DFO_DEBUG
@@ -1282,14 +1249,14 @@ static void parse_dfo_tag(struct tag *t)
     int nr = ((t->hdr.size << 2) - sizeof(struct tag_header)) / sizeof(tag_dfo_boot);
     tag_dfo_boot *p = 0;
     p = &(t->u.dfo_data);
-    printk(KERN_ALERT"%s start\n", __FUNCTION__);
-    printk(KERN_ALERT"tag_header size: %d, tag_dfo_boot size: %d\n"
-            "hdr.size: %d\n",
-            sizeof(struct tag_header), sizeof(tag_dfo_boot),
-            t->hdr.size);
-    printk(KERN_ALERT"number of tags: %d\n", nr);
+	pr_alert("%s start\n", __func__);
+	pr_alert("tag_header size: %d, tag_dfo_boot size: %d\n"
+		    "hdr.size: %d\n",
+		    sizeof(struct tag_header), sizeof(tag_dfo_boot),
+		    t->hdr.size);
+	pr_alert("number of tags: %d\n", nr);
     for (i = 0; i < nr; i++) {
-        printk(KERN_ALERT"dfo[%d]: %s, 0x%08lx\n", i,
+	pr_alert("dfo[%d]: %s, 0x%08lx\n", i,
               p->info[0].name, p->info[0].value);
         /*
          * add dfo tags into dfo_db
@@ -1300,7 +1267,7 @@ static void parse_dfo_tag(struct tag *t)
             dfo_db.dfo_tag[dfo_db.cnt].info[0].value = p->info[0].value;
             dfo_db.cnt++; /* increase cnt */
         } else {
-            printk(KERN_ERR"ERR: number of dfo(%d) excceed MAX_DFO_ENTRIES(%d),"
+		pr_err("ERR: number of dfo(%d) excceed MAX_DFO_ENTRIES(%d),"
                     "skip it\n",
                     nr, MAX_DFO_ENTRIES);
         }
@@ -1340,7 +1307,7 @@ void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
 	}
 #endif
 
-    printk(KERN_ALERT"Load default dfo data...\n");
+	pr_alert("Load default dfo data...\n");
 
     init_dfo_db(); /* init dfo_db */
 
@@ -1394,13 +1361,12 @@ void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
 #endif
         else if (tags->hdr.tag == ATAG_DFO_DATA) {
             parse_dfo_tag(tags);
-        }
-		else if(tags->hdr.tag == ATAG_MDINFO_DATA) {
-            printk(KERN_ALERT "Get MD inf from META\n");
-            printk(KERN_ALERT "md_inf[0]=%d\n",tags->u.mdinfo_data.md_type[0]);
-            printk(KERN_ALERT "md_inf[1]=%d\n",tags->u.mdinfo_data.md_type[1]);
-            printk(KERN_ALERT "md_inf[2]=%d\n",tags->u.mdinfo_data.md_type[2]);
-            printk(KERN_ALERT "md_inf[3]=%d\n",tags->u.mdinfo_data.md_type[3]);
+	} else if (tags->hdr.tag == ATAG_MDINFO_DATA) {
+		pr_alert("Get MD inf from META\n");
+		pr_alert("md_inf[0]=%d\n", tags->u.mdinfo_data.md_type[0]);
+		pr_alert("md_inf[1]=%d\n", tags->u.mdinfo_data.md_type[1]);
+		pr_alert("md_inf[2]=%d\n", tags->u.mdinfo_data.md_type[2]);
+		pr_alert("md_inf[3]=%d\n", tags->u.mdinfo_data.md_type[3]);
             md_inf_from_meta[0]=tags->u.mdinfo_data.md_type[0];
             md_inf_from_meta[1]=tags->u.mdinfo_data.md_type[1];
             md_inf_from_meta[2]=tags->u.mdinfo_data.md_type[2];
@@ -1413,7 +1379,7 @@ void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
          * Always use default dfo setting in META mode.
          * We can fix abnormal dfo setting this way.
          */
-        printk(KERN_ALERT"(META mode) Load default dfo data...\n");
+	pr_alert("(META mode) Load default dfo data...\n");
 #ifdef CONFIG_MTK_ECCCI_DRIVER
         ccci_parse_meta_md_setting(md_inf_from_meta);
 #endif
@@ -1438,28 +1404,28 @@ void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
     unsigned long v = 0x5a;
     /* normal case test */
     if (!dfo_query("key1", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key1", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+				"key1", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     if (!dfo_query("key3", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key3", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+				"key3", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     if (!dfo_query("key5", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key5", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+				"key5", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     /* fail case test */
     if (!dfo_query("none-exist-key", &v)) {
-        printk(KERN_ERR"dfo_query fail case FAIL\n");
+		pr_err("dfo_query fail case FAIL\n");
     } else {
-        printk(KERN_ALERT"dfo_query fail case PASS\n");
+		pr_alert("dfo_query fail case PASS\n");
     }
 #endif
 
@@ -1558,7 +1524,7 @@ void mt_dt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
     if (cmdline_tag) cmdline_filter(cmdline_tag, (char*)&temp_command_line);
 #endif
 
-    printk(KERN_ALERT"Load default dfo data...\n");
+	pr_alert("Load default dfo data...\n");
 
     init_dfo_db(); /* init dfo_db */
 
@@ -1590,11 +1556,11 @@ void mt_dt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
     tags = of_get_flat_dt_prop(node, "atag,mdinfo", NULL);
     if (tags)
     {
-        printk(KERN_ALERT "Get MD inf from META\n");
-        printk(KERN_ALERT "md_inf[0]=%d\n",tags->u.mdinfo_data.md_type[0]);
-        printk(KERN_ALERT "md_inf[1]=%d\n",tags->u.mdinfo_data.md_type[1]);
-        printk(KERN_ALERT "md_inf[2]=%d\n",tags->u.mdinfo_data.md_type[2]);
-        printk(KERN_ALERT "md_inf[3]=%d\n",tags->u.mdinfo_data.md_type[3]);
+	pr_alert("Get MD inf from META\n");
+	pr_alert("md_inf[0]=%d\n", tags->u.mdinfo_data.md_type[0]);
+	pr_alert("md_inf[1]=%d\n", tags->u.mdinfo_data.md_type[1]);
+	pr_alert("md_inf[2]=%d\n", tags->u.mdinfo_data.md_type[2]);
+	pr_alert("md_inf[3]=%d\n", tags->u.mdinfo_data.md_type[3]);
         md_inf_from_meta[0]=tags->u.mdinfo_data.md_type[0];
         md_inf_from_meta[1]=tags->u.mdinfo_data.md_type[1];
         md_inf_from_meta[2]=tags->u.mdinfo_data.md_type[2];
@@ -1606,7 +1572,7 @@ void mt_dt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
          * Always use default dfo setting in META mode.
          * We can fix abnormal dfo setting this way.
          */
-        printk(KERN_ALERT"(META mode) Load default dfo data...\n");
+	pr_alert("(META mode) Load default dfo data...\n");
 #ifdef CONFIG_MTK_ECCCI_DRIVER
         ccci_parse_meta_md_setting(md_inf_from_meta);
 #endif
@@ -1620,28 +1586,28 @@ void mt_dt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
     unsigned long v = 0x5a;
     /* normal case test */
     if (!dfo_query("key1", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key1", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+			"key1", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     if (!dfo_query("key3", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key3", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+				"key3", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     if (!dfo_query("key5", &v)) {
-        printk(KERN_ALERT"dfo_query normal case PASS (%s, 0x%08lx)\n",
-                "key5", v);
+		pr_alert("dfo_query normal case PASS (%s, 0x%08lx)\n",
+				"key5", v);
     } else {
-        printk(KERN_ERR"dfo_query normal case FAIL\n");
+		pr_err("dfo_query normal case FAIL\n");
     }
     /* fail case test */
     if (!dfo_query("none-exist-key", &v)) {
-        printk(KERN_ERR"dfo_query fail case FAIL\n");
+		pr_err("dfo_query fail case FAIL\n");
     } else {
-        printk(KERN_ALERT"dfo_query fail case PASS\n");
+		pr_alert("dfo_query fail case PASS\n");
     }
 #endif
 
@@ -1672,7 +1638,7 @@ void mt_dt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
     	BUG();
 //#else
     if (reserved_mem_bank_tag) {
-        pr_alert("u.mem.start: 0x%08lx, u.mem.size: 0x%08lx\n",
+	pr_alert("u.mem.start: 0x%08lx, u.mem.size: 0x%08lx\n",
             reserved_mem_bank_tag->u.mem.start, reserved_mem_bank_tag->u.mem.size);
         reserved_mem_bank_tag->u.mem.size -= ((__u32)TOTAL_RESERVED_MEM_SIZE);
         mi->bank[mi->nr_banks - 1].size -= ((__u32)TOTAL_RESERVED_MEM_SIZE);
@@ -2010,7 +1976,7 @@ __init int mt_board_init(void)
 #ifndef MTK_FORCE_CLUSTER1
 #ifdef CONFIG_FIQ_DEBUGGER
         retval = platform_device_register(&mt_fiq_debugger);
-        printk("[%s]: mt_fiq_debugger finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: mt_fiq_debugger finished probe, retval=%d\n", __func__, retval);
         if (retval != 0){
                 return retval;
         }
@@ -2031,34 +1997,34 @@ __init int mt_board_init(void)
 			memcpy(serial_number, "0123456789ABCDEF", 16);
 
 		retval = kobject_init_and_add(&sn_kobj, &sn_ktype, NULL, "sys_info");
-    printk("[%s]: sn_kobj finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: sn_kobj finished probe, retval=%d\n", __func__, retval);
 
 		if (retval < 0)
-			printk("[%s] fail to add kobject\n", "sys_info");
+			pr_alert("[%s] fail to add kobject\n", "sys_info");
 	}
 
 #if defined(CONFIG_MTK_MTD_NAND)
     retval = platform_device_register(&mtk_nand_dev);
-    printk("[%s]: mtk_nand_dev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: mtk_nand_dev finished probe, retval=%d\n", __func__, retval);
     if (retval != 0) {
-        printk(KERN_ERR "register nand device fail\n");
+	pr_err("register nand device fail\n");
         return retval;
     }
 #endif
 
 	retval = platform_device_register(&gpio_dev);
-  printk("[%s]: gpio_dev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: gpio_dev finished probe, retval=%d\n", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
 	retval = platform_device_register(&fh_dev);
-  printk("[%s]: fh_dev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: fh_dev finished probe, retval=%d\n", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
 #ifdef CONFIG_MTK_KEYPAD
 	retval = platform_device_register(&kpd_pdev);
-  printk("[%s]: kpd_pdev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: kpd_pdev finished probe, retval=%d\n", __func__, retval);
 	if (retval != 0) {
 		return retval;
 	}
@@ -2066,7 +2032,7 @@ __init int mt_board_init(void)
 
 #ifdef CONFIG_MOUSE_PANASONIC_EVQWJN
 	retval = platform_device_register(&jbd_pdev);
-  printk("[%s]: jbd_pdev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: jbd_pdev finished probe, retval=%d\n", __func__, retval);
 	if (retval != 0) {
 		return retval;
 	}
@@ -2074,7 +2040,7 @@ __init int mt_board_init(void)
 
 #if defined(CONFIG_KEYBOARD_HID)
 	retval = platform_device_register(&mt_hid_dev);
-  printk("[%s]: mt_hid_dev finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: mt_hid_dev finished probe, retval=%d\n", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2093,7 +2059,7 @@ __init int mt_board_init(void)
 	//i2c_register_board_info(2, i2c_devs2, ARRAY_SIZE(i2c_devs2));
 		for (i = 0; i < ARRAY_SIZE(mt_device_i2c); i++){
 			retval = platform_device_register(&mt_device_i2c[i]);
-			printk("[%s]: mt_device_i2c[%d] finished probe, retval=%d\n", __func__, i, retval);
+			pr_alert("[%s]: mt_device_i2c[%d] finished probe, retval=%d\n", __func__, i, retval);
 			if (retval != 0){
 				return retval;
 			}
@@ -2102,7 +2068,7 @@ __init int mt_board_init(void)
 #if defined(CONFIG_MTK_MMC)
     for (i = 0; i < ARRAY_SIZE(mt_device_msdc); i++){
         retval = platform_device_register(&mt_device_msdc[i]);
-        printk("[%s]: msdc finished probe, retval=%d\n", __func__, retval);
+	pr_alert("[%s]: msdc finished probe, retval=%d\n", __func__, retval);
 			if (retval != 0){
 				return retval;
 			}
@@ -2111,15 +2077,15 @@ __init int mt_board_init(void)
 
 #if defined(CONFIG_MTK_SOUND)
     retval = platform_device_register(&AudDrv_device);
-    printk("[%s]:AudDrv_driver_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]:AudDrv_driver_device, retval=%d\n!", __func__, retval);
     if (retval != 0){
        return retval;
     }
 
 	retval = platform_device_register(&AudDrv_device2);
-	printk("[%s]: AudioMTKBTCVSD AudDrv_device2, retval=%d\n!", __func__, retval);
+	pr_alert("[%s]: AudioMTKBTCVSD AudDrv_device2, retval=%d\n!", __func__, retval);
 	if (retval != 0){
-		 printk("AudioMTKBTCVSD AudDrv_device2 Fail:%d \n", retval);
+		pr_alert("AudioMTKBTCVSD AudDrv_device2 Fail:%d\n", retval);
 		return retval;
 	}
 
@@ -2129,36 +2095,36 @@ __init int mt_board_init(void)
 
 #ifdef CONFIG_MTK_MULTIBRIDGE_SUPPORT
     retval = platform_device_register(&mtk_multibridge_dev);
-    printk("[%s]: multibridge_driver_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: multibridge_driver_device, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
 #endif
 
     retval = platform_device_register(&mtk_device_btif);
-    printk("[%s]: mtk_device_btif, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_device_btif, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
 
 //=====SMI/M4U devices===========
-    printk("register MTK_SMI device\n");
+	pr_alert("register MTK_SMI device\n");
     retval = platform_device_register(&mtk_smi_dev);
-    printk("[%s]: mtk_smi_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_smi_dev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
 
 
-    printk("register CMDQ device: %d\n", retval);
+	pr_alert("register CMDQ device: %d\n", retval);
     retval = platform_device_register(&mtk_cmdq_dev);
-    printk("[%s]: mtk_cmdq_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_cmdq_dev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
 #if 1
     retval = platform_device_register(&disp_device);
-    printk("[%s]: disp_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: disp_device, retval=%d\n!", __func__, retval);
     if (retval != 0)
     {
         return retval;
@@ -2170,18 +2136,18 @@ __init int mt_board_init(void)
 
     /*
     retval = platform_device_register(&mtk_mjc_dev);
-    printk("register MJC device: %d\n", retval);
+	pr_alert("register MJC device: %d\n", retval);
     if (retval != 0) {
         return retval;
     }*/
 
 #ifdef CONFIG_MTK_MT8193_SUPPORT
-    printk("register 8193_CKGEN device\n");
+	pr_alert("register 8193_CKGEN device\n");
     retval = platform_device_register(&mtk_ckgen_dev);
-    printk("[%s]: mtk_ckgen_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_ckgen_dev, retval=%d\n!", __func__, retval);
     if (retval != 0){
 
-        printk("register 8193_CKGEN device FAILS!\n");
+	pr_alert("register 8193_CKGEN device FAILS!\n");
         return retval;
     }
 #endif
@@ -2196,13 +2162,13 @@ __init int mt_board_init(void)
      */
     if (((bl_fb.base == FB_START) && (bl_fb.size == FB_SIZE)) ||
          (use_bl_fb == 2)) {
-        printk("FB is initialized by BL(%d)\n", use_bl_fb);
+	pr_alert("FB is initialized by BL(%d)\n", use_bl_fb);
         mtkfb_set_lcm_inited(1);
     } else if ((bl_fb.base == 0) && (bl_fb.size == 0)) {
-        printk("FB is not initialized(%d)\n", use_bl_fb);
+	pr_alert("FB is not initialized(%d)\n", use_bl_fb);
         mtkfb_set_lcm_inited(0);
     } else {
-        printk(
+	pr_alert(
 "******************************************************************************\n"
 "   WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
 "******************************************************************************\n"
@@ -2223,10 +2189,10 @@ __init int mt_board_init(void)
             int delay_sec = 5;
 
             while (delay_sec >= 0) {
-                printk("\rcontinue after %d seconds ...", delay_sec--);
+		pr_alert("\rcontinue after %d seconds ...", delay_sec--);
                 mdelay(1000);
             }
-            printk("\n");
+	pr_alert("\n");
         }
 #if 0
         panic("The default base & size values are not matched "
@@ -2237,18 +2203,18 @@ __init int mt_board_init(void)
 #ifdef CONFIG_OF
     resource_fb[0].start = mtkfb_get_fb_base();
     resource_fb[0].end   = mtkfb_get_fb_base() + FB_SIZE - 1;
-    printk("[DT]FB start: 0x%llx end: 0x%llx\n", (unsigned long long)resource_fb[0].start,
+	pr_alert("[DT]FB start: 0x%llx end: 0x%llx\n", (unsigned long long)resource_fb[0].start,
                                              (unsigned long long)resource_fb[0].end);
 #else
     resource_fb[0].start = FB_START;
     resource_fb[0].end   = FB_START + FB_SIZE - 1;
 
-    printk("FB start: 0x%llx end: 0x%llx\n", (unsigned long long)resource_fb[0].start,
+	pr_alert("FB start: 0x%llx end: 0x%llx\n", (unsigned long long)resource_fb[0].start,
                                          (unsigned long long)resource_fb[0].end);
 #endif
 
     retval = platform_device_register(&mt6575_device_fb);
-    printk("[%s]: mt6575_device_fb, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt6575_device_fb, retval=%d\n!", __func__, retval);
     if (retval != 0) {
          return retval;
     }
@@ -2258,16 +2224,16 @@ __init int mt_board_init(void)
 #ifndef CONFIG_OF
 #if defined(CONFIG_MTK_LEDS)
 	retval = platform_device_register(&mt65xx_leds_device);
-    printk("[%s]: mt65xx_leds_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt65xx_leds_device, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
-	printk("device LEDS register\n");
+	pr_alert("device LEDS register\n");
 #endif
 #endif
 
 #ifdef CONFIG_MTK_HDMI_SUPPORT
 	retval = platform_device_register(&mtk_hdmi_dev);
-    printk("[%s]: mtk_hdmi_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_hdmi_dev, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2286,8 +2252,8 @@ __init int mt_board_init(void)
 
 #if defined(CONFIG_MTK_TVOUT_SUPPORT)
     retval = platform_device_register(&mt6575_TVOUT_dev);
-    printk("[%s]: mt6575_TVOUT_dev, retval=%d \n!", __func__, retval);
-	printk("register TV-out device\n");
+	pr_alert("[%s]: mt6575_TVOUT_dev, retval=%d\n!", __func__, retval);
+	pr_alert("register TV-out device\n");
     if (retval != 0) {
          return retval;
     }
@@ -2295,10 +2261,10 @@ __init int mt_board_init(void)
 
 #if 1
   retval = platform_device_register(&auxadc_device);
-    printk("[%s]: auxadc_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: auxadc_device, retval=%d\n!", __func__, retval);
   if(retval != 0)
   {
-     printk("****[auxadc_driver] Unable to device register(%d)\n", retval);
+	pr_alert("****[auxadc_driver] Unable to device register(%d)\n", retval);
 	 return retval;
   }
 #endif
@@ -2306,16 +2272,16 @@ __init int mt_board_init(void)
 #if defined(CONFIG_MTK_ACCDET)
 #ifndef CONFIG_OF
     retval = platform_device_register(&accdet_device);
-    printk("[%s]: accdet_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: accdet_device, retval=%d\n!", __func__, retval);
 
 	if (retval != 0)
 	{
-		printk("platform_device_accdet_register error:(%d)\n", retval);
+		pr_alert("platform_device_accdet_register error:(%d)\n", retval);
 		return retval;
 	}
 	else
 	{
-		printk("platform_device_accdet_register done!\n");
+		pr_alert("platform_device_accdet_register done!\n");
 	}
 #endif
 #endif
@@ -2324,24 +2290,24 @@ __init int mt_board_init(void)
 
     retval = platform_device_register(&usbacm_temp_device);
 
-    printk("[%s]: usbacm_temp_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: usbacm_temp_device, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 	{
-		printk("platform_device_usbacm_register error:(%d)\n", retval);
+		pr_alert("platform_device_usbacm_register error:(%d)\n", retval);
 		return retval;
 	}
 	else
 	{
-		printk("platform_device_usbacm_register done!\n");
+		pr_alert("platform_device_usbacm_register done!\n");
 	}
 
 #endif
 
 
-#if 0 //defined(CONFIG_MDP_MT6575)
-    //printk("[MDP]platform_device_register\n\r");
+#if 0 /* defined(CONFIG_MDP_MT6575) */
+	/* pr_alert("[MDP]platform_device_register\n\r"); */
     retval = platform_device_register(&mt6575_MDP_dev);
-    printk("[%s]: mt6575_MDP_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt6575_MDP_dev, retval=%d\n!", __func__, retval);
     if(retval != 0){
         return retval;
     }
@@ -2350,90 +2316,90 @@ __init int mt_board_init(void)
 #if defined(CONFIG_MTK_SENSOR_SUPPORT)
 
 	retval = platform_device_register(&hwmon_sensor);
-    printk("[%s]: hwmon_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: hwmon_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&batch_sensor);
-    printk("[%s]: batch_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: batch_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&acc_sensor);
-    printk("[%s]: acc_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: acc_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&mag_sensor);
-    printk("[%s]: mag_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mag_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&gyro_sensor);
-    printk("[%s]: gyro_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: gyro_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&alsps_sensor);
-    printk("[%s]: alsps_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: alsps_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&barometer_sensor);
-    printk("[%s]: barometer_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: barometer_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&temp_sensor);
-    printk("[%s]: temp_sensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: temp_sensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
-#if defined(CONFIG_CUST_KERNEL_ACCELEROMETER)
+#if defined(CONFIG_CUSTOM_KERNEL_ACCELEROMETER)
 	retval = platform_device_register(&sensor_gsensor);
-    printk("[%s]: sensor_gsensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_gsensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 #endif
 
-#if defined(CONFIG_CUST_KERNEL_MAGNETOMETER)
+#if defined(CONFIG_CUSTOM_KERNEL_MAGNETOMETER)
 	retval = platform_device_register(&sensor_msensor);
-    printk("[%s]: sensor_msensor, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_msensor, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 	retval = platform_device_register(&sensor_orientation);
-    printk("[%s]: sensor_orientation, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_orientation, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 
 #endif
 
-#if defined(CONFIG_CUST_KERNEL_GYROSCOPE)
+#if defined(CONFIG_CUSTOM_KERNEL_GYROSCOPE)
 	retval = platform_device_register(&sensor_gyroscope);
-    printk("[%s]: sensor_gyroscope, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_gyroscope, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 #endif
 
 #if defined(CONFIG_CUSTOM_KERNEL_BAROMETER)
 	retval = platform_device_register(&sensor_barometer);
-    printk("[%s]: sensor_barometer, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_barometer, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 #endif
 
-#if defined(CONFIG_CUST_KERNEL_ALSPS)
+#if defined(CONFIG_CUSTOM_KERNEL_ALSPS)
 	retval = platform_device_register(&sensor_alsps);
-    printk("[%s]: sensor_alsps, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_alsps, retval=%d\n!", __func__, retval);
 	if (retval != 0)
 		return retval;
 #endif
 
 #if defined(CUSTOM_KERNEL_TEMPERATURE)
 	retval = platform_device_register(&sensor_temperature);
-    printk("[%s]: sensor_temperature, retval=%d \n!", __func__, retval);
-		printk("sensor_temperature device!");
+	pr_alert("[%s]: sensor_temperature, retval=%d\n!", __func__, retval);
+		pr_alert("sensor_temperature device!");
 	if (retval != 0)
 		return retval;
 #endif
@@ -2441,27 +2407,27 @@ __init int mt_board_init(void)
 
 #if defined(CONFIG_MTK_USBFSH)
 	retval = platform_device_register(&mt_usb11_dev);
-    printk("[%s]: mt_usb11_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_usb11_dev, retval=%d\n!", __func__, retval);
 	if (retval != 0){
-		printk("register musbfsh device fail!\n");
+		pr_alert("register musbfsh device fail!\n");
 		return retval;
 	}
 #endif
 
 #if defined(CONFIG_USB_MU3D_DRV)
-	printk("mtu3d_dev register\n");
+	pr_alert("mtu3d_dev register\n");
 	retval = platform_device_register(&mtu3d_dev);
 	if (retval != 0){
-		printk("mtu3d_dev register fail\n");
+		pr_alert("mtu3d_dev register fail\n");
 		return retval;
 	}
 #endif
 
 #if defined(CONFIG_MTK_XHCI)
-	printk("%s(%d): register xhci device\n", __func__, __LINE__);
+	pr_alert("%s(%d): register xhci device\n", __func__, __LINE__);
 	retval = platform_device_register(&mtk_xhci_dev);
 	if (retval != 0){
-		printk("register xhci device fail!\n");
+		pr_alert("register xhci device fail!\n");
 		return retval;
 	}
     #ifdef CONFIG_USB_MTK_DUALMODE
@@ -2471,31 +2437,31 @@ __init int mt_board_init(void)
 
 #if defined(CONFIG_USB_MTK_HDRC)
 	retval = platform_device_register(&mt_device_usb);
-        printk("[%s]: mt_device_usb, retval=%d \n!", __func__, retval);
-	if (retval != 0){
-	printk("mt_device_usb register fail\n");
-        return retval;
+	pr_alert("[%s]: mt_device_usb, retval=%d\n!", __func__, retval);
+	if (retval != 0) {
+		pr_alert("mt_device_usb register fail\n");
+		return retval;
 	}
 #endif
 
 #if 0
    retval = platform_device_register(&battery_device);
    if (retval) {
-	   printk("[battery_driver] Unable to device register\n");
+		pr_alert("[battery_driver] Unable to device register\n");
    return retval;
    }
 #endif
 
 #if defined(CONFIG_MTK_TOUCHPANEL)
     retval = platform_device_register(&mtk_tpd_dev);
-    printk("[%s]: mtk_tpd_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_tpd_dev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
 #endif
 #if defined(CUSTOM_KERNEL_OFN)
     retval = platform_device_register(&ofn_driver);
-    printk("[%s]: ofn_driver, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: ofn_driver, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
@@ -2503,7 +2469,7 @@ __init int mt_board_init(void)
 
 #if (defined(CONFIG_MTK_MTD_NAND) ||defined(CONFIG_MTK_MMC))
 retval = platform_device_register(&dummychar_device);
-    printk("[%s]: dummychar_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: dummychar_device, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2513,31 +2479,19 @@ retval = platform_device_register(&dummychar_device);
 #if defined(CONFIG_ANDROID_PMEM)
     pdata_multimedia.start = PMEM_MM_START;;
     pdata_multimedia.size = PMEM_MM_SIZE;
-    printk("PMEM start: 0x%lx size: 0x%lx\n", pdata_multimedia.start, pdata_multimedia.size);
+	pr_alert("PMEM start: 0x%lx size: 0x%lx\n", pdata_multimedia.start, pdata_multimedia.size);
 
     retval = platform_device_register(&pmem_multimedia_device);
-    printk("[%s]: pmem_multimedia_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: pmem_multimedia_device, retval=%d\n!", __func__, retval);
     if (retval != 0){
        return retval;
     }
 #endif
 
-#if defined(CONFIG_ANDROID_VMEM)
-    pdata_vmultimedia.start = PMEM_MM_START;;
-    pdata_vmultimedia.size = PMEM_MM_SIZE;
-    printk("VMEM start: 0x%lx size: 0x%lx\n", pdata_vmultimedia.start, pdata_vmultimedia.size);
-
-    retval = platform_device_register(&vmem_multimedia_device);
-    printk("[%s]: vmem_multimedia_device, retval=%d \n!", __func__, retval);
-    if (retval != 0){
-	printk("vmem platform register failed\n");
-       return retval;
-    }
-#endif
 
 #ifdef CONFIG_CPU_FREQ
     retval = platform_device_register(&cpufreq_pdev);
-    printk("[%s]: cpufreq_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: cpufreq_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
@@ -2545,7 +2499,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if 1
     retval = platform_device_register(&gpufreq_pdev);
-    printk("[%s]: gpufreq_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: gpufreq_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
@@ -2553,7 +2507,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if 1
     retval = platform_device_register(&thermal_pdev);
-    printk("[%s]: thermal_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: thermal_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
@@ -2561,20 +2515,20 @@ retval = platform_device_register(&dummychar_device);
 
 #if 1
     retval = platform_device_register(&mtk_therm_mon_pdev);
-    printk("[%s]: mtk_therm_mon_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_therm_mon_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
 #endif
 
     retval = platform_device_register(&ptp_pdev);
-    printk("[%s]: ptp_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: ptp_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
 
     retval = platform_device_register(&spm_mcdi_pdev);
-    printk("[%s]: spm_mcdi_pdev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: spm_mcdi_pdev, retval=%d\n!", __func__, retval);
     if (retval != 0) {
         return retval;
     }
@@ -2585,14 +2539,14 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 #if 1 ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
     retval = platform_device_register(&sensor_dev);
-    printk("[%s]: sensor_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_dev, retval=%d\n!", __func__, retval);
     if (retval != 0){
     	return retval;
     }
 #endif
 #if 1 ///defined(CONFIG_VIDEO_CAPTURE_DRIVERS)
     retval = platform_device_register(&sensor_dev_bus2);
-    printk("[%s]: sensor_dev_bus2, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: sensor_dev_bus2, retval=%d\n!", __func__, retval);
     if (retval != 0){
     	return retval;
     }
@@ -2604,12 +2558,12 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 #if 1  //defined(CONFIG_ACTUATOR)
     retval = platform_device_register(&actuator_dev);
-    printk("[%s]: actuator_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: actuator_dev, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
     retval = platform_device_register(&actuator_dev2);
-    printk("[%s]: actuator_dev2, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: actuator_dev2, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
@@ -2627,7 +2581,7 @@ retval = platform_device_register(&dummychar_device);
 //=======================================================================
 #if 1
     retval = platform_device_register(&mt_isp_dev);
-    printk("[%s]: mt_isp_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_isp_dev, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
@@ -2635,7 +2589,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if 0
     retval = platform_device_register(&mt_eis_dev);
-    printk("[%s]: mt_eis_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_eis_dev, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
@@ -2643,7 +2597,7 @@ retval = platform_device_register(&dummychar_device);
 
 #ifdef CONFIG_RFKILL
     retval = platform_device_register(&mt_rfkill_device);
-    printk("[%s]: mt_rfkill_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_rfkill_device, retval=%d\n!", __func__, retval);
     if (retval != 0){
         return retval;
     }
@@ -2651,7 +2605,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if 1
 	retval = platform_device_register(&camera_sysram_dev);
-    printk("[%s]: camera_sysram_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: camera_sysram_dev, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2659,7 +2613,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if defined(CONFIG_MTK_GPS)
 	retval = platform_device_register(&mt3326_device_gps);
-    printk("[%s]: mt3326_device_gps, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt3326_device_gps, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2667,7 +2621,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if 1//defined(CONFIG_MTK_NFC) //NFC
 	retval = platform_device_register(&mtk_nfc_6605_dev);
-    printk("[%s]: mtk_nfc_6605_dev, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mtk_nfc_6605_dev, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2675,7 +2629,7 @@ retval = platform_device_register(&dummychar_device);
 
 //#if defined(CONFIG_MTK_WIFI)
 	retval = platform_device_register(&mt_device_wifi);
-    printk("[%s]: mt_device_wifi, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_device_wifi, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2683,7 +2637,7 @@ retval = platform_device_register(&dummychar_device);
 
 #if defined (CONFIG_CUSTOM_KERNEL_SSW)
 	retval = platform_device_register(&ssw_device);
-    printk("[%s]: ssw_device, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: ssw_device, retval=%d\n!", __func__, retval);
 	if (retval != 0) {
 		return retval;
 	}
@@ -2692,7 +2646,7 @@ retval = platform_device_register(&dummychar_device);
 #ifdef CONFIG_MTK_EXTMEM
 	retval = platform_device_register(&mt_extmem);
 
-    printk("[%s]: mt_extmem, retval=%d \n!", __func__, retval);
+	pr_alert("[%s]: mt_extmem, retval=%d\n!", __func__, retval);
 	if (retval != 0){
 		return retval;
 	}
@@ -2708,14 +2662,14 @@ retval = platform_device_register(&dummychar_device);
 #if defined (CONFIG_MTK_ECCCI_CLDMA)
 	retval = platform_device_register(&ccci_cldma_device);
 	if (retval != 0) {
-		printk("[ccci/ctl] (0)cldma modem platform device register fail(%d)\n", retval);
+		pr_alert("[ccci/ctl] (0)cldma modem platform device register fail(%d)\n", retval);
 		return retval;
 	}
 #endif
 #if defined (CONFIG_MTK_ECCCI_CCIF)
 	retval = platform_device_register(&ccci_ccif_device);
 	if (retval != 0) {
-		printk("[ccci/ctl] (0)ccif modem platform device register fail(%d)\n", retval);
+		pr_alert("[ccci/ctl] (0)ccif modem platform device register fail(%d)\n", retval);
 		return retval;
 	}
 #endif
@@ -2738,8 +2692,10 @@ int is_pmem_range(unsigned long *base, unsigned long size)
         unsigned long start = (unsigned long)base;
         unsigned long end = start + size;
 
-        //printk("[PMEM] start=0x%p,end=0x%p,size=%d\n", start, end, size);
-        //printk("[PMEM] PMEM_MM_START=0x%p,PMEM_MM_SIZE=%d\n", PMEM_MM_START, PMEM_MM_SIZE);
+	/*
+	pr_alert("[PMEM] start=0x%p,end=0x%p,size=%d\n", start, end, size);
+	pr_alert("[PMEM] PMEM_MM_START=0x%p,PMEM_MM_SIZE=%d\n", PMEM_MM_START, PMEM_MM_SIZE);
+	*/
 
         if (start < PMEM_MM_START)
                 return 0;
@@ -2776,19 +2732,17 @@ extern void DFS_Reserved_Memory(void);
 
 void __weak mtk_wcn_consys_memory_reserve(void)
 {
-    printk(KERN_ERR"weak reserve function: %s", __FUNCTION__);
+	pr_err("weak reserve function: %s", __func__);
 }
 
 void mt_reserve(void)
 {
 	mtk_wcn_consys_memory_reserve();
-	
 	mrdump_reserve_memory();
-	
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
 	memblock_reserve(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
 #endif
-        mrdump_mini_reserve_memory();
+	mrdump_mini_reserve_memory();
 
 #ifdef CONFIG_MTK_ECCCI_DRIVER
 	ccci_md_mem_reserve();

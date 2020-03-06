@@ -1,24 +1,9 @@
-/* alps
- *
- * (C) Copyright 2009
- * MediaTek <www.MediaTek.com>
- *
- * Sensor devices
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- */
+/*
+* Copyright(C)2014 MediaTek Inc.
+* Modification based on code covered by the below mentioned copyright
+* and/or permission notice(S).
+*/
+
 #ifndef __HWMSEN_DEV_H__
 #define __HWMSEN_DEV_H__
 
@@ -42,18 +27,19 @@
 
 #define GRAVITY_EARTH_1000           9807	/* about (9.80665f)*1000 */
 
+__weak int pmic_ldo_suspend_enable(int enable);
 
 struct hwmsen_object {
 	void *self;
 	int polling;
-	int (*sensor_operate) (void *self, uint32_t command, void *buff_in, int size_in,
+	int (*sensor_operate)(void *self, uint32_t command, void *buff_in, int size_in,
 			       void *buff_out, int size_out, int *actualout);
 };
 
 struct sensor_init_info {
 	char *name;
-	int (*init) (void);
-	int (*uninit) (void);
+	int (*init)(void);
+	int (*uninit)(void);
 	struct platform_driver *platform_diver_addr;
 };
 
@@ -63,7 +49,7 @@ extern int hwmsen_attach(int sensor, struct hwmsen_object *obj);
 extern int hwmsen_detach(int sensor);
 extern int hwmsen_get_interrupt_data(int sensor, hwm_sensor_data *data);
 
-//AAL functions
+/* AAL functions */
 extern int hwmsen_aal_enable(int enable);
 extern int hwmsen_aal_get_data(void);
 extern int hwmsen_aal_get_status(void);

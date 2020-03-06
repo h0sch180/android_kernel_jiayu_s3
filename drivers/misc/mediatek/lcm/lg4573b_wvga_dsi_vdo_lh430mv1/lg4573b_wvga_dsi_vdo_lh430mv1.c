@@ -452,7 +452,7 @@ static unsigned int lcm_read(void)
 	read_reg_v2(0x52, buffer, 1);
 	id = buffer[0]; //we only need ID
 #ifndef BUILD_UBOOT
-	printk("\n\n\n\n\n\n\n\n\n\n[soso]%s, lcm_read = 0x%08x\n", __func__, id);
+	pr_debug("\n\n\n\n\n\n\n\n\n\n[soso]%s, lcm_read = 0x%08x\n", __func__, id);
 #endif
     //return (LCM_ID == id)?1:0;
 }

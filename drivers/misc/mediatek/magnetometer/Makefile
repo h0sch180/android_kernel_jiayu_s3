@@ -3,63 +3,41 @@ include $(srctree)/drivers/misc/mediatek/Makefile.custom
 # In case the platform does NOT support this type of sensors
 obj-y   +=  mag.o
 obj-y   +=  mag_factory.o
+obj-y	+=  qmc6983-new/
 
-# Vanzo:wangfei on: Wed, 12 Nov 2014 21:06:42 +0800
-project_name:=$(shell echo $(CONFIG_VANZO_INNER_PROJECT_NAME))
- 
-ifneq ($(project_name),)
-custom_kernel_magnetometer:= $(addsuffix /, $(shell echo $(CONFIG_CUSTOM_KERNEL_MAGNETOMETER_NAME)))
-ifneq ($(custom_kernel_magnetometer),)
-obj-y += $(custom_kernel_magnetometer)
-endif
-else
-# End of Vanzo:wangfei
-ifeq ($(CONFIG_MTK_AKM8963_NEW),y)
-obj-y	+=  akm8963-new/
-endif
-
-ifeq ($(CONFIG_MTK_BMM050_NEW),y)
-obj-y	+=  bmm050-new/
-endif
-
-ifeq ($(CONFIG_MTK_BMM056_NEW),y)
-obj-y	+=  bmm056-new/
-endif
-ifeq ($(CONFIG_MTK_BMM056_NEW),y)
-obj-y	+=  bmm056-new/
-endif
-ifeq ($(CONFIG_MTK_AKM8963),y)
-obj-y	+=  akm8963/
-endif
-
-ifeq ($(CONFIG_MTK_YAS532),y)
-obj-y   +=  yamaha532/
-endif
-
-ifeq ($(CONFIG_MTK_YAS532_NEW),y)
-obj-y   +=  yamaha532-new/
-endif
-
-ifeq ($(CONFIG_MTK_AKM09911),y)
-obj-y   +=  akm09911/
-endif
-
-ifeq ($(CONFIG_MTK_AKM09911_NEW),y)
-obj-y   +=  akm09911-new/
-endif
-
-ifeq ($(CONFIG_MTK_S62X),y)
-obj-y   +=  s62x/
-endif
-
-ifeq ($(CONFIG_MTK_IST8303), y)
-obj-y += ist8303-new/
-endif
-
-ifeq ($(CONFIG_MTK_ST480),y)
-obj-y   +=  st480/
-endif
-# Vanzo:wangfei on: Tue, 06 Jan 2015 10:34:15 +0800
-# added for new structure config alsps
-endif
-# End of Vanzo:wangfei
+obj-$(CONFIG_MTK_AF7133)	+=  af7133/
+obj-$(CONFIG_MTK_AKM8963)	+=  akm8963/
+obj-$(CONFIG_MTK_AKM8963_NEW)	+=  akm8963-new/
+obj-$(CONFIG_MTK_AKM8975)	+=  akm8975/
+obj-$(CONFIG_MTK_AKM8975_AUTO)	+=  akm8975_auto/
+obj-$(CONFIG_MTK_AKM09911)   +=  akm09911/
+obj-$(CONFIG_MTK_AKM09911_NEW)   +=  akm09911-new/
+obj-$(CONFIG_MTK_AMI304)   +=  ami304/
+obj-$(CONFIG_MTK_AMI304_AUTO)   +=  ami304_auto/
+obj-$(CONFIG_MTK_BMM050)	+=  bmm050/
+obj-$(CONFIG_MTK_BMM050_NEW)	+=  bmm050-new/
+obj-$(CONFIG_MTK_BMM056)	+=  bmm056/
+obj-$(CONFIG_MTK_BMM056_NEW)	+=  bmm056-new/
+obj-$(CONFIG_MTK_BMM056_NEW)	+=  bmm150/
+obj-$(CONFIG_MTK_HSCDTD006)	+=  hscdtd006/
+obj-$(CONFIG_MTK_HSCDTD006_AUTO)	+=  hscdtd006_auto/
+obj-$(CONFIG_MTK_IST8303_NEW)	+=  ist8303-new/
+obj-$(CONFIG_MTK_LSM303C_NEW)	+=  lsm303c-new/
+obj-$(CONFIG_MTK_LSM303M)	+=  lsm303m/
+obj-$(CONFIG_MTK_MAG3110)	+=  mag3110/
+obj-$(CONFIG_MTK_MC41XX)	+=  mc41xx/
+obj-$(CONFIG_MTK_MC64XX)	+=  mc64xx/
+obj-$(CONFIG_MTK_MC6420)	+=  mc6420/
+obj-$(CONFIG_MTK_MMC328X)	+=  mmc328x/
+obj-$(CONFIG_MTK_MMC328X_AUTO)	+=  mmc328x_auto/
+obj-$(CONFIG_MTK_MMC328XMA)	+=  mmc328xma/
+obj-$(CONFIG_MTK_MMC3416X)	+=  mmc3416x/
+obj-$(CONFIG_MTK_QMC5983)	+=  qmc5983/
+obj-$(CONFIG_MTK_S62X)	+=  s62x/
+obj-$(CONFIG_MTK_S62X)	+=  st480/
+obj-$(CONFIG_MTK_YAS529)	+=  yamaha529/
+obj-$(CONFIG_MTK_YAS530)	+=  yamaha530/
+obj-$(CONFIG_MTK_YAS532)   +=  yamaha532/
+obj-$(CONFIG_MTK_YAS532_NEW)   +=  yamaha532-new/
+obj-$(CONFIG_MTK_YAS537)	+=  yamaha537/
+obj-$(CONFIG_MTK_AKM09911_AIO)   +=  akm09911-aio/

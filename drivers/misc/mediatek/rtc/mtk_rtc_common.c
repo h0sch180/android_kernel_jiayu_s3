@@ -55,6 +55,7 @@
 /* #include <mach/mt6577_boot.h> */
 /* #include <mach/mt6577_reg_base.h> */
 #include <mach/mtk_rtc.h>
+#include <mach/mtk_rtc_hal_common.h>
 #include <mach/mtk_rtc_hal.h>
 /* #include <mach/pmic_mt6320_sw.h> */
 /* #include <mach/upmu_common.h> */
@@ -78,8 +79,8 @@
 /* #define RTC_MAX_YEAR          (RTC_MIN_YEAR + RTC_NUM_YEARS - 1) */
 
 #define RTC_MIN_YEAR_OFFSET	(RTC_MIN_YEAR - 1900)
-#define AUTOBOOT_ON 1
-#define AUTOBOOT_OFF 0
+#define AUTOBOOT_ON 0
+#define AUTOBOOT_OFF 1
 
 
 #ifdef PMIC_REGISTER_INTERRUPT_ENABLE
@@ -192,7 +193,7 @@ int get_rtc_spare_fg_value(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	temp = hal_rtc_get_register_status("FG");
+	temp = hal_rtc_get_spare_register(RTC_FGSOC);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	return temp;
@@ -207,19 +208,41 @@ int set_rtc_spare_fg_value(int val)
 		return 1;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_register_status("FG", val);
+	hal_rtc_set_spare_register(RTC_FGSOC, val);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	return 0;
 }
+//lenovo-sw mahj2 modify for timezone at 20141204 Begin
+#ifdef CONFIG_LENOVO_RTC_SAVE_TIMEZONE_SUPPORT
+void set_rtc_spare_timezone_value(int val)
+{
+	unsigned long flags;
 
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_timezone_value(val);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+
+int get_rtc_spare_timezone_value(void)
+{
+	unsigned long flags;
+	int temp;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	temp = hal_rtc_get_spare_timezone_value();
+	spin_unlock_irqrestore(&rtc_lock, flags);
+	return temp;
+}
+#endif
+//lenovo-sw mahj2 modify for timezone at 20141204 End
 bool crystal_exist_status(void)
 {
 	unsigned long flags;
 	u16 ret;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	ret = hal_rtc_get_register_status("XTAL");
+	ret = hal_rtc_get_spare_register(RTC_32K_LESS);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	if (ret)
@@ -240,7 +263,7 @@ bool rtc_low_power_detected(void)
 	u16 ret;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	ret = hal_rtc_get_register_status("LPD");
+	ret = hal_rtc_get_spare_register(RTC_LP_DET);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	if (ret)
@@ -282,7 +305,7 @@ bool rtc_gpio_32k_status(void)
 	u16 ret;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	ret = hal_rtc_get_register_status("GPIO");
+	ret = hal_rtc_get_gpio_32k_status();
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	if (ret)
@@ -297,7 +320,7 @@ void rtc_enable_abb_32k(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_register_status("ABB", 1);
+	hal_rtc_set_abb_32k(1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -306,7 +329,7 @@ void rtc_disable_abb_32k(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_register_status("ABB", 0);
+	hal_rtc_set_abb_32k(0);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -315,7 +338,7 @@ void rtc_enable_writeif(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_writeif(true);
+	rtc_set_writeif(true);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -324,7 +347,7 @@ void rtc_disable_writeif(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_writeif(false);
+	rtc_set_writeif(false);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -332,8 +355,9 @@ void rtc_mark_recovery(void)
 {
 	unsigned long flags;
 
+	rtc_xinfo("rtc_mark_recovery\n");
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_mark_mode("recv");
+	hal_rtc_set_spare_register(RTC_FAC_RESET, 0x1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
@@ -343,7 +367,7 @@ void rtc_mark_kpoc(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_mark_mode("kpoc");
+	hal_rtc_set_spare_register(RTC_KPOC, 0x1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 #endif
@@ -351,18 +375,19 @@ void rtc_mark_fast(void)
 {
 	unsigned long flags;
 
+	rtc_xinfo("rtc_mark_fast\n");
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_mark_mode("fast");
+	hal_rtc_set_spare_register(RTC_FAST_BOOT, 0x1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
 u16 rtc_rdwr_uart_bits(u16 *val)
 {
-	u16 ret;
+	u16 ret = 0;
 	unsigned long flags;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	ret = hal_rtc_rdwr_uart(val);
+	hal_rtc_set_spare_register(RTC_UART, *val);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	return ret;
@@ -415,7 +440,7 @@ static void rtc_handler(void)
 	/* set AUTO bit because AUTO = 0 when PWREN = 1 and alarm occurs */
 	hal_rtc_reload_power();
 #endif
-	pwron_alarm = hal_rtc_check_pwron_alarm_rg(&nowtm, &tm);
+	pwron_alarm = hal_rtc_is_pwron_alarm(&nowtm, &tm);
 	nowtm.tm_year += RTC_MIN_YEAR;
 	tm.tm_year += RTC_MIN_YEAR;
 	if (pwron_alarm) {
@@ -435,15 +460,15 @@ static void rtc_handler(void)
 				tm.tm_year -= RTC_MIN_YEAR_OFFSET;
 				tm.tm_mon += 1;
 				/* tm.tm_sec += 1; */
-				hal_rtc_set_alarm_time(&tm);
+				hal_rtc_set_alarm(&tm);
 				spin_unlock(&rtc_lock);
 				arch_reset(0, "kpoc");
 			} else {
-				hal_rtc_set_pwron_alarm();
+				hal_rtc_save_pwron_alarm();
 				pwron_alm = true;
 			}
 #else
-			hal_rtc_set_pwron_alarm();
+			hal_rtc_save_pwron_alarm();
 			pwron_alm = true;
 #endif
 		} else if (now_time < time) {	/* set power-on alarm */
@@ -453,7 +478,7 @@ static void rtc_handler(void)
 			} else {
 				tm.tm_sec -= 1;
 			}
-			hal_rtc_set_alarm_time(&tm);
+			hal_rtc_set_alarm(&tm);
 		}
 	}
 	spin_unlock(&rtc_lock);
@@ -481,28 +506,11 @@ void rtc_irq_handler(void)
 }
 
 #if RTC_OVER_TIME_RESET
-/* Vanzo:yucheng on: Sat, 07 Mar 2015 18:39:58 +0800
- * Added for default date&time customization
- */
-static int atoi_ext(const char *a)
-{
-    int s = 0;
-
-    while(*a >= '0' && *a <= '9')
-    {
-        s = (s << 3) + (s << 1) + *a++ - '0';
-    }
-    return s;
-}
-// End of Vanzo: yucheng
-
 static void rtc_reset_to_deftime(struct rtc_time *tm)
 {
 	unsigned long flags;
 	struct rtc_time defaulttm;
 
-/* Vanzo:yucheng on: Sat, 07 Mar 2015 18:39:58 +0800
- * Modified for default date&time customization
 	tm->tm_year = RTC_DEFAULT_YEA - 1900;
 	tm->tm_mon = RTC_DEFAULT_MTH - 1;
 	tm->tm_mday = RTC_DEFAULT_DOM;
@@ -510,38 +518,8 @@ static void rtc_reset_to_deftime(struct rtc_time *tm)
 	tm->tm_hour = 0;
 	tm->tm_min = 0;
 	tm->tm_sec = 0;
- */
-    int date = 20150101;
-    int times = 80101;
-#if defined(VANZO_FEATURE_DEFAULT_TIME_BY_NAME_VALUE)
-    if (VANZO_FEATURE_DEFAULT_TIME_BY_NAME_VALUE!=NULL
-        && strlen((char*)VANZO_FEATURE_DEFAULT_TIME_BY_NAME_VALUE)!=0) {
-
-        times = atoi_ext((char*)VANZO_FEATURE_DEFAULT_TIME_BY_NAME_VALUE);
-    }
-#endif
-
-#if defined(VANZO_FEATURE_DEFAULT_DATE_BY_NAME_VALUE)
-    if (VANZO_FEATURE_DEFAULT_DATE_BY_NAME_VALUE!=NULL
-        && strlen((char*)VANZO_FEATURE_DEFAULT_DATE_BY_NAME_VALUE)!=0) {
-
-        date = atoi_ext((char*)VANZO_FEATURE_DEFAULT_DATE_BY_NAME_VALUE);
-    }
-#else
-    date = RTC_DEFAULT_YEA*10000 + RTC_DEFAULT_MTH*100 + RTC_DEFAULT_DOM;
-#endif
-	tm->tm_year = date / 10000 - 1900;
-	tm->tm_mon = (date % 10000) / 100 - 1;
-	tm->tm_mday = date % 100;
-	tm->tm_wday = 1;
-	tm->tm_hour = times / 10000;
-	tm->tm_min = (times % 10000) / 100;
-	tm->tm_sec = times % 100;
-// End of Vanzo: yucheng
 
 	/* set default alarm time */
-/* Vanzo:yucheng on: Sat, 07 Mar 2015 18:48:05 +0800
- * Modified for default date&time customization
 	defaulttm.tm_year = RTC_DEFAULT_YEA - RTC_MIN_YEAR;
 	defaulttm.tm_mon = RTC_DEFAULT_MTH;
 	defaulttm.tm_mday = RTC_DEFAULT_DOM;
@@ -549,17 +527,8 @@ static void rtc_reset_to_deftime(struct rtc_time *tm)
 	defaulttm.tm_hour = 0;
 	defaulttm.tm_min = 0;
 	defaulttm.tm_sec = 0;
- */
-	defaulttm.tm_year = date / 10000 - RTC_MIN_YEAR;
-	defaulttm.tm_mon = (date % 10000) / 100;
-	defaulttm.tm_mday = date % 100;
-	defaulttm.tm_wday = 1;
-	defaulttm.tm_hour = times / 10000;
-	defaulttm.tm_min = (times % 10000) / 100;
-	defaulttm.tm_sec = times % 100;
-// End of Vanzo: yucheng
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_set_alarm_time(&defaulttm);
+	hal_rtc_set_alarm(&defaulttm);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	rtc_xerror("reset to default date %04d/%02d/%02d\n",
@@ -623,7 +592,7 @@ static int rtc_ops_read_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	struct rtc_time *tm = &alm->time;
 
 	spin_lock_irqsave(&rtc_lock, flags);
-	hal_rtc_get_alarm_time(tm, alm);
+	hal_rtc_get_alarm(tm, alm);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	tm->tm_year += RTC_MIN_YEAR_OFFSET;
@@ -671,7 +640,7 @@ static int rtc_ops_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	hal_rtc_clear_alarm(tm);
 
 	if (alm->enabled) {
-		hal_rtc_set_alarm_time(tm);
+		hal_rtc_set_alarm(tm);
 	}
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
@@ -709,13 +678,13 @@ static int rtc_ops_ioctl(struct device *dev, unsigned int cmd, unsigned long arg
 	switch (cmd) {
 	case RTC_AUTOBOOT_ON:
 		{
-			hal_rtc_set_register_status("AUTOBOOT", AUTOBOOT_ON);
+			hal_rtc_set_spare_register(RTC_AUTOBOOT, AUTOBOOT_ON);
 			rtc_xinfo("rtc_ops_ioctl cmd=RTC_AUTOBOOT_ON\n");
 			return 0;
 		}
 	case RTC_AUTOBOOT_OFF:	/* IPO shutdown */
 		{
-			hal_rtc_set_register_status("AUTOBOOT", AUTOBOOT_OFF);
+			hal_rtc_set_spare_register(RTC_AUTOBOOT, AUTOBOOT_OFF);
 			rtc_xinfo("rtc_ops_ioctl cmd=RTC_AUTOBOOT_OFF\n");
 			return 0;
 		}
@@ -750,7 +719,7 @@ static int rtc_pdrv_probe(struct platform_device *pdev)
 	}
 
 	#ifdef PMIC_REGISTER_INTERRUPT_ENABLE
-		pmic_register_interrupt_callback(RTC_INTERRUPT_NUM,rtc_irq_handler);	
+		pmic_register_interrupt_callback(RTC_INTERRUPT_NUM,rtc_irq_handler);
 		pmic_enable_interrupt(RTC_INTERRUPT_NUM,1,"RTC");
 	#endif
 
@@ -844,6 +813,7 @@ static int __init rtc_late_init(void)
 	else
 		rtc_xinfo("There is no Crystal\n");
 
+	rtc_writeif_unlock();
 #if (defined(MTK_GPS_MT3332))
 	hal_rtc_set_gpio_32k_status(0, true);
 #endif

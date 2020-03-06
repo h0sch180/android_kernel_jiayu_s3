@@ -89,6 +89,8 @@
 #include <linux/random.h>
 #include "ubi.h"
 
+extern void *ubi_peb_buf;
+extern struct mutex ubi_buf_mutex;
 static int self_check_ai(struct ubi_device *ubi, struct ubi_attach_info *ai);
 
 /* Temporary variables used during scanning */
@@ -397,13 +399,13 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 
 	len = be32_to_cpu(vid_hdr->data_size);
 
-	mutex_lock(&ubi->buf_mutex);
-	err = ubi_io_read_data(ubi, ubi->peb_buf, pnum, 0, len);
+	mutex_lock(&ubi_buf_mutex);
+	err = ubi_io_read_data(ubi, ubi_peb_buf, pnum, 0, len);
 	if (err && err != UBI_IO_BITFLIPS && !mtd_is_eccerr(err))
 		goto out_unlock;
 
 	data_crc = be32_to_cpu(vid_hdr->data_crc);
-	crc = crc32(UBI_CRC32_INIT, ubi->peb_buf, len);
+	crc = crc32(UBI_CRC32_INIT, ubi_peb_buf, len);
 	if (crc != data_crc) {
 		dbg_bld("PEB %d CRC error: calculated %#08x, must be %#08x",
 			pnum, crc, data_crc);
@@ -414,7 +416,7 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 		dbg_bld("PEB %d CRC is OK", pnum);
 		bitflips |= !!err;
 	}
-	mutex_unlock(&ubi->buf_mutex);
+	mutex_unlock(&ubi_buf_mutex);
 
 	ubi_free_vid_hdr(ubi, vh);
 
@@ -426,7 +428,7 @@ int ubi_compare_lebs(struct ubi_device *ubi, const struct ubi_ainf_peb *aeb,
 	return second_is_newer | (bitflips << 1) | (corrupted << 2);
 
 out_unlock:
-	mutex_unlock(&ubi->buf_mutex);
+	mutex_unlock(&ubi_buf_mutex);
 out_free_vidh:
 	ubi_free_vid_hdr(ubi, vh);
 	return err;
@@ -766,10 +768,10 @@ static int check_corruption(struct ubi_device *ubi, struct ubi_vid_hdr *vid_hdr,
 {
 	int err;
 
-	mutex_lock(&ubi->buf_mutex);
-	memset(ubi->peb_buf, 0x00, ubi->leb_size);
+	mutex_lock(&ubi_buf_mutex);
+	memset(ubi_peb_buf, 0x00, ubi->leb_size);
 
-	err = ubi_io_read(ubi, ubi->peb_buf, pnum, ubi->leb_start,
+	err = ubi_io_read(ubi, ubi_peb_buf, pnum, ubi->leb_start,
 			  ubi->leb_size);
 	if (err == UBI_IO_BITFLIPS || mtd_is_eccerr(err)) {
 		/*
@@ -786,7 +788,7 @@ static int check_corruption(struct ubi_device *ubi, struct ubi_vid_hdr *vid_hdr,
 	if (err)
 		goto out_unlock;
 
-	if (ubi_check_pattern(ubi->peb_buf, 0xFF, ubi->leb_size))
+	if (ubi_check_pattern(ubi_peb_buf, 0xFF, ubi->leb_size))
 		goto out_unlock;
 
 	ubi_err("PEB %d contains corrupted VID header, and the data does not contain all 0xFF",
@@ -796,11 +798,11 @@ static int check_corruption(struct ubi_device *ubi, struct ubi_vid_hdr *vid_hdr,
 	pr_err("hexdump of PEB %d offset %d, length %d",
 	       pnum, ubi->leb_start, ubi->leb_size);
 	ubi_dbg_print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 32, 1,
-			       ubi->peb_buf, ubi->leb_size, 1);
+			       ubi_peb_buf, ubi->leb_size, 1);
 	err = 1;
 
 out_unlock:
-	mutex_unlock(&ubi->buf_mutex);
+	mutex_unlock(&ubi_buf_mutex);
 	return err;
 }
 
@@ -1926,7 +1928,7 @@ recovery:
 	data_size = ubi->leb_size - be32_to_cpu(av->data_pad);
 	for(offset=0 ; offset<data_size; offset+=ubi->mtd->writesize) {
 		//ubi_msg("read source(%d) from %d, %d bytes", old_seb->pnum, offset, ubi->mtd->writesize);
-		err = ubi_io_read_data(ubi, (void*)(((char*)ubi->peb_buf)+offset),
+		err = ubi_io_read_data(ubi, (void*)(((char*)ubi_peb_buf)+offset),
 				old_seb->pnum, offset, ubi->mtd->writesize);
 		if(err < 0)
 			ubi_warn("error %d while reading data from PEB %d:0x%x", err, old_seb->pnum, offset);
@@ -1938,14 +1940,14 @@ recovery:
 		source_page = be16_to_cpu(p_blb_spare->page);
 		if(source_page >= ubi->leb_start/ubi->mtd->writesize) {
 			ubi_msg("copy backup page %d to offset 0x%x", source_page, (source_page*ubi->mtd->writesize)-ubi->leb_start);
-			memcpy((void *) (((char*)ubi->peb_buf)+(source_page*ubi->mtd->writesize)-ubi->leb_start),
+			memcpy((void *) (((char*)ubi_peb_buf)+(source_page*ubi->mtd->writesize)-ubi->leb_start),
 					(const void *)ubi->databuf, ubi->mtd->writesize);
 		}
 	}
 
-	data_size = ubi_calc_data_len(ubi, (char*)ubi->peb_buf, data_size);
+	data_size = ubi_calc_data_len(ubi, (char*)ubi_peb_buf, data_size);
 	ubi_msg("calc CRC data size %d", data_size);
-	crc = crc32(UBI_CRC32_INIT, (char*)ubi->peb_buf, data_size);
+	crc = crc32(UBI_CRC32_INIT, (char*)ubi_peb_buf, data_size);
 
 	vid_hdr = ubi_zalloc_vid_hdr(ubi, GFP_KERNEL);
 	if (!vid_hdr) {
@@ -2011,7 +2013,7 @@ retry:
 		goto write_error;
 
 	if (data_size > 0) {
-		err = ubi_io_write_data(ubi, ubi->peb_buf, new_seb->pnum, 0, data_size);
+		err = ubi_io_write_data(ubi, ubi_peb_buf, new_seb->pnum, 0, data_size);
 		if (err)
 			goto write_error;
 	}
@@ -2079,8 +2081,8 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 	page_cnt = (1<<(ubi->mtd->erasesize_shift-ubi->mtd->writesize_shift));
 
-	ubi->databuf = kmalloc(ubi->mtd->writesize, GFP_KERNEL);
-	ubi->oobbuf = kmalloc(ubi->mtd->oobavail, GFP_KERNEL);
+	ubi->databuf = vmalloc(ubi->mtd->writesize);
+	ubi->oobbuf = vmalloc(ubi->mtd->oobavail);
 	if(!ubi->databuf || !ubi->oobbuf) {
 		err = -ENOMEM;
 		goto out_free;
@@ -2152,6 +2154,7 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			}	
 		}
 
+		ubi_msg("sqnum0  %llu , sqnum1 %llu", sqnum0, sqnum1);
 		if(peb0 == peb1 && peb0!=-1) {
 			ubi_msg("blb two record have the same peb %d", peb0);
 			if(sqnum1 > sqnum0) {
@@ -2235,6 +2238,8 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 					}
 					ubi_msg("vid special case, checking page %d", check_page);
 					err = ubi_io_read_oob(ubi, ubi->databuf, NULL, source_pnum, check_page*ubi->mtd->writesize);
+					if (err)
+						continue;
 					err = ubi_check_pattern(ubi->databuf, 0xFF, ubi->mtd->writesize);
 					if (err == 1) {
 						ubi_msg("Page 2(%d) are all 0xFF", source_pnum);
@@ -2265,7 +2270,28 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 			}
 			if(check_pattern(ubi->databuf, 0xFF, ubi->mtd->writesize)==1) {
 				ubi_msg("high pare are empty");
-				corrupt = 1;
+				av = ubi_find_av(ai, source_vol_id);
+				if (!av) {
+					ubi_msg("volume id %d was not found", source_vol_id);
+				} else {
+					ubi_rb_for_each_entry(rb, old_seb, &av->root, u.rb) {
+						if( old_seb->pnum == source_pnum) {
+							ubi_msg("old_seb peb %d", old_seb->pnum);
+							break;
+						}
+					}
+				}
+				if(old_seb != NULL)
+				{
+					ubi_msg("old seq %llu , blb seq %llu", old_seb->sqnum ,be64_to_cpu(p_blb_spare->sqnum));
+					if(old_seb->sqnum < be64_to_cpu(p_blb_spare->sqnum)) {
+						corrupt = 1;
+					}	
+				}
+				else{
+					ubi_msg("old_seb NULL");
+					corrupt = 1;
+				}
 				break;
 			} else {
 				ubi_msg("high pare has content");
@@ -2286,6 +2312,11 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 				ubi_rb_for_each_entry(rb, old_seb, &av->root, u.rb) {
 					if( old_seb->pnum == source_pnum) {
 						rb_erase(&old_seb->u.rb, &av->root);
+						if(candidate_peb != NULL) {
+							ubi_msg("candidate peb %d doesn't be used, add to free list", candidate_peb->pnum);
+							add_to_list(ai, candidate_peb->pnum, candidate_peb->vol_id, candidate_peb->lnum, candidate_peb->ec, 1, &ai->free);
+							kmem_cache_free(ai->aeb_slab_cache, candidate_peb);
+						}
 						ubi_msg("candidate peb %d", old_seb->pnum);
 						candidate_peb = old_seb;
 						break;
@@ -2335,9 +2366,9 @@ int ubi_backup_init_scan(struct ubi_device *ubi, struct ubi_attach_info *ai)
 
 out_free:
 	if(ubi->databuf)
-		kfree(ubi->databuf);
+		vfree(ubi->databuf);
 	if(ubi->oobbuf)
-		kfree(ubi->oobbuf);
+		vfree(ubi->oobbuf);
 	if(vid_hdr)
 		ubi_free_vid_hdr(ubi, vid_hdr);
 

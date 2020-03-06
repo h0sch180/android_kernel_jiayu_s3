@@ -6,7 +6,6 @@
 #include <linux/thermal.h>
 #include <linux/platform_device.h>
 #include <linux/aee.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
@@ -60,7 +59,7 @@ static char g_bind9[20]="";
 #define mtkts6331_dprintk(fmt, args...)   \
 do {									\
 	if (mtkts6311_debug_log) {				\
-		xlog_printk(ANDROID_LOG_INFO, "Thermal/PMIC_6311", fmt, ##args); \
+		pr_debug("Thermal/PMIC_6311" fmt, ##args); \
 	}								   \
 } while(0)
 
@@ -78,7 +77,7 @@ typedef struct{
 #define mtkts6311_dprintk(fmt, args...)   \
 do {									\
 	if (mtkts6311_debug_log) {				\
-		xlog_printk(ANDROID_LOG_INFO, "Power/6311_Thermal", fmt, ##args); \
+		pr_debug("Power/6311_Thermal" fmt, ##args); \
 	}								   \
 } while(0)
 
@@ -102,7 +101,7 @@ static int mtkts6311_get_temp(struct thermal_zone_device *thermal,
         {
 
 			*t=80000;//60 degree
-			printk("[Thermal/PMIC_6331]mt6311_get_thr_l_int_status()==1,6311 T=80 deg\n");
+			pr_debug("[Thermal/PMIC_6331]mt6311_get_thr_l_int_status()==1,6311 T=80 deg\n");
 			mt6311_clr_thr_l_int_status();
 
 			mt6311_set_rg_strup_thr_110_clr(1);//Set 0x28 bit 0=1 ;CLR 110 INT
@@ -120,19 +119,19 @@ static int mtkts6311_get_temp(struct thermal_zone_device *thermal,
 
 		*t=115000;//115 degree
 
-		printk("[Thermal/PMIC_6331]6311 pmic temp : 110<T<125 deg\n");
+		pr_debug("[Thermal/PMIC_6331]6311 pmic temp : 110<T<125 deg\n");
 	}
 	else if(mt6311_get_pmu_thr_status()==0x3)//125<T<150
 	{
 		*t=130000;//130 degree
-		//printk("[Thermal/PMIC_6331]mt6311_get_pmu_thr_status()==0x3\n");
-		printk("[Thermal/PMIC_6331]6311 pmic temp 125<T<150 deg\n");
+		/*pr_debug("[Thermal/PMIC_6331]mt6311_get_pmu_thr_status()==0x3\n");*/
+		pr_debug("[Thermal/PMIC_6331]6311 pmic temp 125<T<150 deg\n");
 
 		if(mt6311_get_rg_thr_h_int_status()==1){//receive interrupt
 
             *t=135000;//135 degree
-			printk("[Thermal/PMIC_6331]6311 pmic temp =140 deg\n");
-            //printk("[Thermal/PMIC_6331]mt6311_get_rg_thr_h_int_status()==1,6311 T=135 deg\n");
+			pr_debug("[Thermal/PMIC_6331]6311 pmic temp =140 deg\n");
+			/*pr_debug("[Thermal/PMIC_6331]mt6311_get_rg_thr_h_int_status()==1,6311 T=135 deg\n");*/
 
             mtkts6331_dprintk("mt6311_get_thr_h_int_status()==1\n");
 			mt6311_clr_thr_h_int_status();
@@ -146,7 +145,7 @@ static int mtkts6311_get_temp(struct thermal_zone_device *thermal,
 		}
 
 	}
-	mtkts6331_dprintk("6311 pmic temp =%d\n",*t);
+	mtkts6331_dprintk("6311 pmic temp =%lu\n",*t);
 	return 0;
 }
 
@@ -374,10 +373,10 @@ static int ts6311_sysrst_set_cur_state(struct thermal_cooling_device *cdev,
 	cl_dev_sysrst_state = state;
 	if(cl_dev_sysrst_state == 1)
 	{
-		printk("Power/6311_Thermal: reset, reset, reset!!!");
-		printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-		printk("*****************************************");
-		printk("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+		pr_debug("Power/6311_Thermal: reset, reset, reset!!!");
+		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+		pr_debug("*****************************************");
+		pr_debug("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
 #ifndef CONFIG_ARM64
         BUG();
@@ -559,7 +558,7 @@ static int mtkts63116333_thermal_zone_handler(void )
         if(tempsetting_count <=0 )//140 degree
 		{
 			tempsetting_count = 0;
-            printk("6333 temp is over 140 degree\n");
+			pr_debug("6333 temp is over 140 degree\n");
 		}
 
 		set_thermal_mt6333_6311_int_status(0);
@@ -585,8 +584,8 @@ static int mtkts63116333_thermal_zone_handler(void )
 
     temp = pmic6333_temp_map[tempsetting_count].Temperature;
 
-    if(temp >= 70) //printing high temperature
-        printk("[Power/6311_Thermal] Buck 6333 T=%d\n",temp);
+	if (temp >= 70)
+		pr_debug("[Power/6311_Thermal] Buck 6333 T=%d\n", temp);
 
 
     mtkts6311_dprintk("mt6333_6311_int=%d\n",mt6333_6311_int);

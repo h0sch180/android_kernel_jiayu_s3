@@ -460,7 +460,7 @@ static inline int usb_endpoint_type(const struct usb_endpoint_descriptor *epd)
  */
 static inline int usb_endpoint_dir_in(const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN);
+	return (epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_IN;
 }
 
 /**
@@ -472,7 +472,7 @@ static inline int usb_endpoint_dir_in(const struct usb_endpoint_descriptor *epd)
 static inline int usb_endpoint_dir_out(
 				const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_OUT);
+	return (epd->bEndpointAddress & USB_ENDPOINT_DIR_MASK) == USB_DIR_OUT;
 }
 
 /**
@@ -484,8 +484,8 @@ static inline int usb_endpoint_dir_out(
 static inline int usb_endpoint_xfer_bulk(
 				const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
-		USB_ENDPOINT_XFER_BULK);
+	return (epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+		USB_ENDPOINT_XFER_BULK;
 }
 
 /**
@@ -497,8 +497,8 @@ static inline int usb_endpoint_xfer_bulk(
 static inline int usb_endpoint_xfer_control(
 				const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
-		USB_ENDPOINT_XFER_CONTROL);
+	return (epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+		USB_ENDPOINT_XFER_CONTROL;
 }
 
 /**
@@ -511,8 +511,8 @@ static inline int usb_endpoint_xfer_control(
 static inline int usb_endpoint_xfer_int(
 				const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
-		USB_ENDPOINT_XFER_INT);
+	return (epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+		USB_ENDPOINT_XFER_INT;
 }
 
 /**
@@ -525,8 +525,8 @@ static inline int usb_endpoint_xfer_int(
 static inline int usb_endpoint_xfer_isoc(
 				const struct usb_endpoint_descriptor *epd)
 {
-	return ((epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
-		USB_ENDPOINT_XFER_ISOC);
+	return (epd->bmAttributes & USB_ENDPOINT_XFERTYPE_MASK) ==
+		USB_ENDPOINT_XFER_ISOC;
 }
 
 /**
@@ -685,9 +685,9 @@ struct usb_otg_descriptor {
 	__u8  bDescriptorType;
 
 	__u8  bmAttributes;	/* support for HNP, SRP, etc */
-#ifdef CONFIG_USBIF_COMPLIANCE	
+#ifdef CONFIG_USBIF_COMPLIANCE
 	__le16 bcdOTG;
-#endif	
+#endif
 } __attribute__ ((packed));
 
 /* from usb_otg_descriptor.bmAttributes */

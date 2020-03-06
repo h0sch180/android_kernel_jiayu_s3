@@ -196,7 +196,6 @@ typedef struct ipanic_atf_log_rec {
 
 #define OOPS_LOG_LEN	__LOG_BUF_LEN
 #define WDT_LOG_LEN	__LOG_BUF_LEN
-#define WQ_LOG_LEN	32*1024
 #define LAST_LOG_LEN	(AEE_LOG_LEVEL == 8 ? __LOG_BUF_LEN : 32*1024)
 
 #define ATF_LOG_SIZE	(32*1024)

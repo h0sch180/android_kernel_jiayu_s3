@@ -170,7 +170,8 @@ static void tool_set_proc_name(char * procname)
         }
     }
     
-    sprintf(procname, "gmnode%04d%02d%02d", n_year, n_month, n_day);    
+    //sprintf(procname, "gmnode%04d%02d%02d", n_year, n_month, n_day);    
+    sprintf(procname, "gmnode");
 #else
     sprintf(procname, HOTKNOTNAME);  
 #endif    
@@ -302,7 +303,7 @@ s32 init_wr_node(struct i2c_client *client)
         goodix_proc_entry->read_proc = goodix_tool_read;
     }
 #else
-    if(proc_create(procname, 0660, NULL, &gt_tool_fops)== NULL)
+    if(proc_create(procname, 0666, NULL, &gt_tool_fops)== NULL)
     {
         GTP_ERROR("create_proc_entry %s failed", procname);
         return -1;

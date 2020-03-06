@@ -47,6 +47,8 @@
 //#define DEBUG_AUD_UL1
 //#define DEBUG_AUD_DL1
 //#define DEBUG_AUD_DAI
+//#define K2_EARLYPORTING_PMIC_LOOPBACK //ccc K2 early porting
+//#define DENALI_FPGA_EARLYPORTING //Denali early porting
 
 #ifdef DEBUG_AUDDRV
 #define PRINTK_AUDDRV(format, args...) printk(format, ##args )

@@ -19,32 +19,32 @@
 extern struct musb *mtk_musb;
 #endif
 
-void __iomem* qmu_base;
+void __iomem *qmu_base;
 /* debug variable to check qmu_base issue */
-void __iomem* qmu_base_2;
+void __iomem *qmu_base_2;
 
 int musb_qmu_init(struct musb *musb)
 {
 	/* set DMA channel 0 burst mode to boost QMU speed */
-	musb_writel(musb->mregs, 0x204 , musb_readl(musb->mregs, 0x204) | 0x600 ) ;
+	musb_writel(musb->mregs, 0x204, musb_readl(musb->mregs, 0x204) | 0x600);
 
 #ifdef CONFIG_OF
-	qmu_base = (void __iomem*)(mtk_musb->mregs + MUSB_QMUBASE);
+	qmu_base = (void __iomem *)(mtk_musb->mregs + MUSB_QMUBASE);
 	/* debug variable to check qmu_base issue */
-	qmu_base_2 = (void __iomem*)(mtk_musb->mregs + MUSB_QMUBASE);
+	qmu_base_2 = (void __iomem *)(mtk_musb->mregs + MUSB_QMUBASE);
 #else
-	qmu_base = (void __iomem*)(USB_BASE + MUSB_QMUBASE);
+	qmu_base = (void __iomem *)(USB_BASE + MUSB_QMUBASE);
 	/* debug variable to check qmu_base issue */
-	qmu_base_2 = (void __iomem*)(mtk_musb->mregs + MUSB_QMUBASE);
+	qmu_base_2 = (void __iomem *)(mtk_musb->mregs + MUSB_QMUBASE);
 #endif
 	mb();
 
-	if(qmu_init_gpd_pool(musb->controller)){
+	if (qmu_init_gpd_pool(musb->controller)) {
 		QMU_ERR("[QMU]qmu_init_gpd_pool fail\n");
-		return -1 ;
+		return -1;
 	}
 
-    return 0;
+	return 0;
 }
 
 void musb_qmu_exit(struct musb *musb)
@@ -54,47 +54,48 @@ void musb_qmu_exit(struct musb *musb)
 
 void musb_disable_q_all(struct musb *musb)
 {
-    u32 ep_num;
+	u32 ep_num;
 	QMU_WARN("disable_q_all\n");
 
-    for(ep_num = 1; ep_num <= RXQ_NUM; ep_num++){
-        if(mtk_is_qmu_enabled(ep_num, RXQ)){
-            mtk_disable_q(musb, ep_num, 1);
+	for (ep_num = 1; ep_num <= RXQ_NUM; ep_num++) {
+		if (mtk_is_qmu_enabled(ep_num, RXQ)) {
+			mtk_disable_q(musb, ep_num, 1);
 		}
-    }
-    for(ep_num = 1; ep_num <= TXQ_NUM; ep_num++){
-        if(mtk_is_qmu_enabled(ep_num, TXQ)){
-            mtk_disable_q(musb, ep_num, 0);
+	}
+	for (ep_num = 1; ep_num <= TXQ_NUM; ep_num++) {
+		if (mtk_is_qmu_enabled(ep_num, TXQ)) {
+			mtk_disable_q(musb, ep_num, 0);
 		}
-    }
+	}
 }
 
 #ifdef CONFIG_USB_MTK_HDRC_GADGET
 void musb_kick_D_CmdQ(struct musb *musb, struct musb_request *request)
 {
-    int isRx;
+	int isRx;
 
-    isRx = request->tx ? 0 : 1;
+	isRx = request->tx ? 0 : 1;
 
 	/* enable qmu at musb_gadget_eanble */
 #if 0
-    if(!mtk_is_qmu_enabled(request->epnum,isRx)){
+	if (!mtk_is_qmu_enabled(request->epnum, isRx)) {
 		/* enable qmu */
-        mtk_qmu_enable(musb, request->epnum, isRx);
-    }
+		mtk_qmu_enable(musb, request->epnum, isRx);
+	}
 #endif
 
 	/* note tx needed additional zlp field */
-    mtk_qmu_insert_task(request->epnum,
-						isRx,
-						(u8*)request->request.dma,
-						request->request.length, ((request->request.zero==1)?1:0));
+	mtk_qmu_insert_task(request->epnum,
+			    isRx,
+			    (u8 *) request->request.dma,
+			    request->request.length, ((request->request.zero == 1) ? 1 : 0));
 
 	mtk_qmu_resume(request->epnum, isRx);
 }
 #endif
 
-irqreturn_t musb_q_irq(struct musb *musb){
+irqreturn_t musb_q_irq(struct musb *musb)
+{
 
 	irqreturn_t retval = IRQ_NONE;
 	u32 wQmuVal = musb->int_queue;
@@ -112,11 +113,11 @@ irqreturn_t musb_q_irq(struct musb *musb){
 	}
 	tasklet_schedule(&musb->qmu_done);
 #else
-	for(i = 1; i<= MAX_QMU_EP; i++) {
-		if (wQmuVal & DQMU_M_RX_DONE(i)){
+	for (i = 1; i <= MAX_QMU_EP; i++) {
+		if (wQmuVal & DQMU_M_RX_DONE(i)) {
 			qmu_done_rx(musb, i);
 		}
-		if (wQmuVal & DQMU_M_TX_DONE(i)){
+		if (wQmuVal & DQMU_M_TX_DONE(i)) {
 			qmu_done_tx(musb, i);
 		}
 	}
@@ -128,37 +129,38 @@ irqreturn_t musb_q_irq(struct musb *musb){
 
 void musb_flush_qmu(u32 ep_num, u8 isRx)
 {
-	QMU_WARN("flush %s(%d)\n", isRx?"RQ":"TQ", ep_num);
+	QMU_WARN("flush %s(%d)\n", isRx ? "RQ" : "TQ", ep_num);
 	mtk_qmu_stop(ep_num, isRx);
 	qmu_reset_gpd_pool(ep_num, isRx);
 }
 
 void musb_restart_qmu(struct musb *musb, u32 ep_num, u8 isRx)
 {
-	QMU_WARN("restart %s(%d)\n", isRx?"RQ":"TQ", ep_num);
+	QMU_WARN("restart %s(%d)\n", isRx ? "RQ" : "TQ", ep_num);
 	flush_ep_csr(musb, ep_num, isRx);
 	mtk_qmu_enable(musb, ep_num, isRx);
 }
 
-bool musb_is_qmu_stop(u32 ep_num, u8 isRx){
-    void __iomem* base = qmu_base;
+bool musb_is_qmu_stop(u32 ep_num, u8 isRx)
+{
+	void __iomem *base = qmu_base;
 
 	/* debug variable to check qmu_base issue */
 	if (qmu_base != qmu_base_2) {
 		QMU_WARN("qmu_base != qmu_base_2");
-		QMU_WARN("qmu_base = %p, qmu_base_2=%p",qmu_base, qmu_base_2);
+		QMU_WARN("qmu_base = %p, qmu_base_2=%p", qmu_base, qmu_base_2);
 	}
 
-	if(!isRx){
-		if(MGC_ReadQMU16(base, MGC_O_QMU_TQCSR(ep_num)) & DQMU_QUE_ACTIVE){
+	if (!isRx) {
+		if (MGC_ReadQMU16(base, MGC_O_QMU_TQCSR(ep_num)) & DQMU_QUE_ACTIVE) {
 			return false;
-		}else{
+		} else {
 			return true;
 		}
 	} else {
-		if(MGC_ReadQMU16(base, MGC_O_QMU_RQCSR(ep_num)) & DQMU_QUE_ACTIVE){
+		if (MGC_ReadQMU16(base, MGC_O_QMU_RQCSR(ep_num)) & DQMU_QUE_ACTIVE) {
 			return false;
-		}else{
+		} else {
 			return true;
 		}
 	}
@@ -167,11 +169,11 @@ bool musb_is_qmu_stop(u32 ep_num, u8 isRx){
 void musb_tx_zlp_qmu(struct musb *musb, u32 ep_num)
 {
 	/* sent ZLP through PIO */
-	void __iomem        *epio = musb->endpoints[ep_num].regs;
-	void __iomem		*mbase =  musb->mregs;
+	void __iomem *epio = musb->endpoints[ep_num].regs;
+	void __iomem *mbase = musb->mregs;
 	unsigned long timeout = jiffies + HZ;
 	int is_timeout = 1;
-	u16			csr;
+	u16 csr;
 
 	QMU_WARN("TX ZLP direct sent\n");
 	musb_ep_select(mbase, ep_num);
@@ -187,9 +189,9 @@ void musb_tx_zlp_qmu(struct musb *musb, u32 ep_num)
 	musb_writew(epio, MUSB_TXCSR, csr);
 
 	/* wait ZLP sent */
-	while(time_before_eq(jiffies, timeout)){
+	while (time_before_eq(jiffies, timeout)) {
 		csr = musb_readw(epio, MUSB_TXCSR);
-		if(!(csr & MUSB_TXCSR_TXPKTRDY)){
+		if (!(csr & MUSB_TXCSR_TXPKTRDY)) {
 			is_timeout = 0;
 			break;
 		}
@@ -200,7 +202,7 @@ void musb_tx_zlp_qmu(struct musb *musb, u32 ep_num)
 	csr |= MUSB_TXCSR_DMAENAB;
 	musb_writew(epio, MUSB_TXCSR, csr);
 
-	if(is_timeout){
+	if (is_timeout) {
 		QMU_ERR("TX ZLP sent fail???\n");
 	}
 	QMU_WARN("TX ZLP sent done\n");

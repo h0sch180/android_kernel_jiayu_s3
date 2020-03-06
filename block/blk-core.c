@@ -148,7 +148,6 @@ void blk_rq_init(struct request_queue *q, struct request *rq)
 	rq->cmd = rq->__cmd;
 	rq->cmd_len = BLK_MAX_CDB;
 	rq->tag = -1;
-	rq->ref_count = 1;
 	rq->start_time = jiffies;
 	set_start_time_ns(rq);
 	rq->part = NULL;
@@ -177,9 +176,9 @@ void blk_dump_rq_flags(struct request *rq, char *msg)
 {
 	int bit;
 
-	printk(KERN_INFO "%s: dev %s: type=%x, flags=%x\n", msg,
+	printk(KERN_INFO "%s: dev %s: type=%x, flags=%llx\n", msg,
 		rq->rq_disk ? rq->rq_disk->disk_name : "?", rq->cmd_type,
-		rq->cmd_flags);
+		(unsigned long long) rq->cmd_flags);
 
 	printk(KERN_INFO "  sector %llu, nr/cnr %u/%u\n",
 	       (unsigned long long)blk_rq_pos(rq),
@@ -1193,6 +1192,8 @@ struct request *blk_make_request(struct request_queue *q, struct bio *bio,
 	if (unlikely(!rq))
 		return ERR_PTR(-ENOMEM);
 
+	blk_rq_set_block_pc(rq);
+
 	for_each_bio(bio) {
 		struct bio *bounce_bio = bio;
 		int ret;
@@ -1208,6 +1209,22 @@ struct request *blk_make_request(struct request_queue *q, struct bio *bio,
 	return rq;
 }
 EXPORT_SYMBOL(blk_make_request);
+
+/**
+ * blk_rq_set_block_pc - initialize a requeest to type BLOCK_PC
+ * @rq:		request to be initialized
+ *
+ */
+void blk_rq_set_block_pc(struct request *rq)
+{
+	rq->cmd_type = REQ_TYPE_BLOCK_PC;
+	rq->__data_len = 0;
+	rq->__sector = (sector_t) -1;
+	rq->bio = rq->biotail = NULL;
+	memset(rq->__cmd, 0, sizeof(rq->__cmd));
+	rq->cmd = rq->__cmd;
+}
+EXPORT_SYMBOL(blk_rq_set_block_pc);
 
 /**
  * blk_requeue_request - put a request back on queue
@@ -1341,8 +1358,6 @@ static inline void blk_pm_put_request(struct request *rq) {}
 void __blk_put_request(struct request_queue *q, struct request *req)
 {
 	if (unlikely(!q))
-		return;
-	if (unlikely(--req->ref_count))
 		return;
 
 	blk_pm_put_request(req);
@@ -1944,14 +1959,14 @@ void submit_bio(int rw, struct bio *bio)
                            int i;
                            struct bio_vec *bvec;
 
-                           //printk(KERN_INFO"submit_bio size:%d", bio->bi_size);
+
 			   bio_for_each_segment(bvec, bio, i)
                            {
 		              struct page_pid_logger *tmp_logger;
 		              extern unsigned char *page_logger;
 		              extern spinlock_t g_locker;
 		              unsigned long flags;
-		              //printk(KERN_INFO"submit_bio bvec:%p size:%d", bvec, bio->bi_size);
+
 		              if( page_logger && bvec->bv_page) {
 			         unsigned long page_index;
 	                 //#if defined(CONFIG_FLATMEM)
@@ -1959,7 +1974,7 @@ void submit_bio(int rw, struct bio *bio)
 			         //#else
 			         page_index = (unsigned long)(__page_to_pfn(bvec->bv_page))- PHYS_PFN_OFFSET;
 			         //#endif
-			         //printk(KERN_INFO"hank:submit_bio page_index:%lu", page_index);
+
 			         tmp_logger =((struct page_pid_logger *)page_logger) + page_index;
 			         spin_lock_irqsave(&g_locker, flags);
 			         if( page_index < num_physpages) {
@@ -1969,7 +1984,7 @@ void submit_bio(int rw, struct bio *bio)
 					tmp_logger->pid2 = current->pid;
 			         }
 			         spin_unlock_irqrestore(&g_locker, flags);
-			         //printk(KERN_INFO"hank tmp logger pid1:%u pid2:%u pfn:%d \n", tmp_logger->pid1, tmp_logger->pid2, (unsigned long)((page) - mem_map) );
+
 		              }
 
 

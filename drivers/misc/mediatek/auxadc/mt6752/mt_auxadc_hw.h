@@ -1,13 +1,20 @@
 #ifndef _MTK_ADC_HW_H
 #define _MTK_ADC_HW_H
-
+ 
 #ifdef CONFIG_OF
 extern void __iomem *auxadc_base;
+extern void __iomem *auxadc_apmix_base;
 #undef AUXADC_BASE
+#undef APMIXED_BASE
 #define AUXADC_BASE auxadc_base
+#define APMIXED_BASE auxadc_apmix_base
 #else
 #include <mach/mt_reg_base.h>
 #endif
+
+#define ADC_CHANNEL_MAX 16
+
+#define MT_PDN_PERI_AUXADC MT_CG_INFRA_AUXADC
 
 #define AUXADC_CON0             (AUXADC_BASE + 0x000)
 #define AUXADC_CON1             (AUXADC_BASE + 0x004)
@@ -23,6 +30,7 @@ extern void __iomem *auxadc_base;
 #define AUXADC_DET_DEBT         (AUXADC_BASE + 0x090)
 
 #define PAD_AUX_XP				13
+#define PAD_AUX_YM				15
 #define TP_CMD_ADDR_X			0x0005
 
 #define AUXADC_CON_RTP			(APMIXED_BASE + 0x0404)

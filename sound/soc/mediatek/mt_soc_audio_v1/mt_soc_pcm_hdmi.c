@@ -1086,6 +1086,7 @@ static int mtk_pcm_hdmi_start(struct snd_pcm_substream *substream)
 
 
     // here to set interrupt
+#if 0    
     if (runtime->channels == 2)
     {    
         SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ5_MCU_MODE, 1024);  // 32bit , stereo , 64 BCK  for one count, (hal size)8192 bytes/(64/8) = 1024 count
@@ -1094,6 +1095,9 @@ static int mtk_pcm_hdmi_start(struct snd_pcm_substream *substream)
     {
         SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ5_MCU_MODE, (runtime->period_size / 2));
     }
+#endif 
+    // ALPS01889945 , stereo , multi channel switch A/V sync issue
+    SetIrqMcuCounter(Soc_Aud_IRQ_MCU_MODE_IRQ5_MCU_MODE, 1024);  // 32bit , stereo , 64 BCK  for one count, (hal size)8192 bytes/(64/8) = 1024 count
     SetIrqEnable(Soc_Aud_IRQ_MCU_MODE_IRQ5_MCU_MODE, true);
 
     EnableAfe(true);

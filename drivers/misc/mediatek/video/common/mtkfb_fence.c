@@ -398,7 +398,7 @@ unsigned int mtkfb_query_buf_mva(unsigned int session_id, unsigned int layer_id,
 			layer_info->cur_idx);
 	}
 
-	/* DISPMSG("mva query:session_id=0x%08x, layer_id=%d, mva=0x%08x\n", session_id, layer_id, mva); */
+	DISPMSG("mva query:session_id=0x%08x, layer_id=%d, mva=0x%08x\n", session_id, layer_id, mva);
 
 	return mva;
 }
@@ -434,7 +434,8 @@ unsigned int mtkfb_query_buf_va(unsigned int session_id, unsigned int layer_id, 
 		     layer_id, idx, layer_info->fence_idx, layer_info->timeline_idx,
 		     layer_info->cur_idx);
 	}
-	/* DISPMSG("mva query:session_id=0x%08x, layer_id=%d, mva=0x%08x\n", session_id, layer_id, mva); */
+
+	DISPMSG("mva query:session_id=0x%08x, layer_id=%d\n", session_id, layer_id);
 
 	return va;
 }
@@ -795,10 +796,11 @@ void mtkfb_release_fence(unsigned int session_id, unsigned int layer_id, int fen
 		} else {
 			mutex_unlock(&layer_info->sync_lock);
 			dprec_trigger(&session_info->event_err, fence, layer_info->fence_idx);
-			/* DISPPR_FENCE("Warning, R+/%s%d/L%d/id%d/last%d/new%d\n",
+
+			DISPPR_FENCE("Warning, R+/%s%d/L%d/id%d/last%d/new%d\n",
 					disp_session_mode_spy(session_id), DISP_SESSION_DEV(session_id),
 					layer_id, fence, current_timeline_idx, layer_info->fence_idx);
-			 */
+
 			return;
 		}
 
@@ -826,13 +828,14 @@ void mtkfb_release_fence(unsigned int session_id, unsigned int layer_id, int fen
 				mutex_unlock(&fence_buffer_mutex);
 				buf->ts_period_keep = sched_clock() - buf->ts_create;
 				dprec_trigger(&session_info->event_release, buf->idx, layer_id);
-				/* DISPMSG("buf->idx=%d,ts_create=%lld,ts_period_keep=%lld\n",
+
+				DISPPR_FENCE("buf->idx=%d,ts_create=%lld,ts_period_keep=%lld\n",
 					   buf->idx, buf->ts_create, buf->ts_period_keep);
-				 */
-				/*DISPPR_FENCE("R+/%s%d/L%d/id%d/last%d/new%d/free/idx%d\n",
+				DISPPR_FENCE("R+/%s%d/L%d/id%d/last%d/new%d/free/idx%d\n",
 					     disp_session_mode_spy(session_id),
 					     DISP_SESSION_DEV(session_id), layer_id, fence,
-					     current_timeline_idx, layer_info->fence_idx, buf->idx);*/
+					     current_timeline_idx, layer_info->fence_idx, buf->idx);
+
 			}
 		}
 
@@ -859,9 +862,10 @@ void mtkfb_release_layer_fence(unsigned int session_id, unsigned int layer_id)
 	fence = layer_info->fence_idx;
 	mutex_unlock(&layer_info->sync_lock);
 
-	/*DISPPR_FENCE("RL+/%s%d/L%d/id%d\n", disp_session_mode_spy(session_id),
-		     DISP_SESSION_DEV(session_id), layer_id, fence);*/
-	/* DISPMSG("layer%d release all fence %d\n", layer_id, fence); */
+	DISPPR_FENCE("RL+/%s%d/L%d/id%d\n", disp_session_mode_spy(session_id),
+		     DISP_SESSION_DEV(session_id), layer_id, fence);
+	DISPPR_FENCE("layer%d release all fence %d\n", layer_id, fence);
+
 	mtkfb_release_fence(session_id, layer_id, fence);
 }
 

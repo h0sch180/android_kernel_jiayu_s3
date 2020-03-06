@@ -38,7 +38,7 @@
 
 /**************************************************************************
  *  TZ MODULE PARAMETER
- **************************************************************************/ 
+ **************************************************************************/
 static uint memsz = 0;
 module_param(memsz, uint, S_IRUSR|S_IRGRP|S_IROTH); /* r--r--r-- */
 MODULE_PARM_DESC(memsz, "the memory size occupied by tee");
@@ -62,6 +62,9 @@ static dev_t tz_client_dev;
 static int tz_client_open(struct inode *inode, struct file *filp);
 static int tz_client_release(struct inode *inode, struct file *filp);
 static long tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_COMPAT
+static long tz_client_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg);
+#endif
 
 static int tz_client_init_client_info(struct file *file);
 static void tz_client_free_client_info(struct file *file);
@@ -90,6 +93,9 @@ static const struct file_operations tz_client_fops = {
     .open = tz_client_open,
     .release = tz_client_release,
     .unlocked_ioctl = tz_client_ioctl,
+#ifdef CONFIG_COMPAT
+    .compat_ioctl = tz_client_ioctl_compat,
+#endif
     .owner = THIS_MODULE,
     };
 
@@ -151,7 +157,7 @@ static long _map_user_pages (MTIOMMU_PIN_RANGE_T* pinRange, unsigned long uaddr,
                 current->mm,
                 uaddr,
                 nr_pages,
-                write, 
+                write,
                 0, /* don't force */
                 pages,
                 NULL);
@@ -543,7 +549,7 @@ static long tz_client_open_session(struct file *file, unsigned long arg)
     if (!access_ok(VERIFY_READ, param.data, 10))
         return -EFAULT;
 
-    len = strncpy_from_user(uuid, param.data, sizeof(uuid));
+    len = strncpy_from_user(uuid, (void *)(unsigned long)param.data, sizeof(uuid));
     if (len <= 0)
         return -EFAULT;
 
@@ -598,7 +604,7 @@ static long tz_client_close_session(struct file *file, unsigned long arg)
     return 0;
 }
 
-static long tz_client_tee_service(struct file *file, unsigned long arg)
+static long tz_client_tee_service(struct file *file, unsigned long arg, unsigned int compat)
 {
     struct kree_tee_service_cmd_param cparam;
     unsigned long cret;
@@ -607,6 +613,8 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
     int i;
     TZ_RESULT ret;
     KREE_SESSION_HANDLE handle;
+    void __user *ubuf;
+    uint32_t ubuf_sz;
 
     cret = copy_from_user(&cparam, (void*)arg, sizeof(cparam));
     if (cret)
@@ -615,10 +623,10 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
     if (cparam.paramTypes != TZPT_NONE || cparam.param)
     {
         // Check if can we access param
-        if (!access_ok(VERIFY_READ, cparam.param, sizeof(oparam)))
+        if (!access_ok(VERIFY_READ, (unsigned long)cparam.param, sizeof(oparam)))
             return -EFAULT;
 
-        cret = copy_from_user(oparam, (void*)cparam.param, sizeof(oparam));
+        cret = copy_from_user(oparam, (void*)(unsigned long)cparam.param, sizeof(oparam));
         if (cret)
             return -EFAULT;
     }
@@ -650,11 +658,21 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
             case TZPT_MEM_INPUT:
             case TZPT_MEM_OUTPUT:
             case TZPT_MEM_INOUT:
+#ifdef CONFIG_COMPAT
+                if (compat) {
+                        ubuf = compat_ptr(oparam[i].mem32.buffer);
+                        ubuf_sz = oparam[i].mem32.size;
+                } else
+#endif
+                {
+                        ubuf = oparam[i].mem.buffer;
+                        ubuf_sz = oparam[i].mem.size;
+                }
+
                 // Mem Access check
                 if (type != TZPT_MEM_OUTPUT)
                 {
-                    if (!access_ok(VERIFY_READ, oparam[i].mem.buffer,
-                                   oparam[i].mem.size))
+                    if (!access_ok(VERIFY_READ, ubuf, ubuf_sz))
                     {
                         cret = -EFAULT;
                         goto error;
@@ -662,8 +680,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
                 }
                 if (type != TZPT_MEM_INPUT)
                 {
-                    if (!access_ok(VERIFY_WRITE, oparam[i].mem.buffer,
-                                   oparam[i].mem.size))
+                    if (!access_ok(VERIFY_WRITE, ubuf, ubuf_sz))
                     {
                         cret = -EFAULT;
                         goto error;
@@ -671,13 +688,13 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
                 }
 
                 // Allocate kernel space memory. Fail if > 4kb
-                if (oparam[i].mem.size > TEE_PARAM_MEM_LIMIT)
+                if (ubuf_sz > TEE_PARAM_MEM_LIMIT)
                 {
                     cret = -ENOMEM;
                     goto error;
                 }
 
-                param[i].mem.size = oparam[i].mem.size;
+                param[i].mem.size = ubuf_sz;
                 param[i].mem.buffer = kmalloc(param[i].mem.size, GFP_KERNEL);
                 if (!param[i].mem.buffer)
                 {
@@ -688,7 +705,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
                 if (type != TZPT_MEM_OUTPUT)
                 {
                     cret = copy_from_user(param[i].mem.buffer,
-                                          (void*)oparam[i].mem.buffer,
+                                          ubuf,
                                           param[i].mem.size);
                     if (cret)
                     {
@@ -743,9 +760,16 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
             case TZPT_MEM_INPUT:
             case TZPT_MEM_OUTPUT:
             case TZPT_MEM_INOUT:
+#ifdef CONFIG_COMPAT
+                if (compat)
+                    ubuf = compat_ptr(oparam[i].mem32.buffer);
+                else
+#endif
+                    ubuf = oparam[i].mem.buffer;
+
                 if (type != TZPT_MEM_INPUT)
                 {
-                    cret = copy_to_user((void*)oparam[i].mem.buffer,
+                    cret = copy_to_user(ubuf,
                                         param[i].mem.buffer,
                                         param[i].mem.size);
                     if (cret)
@@ -767,7 +791,7 @@ static long tz_client_tee_service(struct file *file, unsigned long arg)
     // Copy data back.
     if (cparam.paramTypes != TZPT_NONE)
     {
-        cret = copy_to_user((void*)cparam.param, oparam, sizeof(oparam));
+        cret = copy_to_user((void*)(unsigned long)cparam.param, oparam, sizeof(oparam));
         if (cret)
             return -EFAULT;
     }
@@ -973,7 +997,7 @@ static long tz_client_unreg_sharedmem (struct file *file, unsigned long arg)
 
 
 
-static long tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long do_tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long arg, unsigned int compat)
 {
     int err   = 0;
 
@@ -1001,7 +1025,7 @@ static long tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long a
             return tz_client_close_session(file, arg);
 
         case MTEE_CMD_TEE_SERVICE:
-            return tz_client_tee_service(file, arg);
+            return tz_client_tee_service(file, arg, compat);
 
 		case MTEE_CMD_SHM_REG:
 		    return tz_client_reg_sharedmem (file, arg);
@@ -1015,6 +1039,18 @@ static long tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long a
 
     return 0;
 }
+
+static long tz_client_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+    return do_tz_client_ioctl(file, cmd, arg, 0);
+}
+
+#ifdef CONFIG_COMPAT
+static long tz_client_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
+{
+    return do_tz_client_ioctl(file, cmd, (unsigned long)compat_ptr(arg), 1);
+}
+#endif
 
 /* pm op funcstions */
 static int tz_suspend(struct device *pdev)

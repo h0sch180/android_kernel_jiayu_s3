@@ -900,6 +900,10 @@ void ddp_check_path(DDP_SCENARIO_ENUM scenario)
 {
 	DDPDBG("path check path on scenario %s\n", ddp_get_scenario_name(scenario));
 
+	if (DDP_SCENARIO_MAX <= scenario) {
+		return;
+	}
+
 	if (scenario == DDP_SCENARIO_PRIMARY_ALL) {
 		ddp_check_path_l(module_list_scenario[DDP_SCENARIO_PRIMARY_DISP]);
 		ddp_check_path_l(module_list_scenario[DDP_SCENARIO_PRIMARY_OVL_MEMOUT]);

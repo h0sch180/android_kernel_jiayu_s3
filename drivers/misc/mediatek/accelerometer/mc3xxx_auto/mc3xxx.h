@@ -112,5 +112,5 @@
 #define MC3XXX_PCODE_RESERVE_9    0xE1
 
 #define MC3XXX_PCODE_RESERVE_10    0x99
-#endif    // END OF _MC3XXX_H_
+#endif
 

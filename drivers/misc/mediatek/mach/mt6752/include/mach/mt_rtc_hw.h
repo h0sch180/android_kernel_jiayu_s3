@@ -84,9 +84,12 @@
  *     bit 15     : reserved bits
  */
 #define RTC_AL_HOU			(RTC_BASE + 0x001c)
-#define RTC_NEW_SPARE_FG_MASK		0xff00
-#define RTC_NEW_SPARE_FG_SHIFT		8
-#define RTC_AL_HOU_MASK 		0x001f	
+#define RTC_AL_HOU_MASK 		0x001f
+
+#define RTC_FG_SOC			RTC_AL_HOU
+#define RTC_FG_SOC_MASK			0x7f
+#define RTC_FG_SOC_SHIFT		8
+
 
 /*
  * RTC_NEW_SPARE1: RTC_AL_DOM bit0~4
@@ -190,20 +193,17 @@
  *     bit 0 - 3 : MTH in power-on time
  *     bit 4     : Power-On Alarm bit
  *     bit 5 - 6 : UART bits
- *     bit 7     : reserved bit
+ *     bit 7     : autoboot bit
  *     bit 8 - 14: YEA in power-on time
  *     bit 15    : Power-On Logo bit
  */
-#define RTC_PDN2			(RTC_BASE + 0x002e)
-#define RTC_PDN2_PWRON_MTH_MASK 	0x000f
-#define RTC_PDN2_PWRON_MTH_SHIFT 	0
-#define RTC_PDN2_PWRON_ALARM 		(1U << 4)
-#define RTC_PDN2_UART_MASK		0x0060
-#define RTC_PDN2_UART_SHIFT		5
-#define RTC_PDN2_PWRON_YEA_MASK 	0x7f00
-#define RTC_PDN2_AUTOBOOT         (1U << 7)
-#define RTC_PDN2_PWRON_YEA_SHIFT 	8
-#define RTC_PDN2_PWRON_LOGO		(1U << 15)
+#define RTC_PDN2				(RTC_BASE + 0x002e)
+#define RTC_PDN2_PWRON_ALARM 			(1U << 4)
+#define RTC_PDN2_UART_MASK			0x0060
+#define RTC_PDN2_UART_SHIFT			5
+#define RTC_AUTOBOOT_MASK			0x1
+#define RTC_AUTOBOOT_SHIFT			7
+#define RTC_PDN2_PWRON_LOGO			(1U << 15)
 
 /*
  * RTC_SPAR0:
@@ -211,11 +211,9 @@
  *     bit 6 	 : 32K less bit. True:with 32K, False:Without 32K
  *     bit 7 - 15: reserved bits
  */
-#define RTC_SPAR0			(RTC_BASE + 0x0030)
-#define RTC_SPAR0_PWRON_SEC_MASK 	0x003f
-#define RTC_SPAR0_PWRON_SEC_SHIFT 	0
-#define RTC_SPAR0_32K_LESS 		(1U << 6)
-#define RTC_SPAR0_LP_DET		(1U << 7)
+#define RTC_SPAR0				(RTC_BASE + 0x0030)
+#define RTC_SPAR0_32K_LESS 			(1U << 6)
+#define RTC_SPAR0_LP_DET			(1U << 7)
 
 /*
  * RTC_SPAR1:
@@ -224,12 +222,6 @@
  *     bit 11 - 15: DOM in power-on time
  */
 #define RTC_SPAR1			(RTC_BASE + 0x0032)
-#define RTC_SPAR1_PWRON_MIN_MASK 	0x003f
-#define RTC_SPAR1_PWRON_MIN_SHIFT 	0
-#define RTC_SPAR1_PWRON_HOU_MASK 	0x07c0
-#define RTC_SPAR1_PWRON_HOU_SHIFT 	6
-#define RTC_SPAR1_PWRON_DOM_MASK 	0xf800
-#define RTC_SPAR1_PWRON_DOM_SHIFT 	11
 
 #define RTC_PROT			(RTC_BASE + 0x0036)
 #define RTC_PROT_UNLOCK1 		0x586a
@@ -270,6 +262,34 @@
 #define RTC_CON_GE8			(1U << 13)
 #define RTC_CON_GPI			(1U << 14)
 #define RTC_CON_LPSTA_RAW		(1U << 15)	/* 32K was stopped */
+
+/* power on alarm time setting */
+
+#define RTC_PWRON_YEA		RTC_PDN2
+#define RTC_PWRON_YEA_MASK 	0x7f00
+#define RTC_PWRON_YEA_SHIFT 	8
+
+#define RTC_PWRON_MTH		RTC_PDN2
+#define RTC_PWRON_MTH_MASK 	0x000f
+#define RTC_PWRON_MTH_SHIFT 	0
+
+#define RTC_PWRON_SEC		RTC_SPAR0
+#define RTC_PWRON_SEC_MASK 	0x003f
+#define RTC_PWRON_SEC_SHIFT 	0
+
+#define RTC_PWRON_MIN		RTC_SPAR1
+#define RTC_PWRON_MIN_MASK 	0x003f
+#define RTC_PWRON_MIN_SHIFT 	0
+
+#define RTC_PWRON_HOU		RTC_SPAR1
+#define RTC_PWRON_HOU_MASK 	0x07c0
+#define RTC_PWRON_HOU_SHIFT 	6
+
+#define RTC_PWRON_DOM		RTC_SPAR1
+#define RTC_PWRON_DOM_MASK 	0xf800
+#define RTC_PWRON_DOM_SHIFT 	11
+
+extern u16 rtc_spare_reg[][3];
 
 #endif /* __MT_RTC_HW_H__ */
 

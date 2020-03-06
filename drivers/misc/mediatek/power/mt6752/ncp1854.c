@@ -37,7 +37,7 @@
 #define NCP1854_SLAVE_ADDR_READ	   0x6D
 
 static struct i2c_client *new_client = NULL;
-static const struct i2c_device_id ncp1854_i2c_id[] = {{"ncp1854",0},{}};
+static const struct i2c_device_id ncp1854_i2c_id[] = {{"ncp1854",0},{}};   
 
 kal_bool chargin_hw_init_done = KAL_FALSE;
 static int ncp1854_driver_probe(struct i2c_client *client, const struct i2c_device_id *id);
@@ -54,7 +54,7 @@ MODULE_DEVICE_TABLE(of, ncp1854_of_match);
 static struct i2c_driver ncp1854_driver = {
     .driver = {
         .name    = "ncp1854",
-#ifdef CONFIG_OF
+#ifdef CONFIG_OF 
         .of_match_table = ncp1854_of_match,
 #endif
     },
@@ -83,28 +83,28 @@ int ncp1854_read_byte(kal_uint8 cmd, kal_uint8 *returnData)
     int      ret=0;
 
     mutex_lock(&ncp1854_i2c_access);
-
-    //new_client->addr = ((new_client->addr) & I2C_MASK_FLAG) | I2C_WR_FLAG;
+    
+    //new_client->addr = ((new_client->addr) & I2C_MASK_FLAG) | I2C_WR_FLAG;    
     new_client->ext_flag=((new_client->ext_flag ) & I2C_MASK_FLAG ) | I2C_WR_FLAG | I2C_DIRECTION_FLAG;
 
     cmd_buf[0] = cmd;
     ret = i2c_master_send(new_client, &cmd_buf[0], (1<<8 | 1));
-    if (ret < 0)
-    {
+    if (ret < 0) 
+    {    
         //new_client->addr = new_client->addr & I2C_MASK_FLAG;
         new_client->ext_flag=0;
-
+		
         mutex_unlock(&ncp1854_i2c_access);
         return 0;
     }
-
+    
     readData = cmd_buf[0];
     *returnData = readData;
 
     //new_client->addr = new_client->addr & I2C_MASK_FLAG;
     new_client->ext_flag=0;
-
-    mutex_unlock(&ncp1854_i2c_access);
+	
+    mutex_unlock(&ncp1854_i2c_access);    
     return 1;
 }
 
@@ -119,16 +119,16 @@ int ncp1854_write_byte(kal_uint8 cmd, kal_uint8 writeData)
     write_data[1] = writeData;
 
     new_client->ext_flag=((new_client->ext_flag ) & I2C_MASK_FLAG ) | I2C_DIRECTION_FLAG;
-
+	
     ret = i2c_master_send(new_client, write_data, 2);
     if (ret < 0)
 	{
-        new_client->ext_flag=0;
+        new_client->ext_flag=0;    
         mutex_unlock(&ncp1854_i2c_access);
         return 0;
     }
 
-    new_client->ext_flag=0;
+    new_client->ext_flag=0;    
     mutex_unlock(&ncp1854_i2c_access);
     return 1;
 }
@@ -139,18 +139,18 @@ int ncp1854_write_byte(kal_uint8 cmd, kal_uint8 writeData)
   *
   *********************************************************/
 kal_uint32 ncp1854_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 MASK, kal_uint8 SHIFT)
-{
+{   
     kal_uint8 ncp1854_reg = 0;
     int ret = 0;
 
-    pr_notice("--------------------------------------------------\n");
+    printk("--------------------------------------------------\n");
 
     ret = ncp1854_read_byte(RegNum, &ncp1854_reg);
-    pr_notice("[ncp1854_read_interface] Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
+    printk("[ncp1854_read_interface] Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
 
     ncp1854_reg &= (MASK << SHIFT);
-    *val = (ncp1854_reg >> SHIFT);
-    pr_notice("[ncp1854_read_interface] Val=0x%x\n", *val);
+    *val = (ncp1854_reg >> SHIFT);    
+    printk("[ncp1854_read_interface] Val=0x%x\n", *val);
 
     return ret;
 }
@@ -160,38 +160,27 @@ kal_uint32 ncp1854_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8 
     kal_uint8 ncp1854_reg = 0;
     int ret = 0;
 
-    pr_notice("--------------------------------------------------\n");
+    printk("--------------------------------------------------\n");
 
     ret = ncp1854_read_byte(RegNum, &ncp1854_reg);
-    //pr_notice("[ncp1854_config_interface] Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
+    //printk("[ncp1854_config_interface] Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
 
     ncp1854_reg &= ~(MASK << SHIFT);
     ncp1854_reg |= (val << SHIFT);
 
-//superdragonpt, import var
-if(RegNum == NCP1854_CON1 && val == 1 && MASK ==CON1_REG_RST_MASK && SHIFT == CON1_REG_RST_SHIFT)
-    {
-        // RESET bit
-    }
-    else if(RegNum == NCP1854_CON1)
-    {
-        ncp1854_reg &= ~0x80;	//RESET bit read returs 1, so clear it
-    }
-//superdragonpt, end
-
     ret = ncp1854_write_byte(RegNum, ncp1854_reg);
-    //pr_notice("[ncp18546_config_interface] Write Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
+    //printk("[ncp18546_config_interface] Write Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
 
     // Check
     //ncp1854_read_byte(RegNum, &ncp1854_reg);
-    //pr_notice("[ncp1854_config_interface] Check Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
+    //printk("[ncp1854_config_interface] Check Reg[%x]=0x%x\n", RegNum, ncp1854_reg);
 
     return ret;
 }
 
 /**********************************************************
   *
-  *   [Internal Function]
+  *   [Internal Function] 
   *
   *********************************************************/
 //CON0
@@ -505,10 +494,10 @@ kal_uint32  ncp1854_get_ichg(void)
     kal_uint32 ret=0;
     kal_uint32 val=0;
 
-	ret = ncp1854_read_interface((kal_uint8)NCP1854_CON15,
-									(kal_uint8*)&val,
-									(kal_uint8)CON15_ICHG_MASK,
-									(kal_uint8)CON15_ICHG_SHIFT);
+	ret = ncp1854_read_interface((kal_uint8)NCP1854_CON15, 
+									(kal_uint8*)&val, 
+									(kal_uint8)CON15_ICHG_MASK, 
+									(kal_uint8)CON15_ICHG_SHIFT);						    
     return val;
 }
 
@@ -558,6 +547,55 @@ void ncp1854_set_iinlim_ta(kal_uint32 val)
 								);
 }
 
+//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+void lenovo_ncp1854_for_overload_init(void)
+{
+	if(chargin_hw_init_done == KAL_TRUE)
+	{
+		ncp1854_config_interface((kal_uint8)(NCP1854_CON13),
+									(kal_uint8)(0x0),
+									(kal_uint8)(0x1),
+									(kal_uint8)(3)
+									);
+		ncp1854_config_interface((kal_uint8)(NCP1854_CON1),
+									(kal_uint8)(0x0),
+									(kal_uint8)(0x1),
+									(kal_uint8)(0)
+									);
+	}
+}
+
+kal_uint32 ncp1854_get_vobstol1(void)
+{
+    kal_uint32 ret=0;
+    kal_uint32 val=0;
+
+    ret=ncp1854_read_interface((kal_uint8)(NCP1854_CON6),
+	        					      (kal_uint8*)(&val),
+							      (kal_uint8)(0x1),
+							      (kal_uint8)(2)
+							      );
+    return val;
+}
+
+kal_uint32 lenovo_ncp1854_is_overload_int(void)
+{
+	if(chargin_hw_init_done == KAL_TRUE)
+	{
+		if(ncp1854_get_faultint())
+		{
+			if(ncp1854_get_vobstol1())
+			{
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+#endif
+//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+
 /**********************************************************
   *
   *   [Internal Function]
@@ -571,23 +609,23 @@ void ncp1854_dump_register(void)
         if((i == 3) || (i == 4) || (i == 5) || (i == 6)) //do not dump read clear status register
             continue;
         if((i == 10) || (i == 11) || (i == 12) || (i == 13)) //do not dump interrupt mask bit register
-            continue;
+            continue;		
         ncp1854_read_byte(i, &ncp1854_reg[i]);
-        pr_notice("[ncp1854_dump_register] Reg[0x%X]=0x%X\n", i, ncp1854_reg[i]);
+        printk("[ncp1854_dump_register] Reg[0x%X]=0x%X\n", i, ncp1854_reg[i]);
     }
 }
 
 void ncp1854_read_register(int i)
 {
     ncp1854_read_byte(i, &ncp1854_reg[i]);
-    pr_notice("[ncp1854_read_register] Reg[0x%X]=0x%X\n", i, ncp1854_reg[i]);
+    printk("[ncp1854_read_register] Reg[0x%X]=0x%X\n", i, ncp1854_reg[i]);
 }
 
 static int ncp1854_driver_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
     int err=0;
 
-    pr_notice("[ncp1854_driver_probe] \n");
+    printk("[ncp1854_driver_probe] \n");
 
     if (!(new_client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
          err = -ENOMEM;
@@ -600,7 +638,7 @@ static int ncp1854_driver_probe(struct i2c_client *client, const struct i2c_devi
     chargin_hw_init_done = KAL_TRUE;
 
     //---------------------
-
+    
     return 0;
 
 exit:
@@ -616,7 +654,7 @@ exit:
 kal_uint8 g_reg_value_ncp1854=0;
 static ssize_t show_ncp1854_access(struct device *dev,struct device_attribute *attr, char *buf)
 {
-    pr_notice("[show_ncp1854_access] 0x%x\n", g_reg_value_ncp1854);
+    printk("[show_ncp1854_access] 0x%x\n", g_reg_value_ncp1854);
     return sprintf(buf, "%u\n", g_reg_value_ncp1854);
 }
 static ssize_t store_ncp1854_access(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
@@ -626,24 +664,24 @@ static ssize_t store_ncp1854_access(struct device *dev,struct device_attribute *
     unsigned int reg_value = 0;
     unsigned int reg_address = 0;
 
-    pr_notice("[store_ncp1854_access] \n");
+    printk("[store_ncp1854_access] \n");
 
     if(buf != NULL && size != 0)
     {
-        pr_notice("[store_ncp1854_access] buf is %s and size is %zu \n",buf,size);
+        printk("[store_ncp1854_access] buf is %s and size is %zu \n",buf,size);
         reg_address = simple_strtoul(buf,&pvalue,16);
 
         if(size > 3)
         {
             reg_value = simple_strtoul((pvalue+1),NULL,16);
-            pr_notice("[store_ncp1854_access] write ncp1854 reg 0x%x with value 0x%x !\n",reg_address,reg_value);
+            printk("[store_ncp1854_access] write ncp1854 reg 0x%x with value 0x%x !\n",reg_address,reg_value);
             ret=ncp1854_config_interface(reg_address, reg_value, 0xFF, 0x0);
         }
         else
         {
             ret=ncp1854_read_interface(reg_address, &g_reg_value_ncp1854, 0xFF, 0x0);
-            pr_notice("[store_ncp1854_access] read ncp1854 reg 0x%x with value 0x%x !\n",reg_address,g_reg_value_ncp1854);
-            pr_notice("[store_ncp1854_access] Please use \"cat ncp1854_access\" to get value\r\n");
+            printk("[store_ncp1854_access] read ncp1854 reg 0x%x with value 0x%x !\n",reg_address,g_reg_value_ncp1854);
+            printk("[store_ncp1854_access] Please use \"cat ncp1854_access\" to get value\r\n");
         }
     }
     return size;
@@ -654,7 +692,7 @@ static int ncp1854_user_space_probe(struct platform_device *dev)
 {
     int ret_device_file = 0;
 
-    pr_notice("******** ncp1854_user_space_probe!! ********\n" );
+    printk("******** ncp1854_user_space_probe!! ********\n" );
 
     ret_device_file = device_create_file(&(dev->dev), &dev_attr_ncp1854_access);
 
@@ -681,28 +719,28 @@ static int __init ncp1854_init(void)
 {
     int ret=0;
 
-    pr_notice("[ncp1854_init] init start\n");
+    printk("[ncp1854_init] init start\n");
 
     i2c_register_board_info(NCP1854_BUSNUM, &i2c_ncp1854, 1);
 
     if(i2c_add_driver(&ncp1854_driver)!=0)
     {
-        pr_notice("[ncp1854_init] failed to register ncp1854 i2c driver.\n");
+        printk("[ncp1854_init] failed to register ncp1854 i2c driver.\n");
     }
     else
     {
-        pr_notice("[ncp1854_init] Success to register ncp1854 i2c driver.\n");
+        printk("[ncp1854_init] Success to register ncp1854 i2c driver.\n");
     }
 
     // ncp1854 user space access interface
     ret = platform_device_register(&ncp1854_user_space_device);
     if (ret) {
-        pr_notice("****[ncp1854_init] Unable to device register(%d)\n", ret);
+        printk("****[ncp1854_init] Unable to device register(%d)\n", ret);
         return ret;
     }
     ret = platform_driver_register(&ncp1854_user_space_driver);
     if (ret) {
-        pr_notice("****[ncp1854_init] Unable to register driver (%d)\n", ret);
+        printk("****[ncp1854_init] Unable to register driver (%d)\n", ret);
         return ret;
     }
 

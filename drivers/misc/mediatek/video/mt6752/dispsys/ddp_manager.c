@@ -1053,62 +1053,6 @@ static unsigned int dpmgr_is_PQ(DISP_MODULE_ENUM module)
 	return isPQ;
 }
 
-#ifdef CONFIG_FOR_SOURCE_PQ
-extern void set_color_bypass(DISP_MODULE_ENUM module, int bypass, void* cmdq_handle);
-
-/** Reset module's ROI and bypass flags of module on mira path. */
-static void dpmgr_path_reset_config_mira(int module, unsigned int w, unsigned int h, void *cmdq)
-{
-    switch (module) {
-    case DISP_MODULE_OVL0:
-        DISP_REG_SET(cmdq, DISP_REG_OVL_ROI_SIZE, h<<16 | w);
-    break;
-
-    case DISP_MODULE_OVL1:
-        if (ovl_get_status()==DDP_OVL1_STATUS_PRIMARY){
-            DISP_REG_SET(cmdq, DISP_REG_OVL_ROI_SIZE+DISP_OVL_INDEX_OFFSET, h<<16 | w);
-        }
-    break;
-
-    case DISP_MODULE_WDMA0:
-        DISP_REG_SET(cmdq, DISP_REG_WDMA_SRC_SIZE, h<<16 | w);
-    break;
-    
-    case DISP_MODULE_COLOR0:
-        set_color_bypass(module, 1, cmdq);
-        DISP_REG_SET(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH, w);  //wrapper width
-        DISP_REG_SET(cmdq, DISP_COLOR_INTERNAL_IP_HEIGHT, h); //wrapper height
-    break;
-
-    case DISP_MODULE_CCORR:
-        DISP_REG_SET(cmdq, DISP_REG_CCORR_SIZE, (w << 16) | h);
-        DISP_REG_SET(cmdq, DISP_REG_CCORR_EN, 1);
-        DISP_REG_MASK(cmdq, DISP_REG_CCORR_CFG, 0x0, 0x1);
-        DISP_REG_MASK(cmdq, DISP_REG_CCORR_CFG, 0x2, 0x2);
-    break;
-
-    case DISP_MODULE_AAL:
-		DISP_REG_SET(cmdq, DISP_AAL_SIZE, (w << 16) | h);
-		DISP_REG_MASK(cmdq, DISP_AAL_CFG, 0x0, 0x1);	/* Disable relay mode */
-		DISP_REG_MASK(cmdq, DISP_AAL_EN, 0x1, 0x1);
-    break;
-
-    case DISP_MODULE_GAMMA:
-        DISP_REG_SET(cmdq, DISP_REG_GAMMA_SIZE, (w << 16) | h);
-        DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG, 0x0, 0x1);
-        DISP_REG_MASK(cmdq, DISP_REG_GAMMA_CFG, 0x2, 0x2);
-    break;
-
-    case DISP_MODULE_DITHER:
-        DISP_REG_SET(cmdq, DISP_REG_DITHER_SIZE, (w << 16) | h);
-        DISP_REG_MASK(cmdq, DISP_REG_DITHER_CFG, 0x0, 0x1);
-        DISP_REG_MASK(cmdq, DISP_REG_DITHER_CFG, 0x2, 0x2);
-    break;
-
-    }
-}
-#endif
-
 int dpmgr_path_config(disp_path_handle dp_handle, disp_ddp_path_config *config, void *cmdq_handle)
 {
 	int i = 0;
@@ -1165,7 +1109,11 @@ int dpmgr_path_config(disp_path_handle dp_handle, disp_ddp_path_config *config, 
 	for (i = 0; i < module_num; i++) {
 		module_name = modules[i];
 		if (ddp_modules_driver[module_name] != 0) {
+#ifdef CONFIG_FOR_SOURCE_PQ
+			if (module_name == DISP_MODULE_COLOR0)
+				set_color_bypass(DISP_MODULE_COLOR0, 1, cmdq_handle);
 
+#endif
 			if (gDDPError == 1 && dpmgr_is_PQ(module_name) == 1) {
 				if (ddp_modules_driver[module_name]->bypass == NULL) {
 					DDPERR
@@ -1182,9 +1130,6 @@ int dpmgr_path_config(disp_path_handle dp_handle, disp_ddp_path_config *config, 
 				ddp_modules_driver[module_name]->config(module_name, config,
 									cmdq_handle);
 			}
-#ifdef CONFIG_FOR_SOURCE_PQ
-            dpmgr_path_reset_config_mira(module_name, config->dst_w, config->dst_h, cmdq_handle);
-#endif
 		}
 	}
 
@@ -1493,6 +1438,7 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg, 
 	case DISP_IOCTL_AAL_INIT_REG:
 	case DISP_IOCTL_AAL_SET_PARAM:
 		{
+#ifndef CONFIG_FOR_SOURCE_PQ
 			if (is_module_in_path(DISP_MODULE_AAL, handle)) {
 				if (ddp_modules_driver[DISP_MODULE_AAL]->cmd != NULL) {
 					ret =
@@ -1500,6 +1446,7 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg, 
 					    cmd(DISP_MODULE_AAL, msg, arg, cmdqhandle);
 				}
 			}
+#endif
 			break;
 		}
 	case DISP_IOCTL_SET_GAMMALUT:
@@ -1529,7 +1476,6 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg, 
 	case DISP_IOCTL_GET_PQ_GAL_PARAM:
 	case DISP_IOCTL_PQ_SET_BYPASS_COLOR:
 	case DISP_IOCTL_PQ_SET_WINDOW:
-	case DISP_IOCTL_WRITE_REG:
 	case DISP_IOCTL_READ_REG:
 	case DISP_IOCTL_MUTEX_CONTROL:
 	case DISP_IOCTL_PQ_GET_TDSHP_FLAG:
@@ -1562,8 +1508,6 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg, 
 #ifdef CONFIG_FOR_SOURCE_PQ
 	case DISP_IOCTL_PQ_GET_DISP_STATUS:
 		{
-			extern int disp_get_session_number();
-			extern int primary_display_is_suspend(int lock);
 			DISP_PQ_STATUS st;
 			if (primary_display_is_decouple_mode())
 				st.decouple = 1;
@@ -1577,7 +1521,6 @@ int dpmgr_path_user_cmd(disp_path_handle dp_handle, int msg, unsigned long arg, 
 
 			st.session_num = disp_get_session_number();
 			st.mutex = handle->hwmutexid;
-			st.suspend = primary_display_is_suspend(0);
 			if (copy_to_user((void *)arg, &st, sizeof(DISP_PQ_STATUS))) {
 				DISP_LOG_E("DISP_IOCTL_PQ_GET_DISP_STATUS, copy_to_user failed\n");
 				ret = -EFAULT;

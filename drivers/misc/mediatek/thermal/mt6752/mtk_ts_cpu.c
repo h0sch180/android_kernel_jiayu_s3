@@ -6,7 +6,6 @@
 #include <linux/thermal.h>
 #include <linux/platform_device.h>
 #include <linux/aee.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
@@ -357,13 +356,13 @@ extern u32 get_devinfo_with_index(u32 index);
 #define tscpu_dprintk(fmt, args...)   \
 do {                                    \
 	if (mtktscpu_debug_log) {                \
-		xlog_printk(ANDROID_LOG_INFO, "Power/CPU_Thermal", fmt, ##args); \
+		pr_notice("Power/CPU_Thermal" fmt, ##args); \
 	}                                   \
 } while(0)
 
 #define tscpu_printk(fmt, args...)   \
 do {                                    \
-	xlog_printk(ANDROID_LOG_INFO, "Power/CPU_Thermal", fmt, ##args); \
+	pr_notice("Power/CPU_Thermal" fmt, ##args); \
 } while(0)
 
 
@@ -1697,7 +1696,7 @@ static int read_tc_raw_and_temp(volatile u32 * tempmsr_name,thermal_sensor_name 
 	int temp=0,raw=0;
 
 
-    tscpu_dprintk("read_tc_raw_temp,tempmsr_name=0x%x,ts_num=%d\n",tempmsr_name,ts_name);
+    //tscpu_dprintk("read_tc_raw_temp,tempmsr_name=0x%x,ts_num=%d\n",tempmsr_name,ts_name);
 
     raw = (tempmsr_name != 0) ? (DRV_Reg32((tempmsr_name))& 0x0fff) : 0;
 	temp = (tempmsr_name != 0) ? raw_to_temperature_roomt(raw,ts_name) : 0;
@@ -2360,7 +2359,7 @@ static int _adaptive_power(long prev_temp, long curr_temp, unsigned int gpu_load
                 default: /* ATM v1 */
 			        total_power = FIRST_STEP_TOTAL_POWER_BUDGET;
                 }
-				tscpu_dprintk("%s Tp %d, Tc %d, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
+				tscpu_dprintk("%s Tp %ld, Tc %ld, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
 				return P_adaptive(total_power, gpu_loading);
 			}
 		}
@@ -2441,7 +2440,7 @@ static int _adaptive_power(long prev_temp, long curr_temp, unsigned int gpu_load
             break;
         }
 
-        tscpu_dprintk("%s Tp %d, Tc %d, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
+        tscpu_dprintk("%s Tp %ld, Tc %ld, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
 		return P_adaptive(total_power, gpu_loading);
 	}
 	else
@@ -2449,7 +2448,7 @@ static int _adaptive_power(long prev_temp, long curr_temp, unsigned int gpu_load
 		if (triggered)
 		{
 			triggered = 0;
-			tscpu_dprintk("%s Tp %d, Tc %d, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
+			tscpu_dprintk("%s Tp %ld, Tc %ld, Pt %d\n", __func__, prev_temp, curr_temp, total_power);
 			return P_adaptive(0, 0);
 		}
 #if THERMAL_HEADROOM
@@ -3294,7 +3293,7 @@ static ssize_t tscpu_write_thp(struct file *file, const char __user *buffer, siz
 
 	if (4 <= sscanf(desc, "%d %d %d %d", &tpcb_coef, &tpcb_trip, &thp_coef, &thp_threshold))
 	{
-        tscpu_printk("%s input %d %d\n", __func__, tpcb_coef, tpcb_trip, thp_coef, thp_threshold);
+        tscpu_printk("%s input %d %d %d %d\n", __func__, tpcb_coef, tpcb_trip, thp_coef, thp_threshold);
 
         p_Tpcb_correlation = tpcb_coef;
         Tpcb_trip_point = tpcb_trip;

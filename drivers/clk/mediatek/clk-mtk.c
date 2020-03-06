@@ -22,12 +22,10 @@
 
 #include "clk-mtk.h"
 
-#ifdef Bring_Up
-#ifdef pr_debug
-#undef pr_debug
-#define pr_debug printk
+#if !defined(MT_CCF_DEBUG) || !defined(MT_CCF_BRINGUP)
+#define MT_CCF_DEBUG	0
+#define MT_CCF_BRINGUP	0
 #endif
-#endif /* Bring_Up */
 
 static DEFINE_SPINLOCK(clk_ops_lock);
 
@@ -56,8 +54,10 @@ struct clk *mtk_clk_register_mux(
 	const struct clk_ops *gate_ops = NULL;
 	u32 mask = BIT(width) - 1;
 
+#if MT_CCF_DEBUG
 	pr_debug("name: %s, num_parents: %d, gate_bit: %d\n",
 		name, (int)num_parents, (int)gate_bit);
+#endif /* MT_CCF_DEBUG */
 
 	mux = kzalloc(sizeof(struct clk_mux), GFP_KERNEL);
 	if (!mux)

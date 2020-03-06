@@ -23,6 +23,11 @@
 #include "clk-mtk.h"
 #include "clk-gate.h"
 
+#if !defined(MT_CCF_DEBUG) || !defined(MT_CCF_BRINGUP)
+#define MT_CCF_DEBUG	0
+#define MT_CCF_BRINGUP	0
+#endif
+
 /*
  * clk_gate
  */
@@ -31,6 +36,14 @@ static void cg_set_mask(struct mtk_clk_gate *cg, u32 mask)
 {
 	u32 r;
 
+#if MT_CCF_DEBUG
+	if (printk_ratelimit())
+	/*if (!strcmp(__clk_get_name(cg->hw.clk), "vdec0_vdec") ||
+	    !strcmp(__clk_get_name(cg->hw.clk), "vdec1_larb")) {*/
+		pr_debug("[CCF] %s: %s, mask=%u, bit=%u, flags=%u\n",
+			  __func__, __clk_get_name(cg->hw.clk), mask,
+			  cg->bit, cg->flags);
+#endif /* MT_CCF_DEBUG */
 	if (cg->flags & CLK_GATE_NO_SETCLR_REG) {
 		r = readl_relaxed(cg->sta_addr) | mask;
 		writel_relaxed(r, cg->sta_addr);
@@ -42,6 +55,14 @@ static void cg_clr_mask(struct mtk_clk_gate *cg, u32 mask)
 {
 	u32 r;
 
+#if MT_CCF_DEBUG
+	if (printk_ratelimit())
+/*	if (!strcmp(__clk_get_name(cg->hw.clk), "vdec0_vdec") ||
+	    !strcmp(__clk_get_name(cg->hw.clk), "vdec1_larb"))*/
+		pr_debug("[CCF] %s: %s, mask=%u, bit=%u, flags=%u\n",
+			  __func__, __clk_get_name(cg->hw.clk), mask,
+			  cg->bit, cg->flags);
+#endif /* MT_CCF_DEBUG */
 	if (cg->flags & CLK_GATE_NO_SETCLR_REG) {
 		r = readl_relaxed(cg->sta_addr) & ~mask;
 		writel_relaxed(r, cg->sta_addr);
@@ -54,13 +75,13 @@ static int cg_enable(struct clk_hw *hw)
 	unsigned long flags = 0;
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
 	u32 mask = BIT(cg->bit);
-#ifdef Bring_Up
-	pr_debug("[CCF] %s: %s, bit: %u\n", __func__, __clk_get_name(hw->clk),
-	       cg->bit);
-        return 0;
-#endif
 
-	pr_debug("%s, bit: %u\n", __clk_get_name(hw->clk), cg->bit);
+#if MT_CCF_BRINGUP
+	if (printk_ratelimit())
+		pr_debug("[CCF] %s: %s, bit: %u\n", __func__,
+			  __clk_get_name(hw->clk), cg->bit);
+	return 0;
+#endif /* MT_CCF_BRINGUP */
 
 	mtk_clk_lock(flags);
 
@@ -79,13 +100,13 @@ static void cg_disable(struct clk_hw *hw)
 	unsigned long flags = 0;
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
 	u32 mask = BIT(cg->bit);
-#ifdef Bring_Up
-	pr_debug("[CCF] %s: %s, bit: %u\n", __func__, __clk_get_name(hw->clk),
-	       cg->bit);
-        return;
-#endif
 
-	pr_debug("%s, bit: %u\n", __clk_get_name(hw->clk), cg->bit);
+#if MT_CCF_BRINGUP
+	if (printk_ratelimit())
+		pr_debug("[CCF] %s: %s, bit: %u\n", __func__,
+			  __clk_get_name(hw->clk), cg->bit);
+	return;
+#endif /* MT_CCF_BRINGUP */
 
 	mtk_clk_lock(flags);
 
@@ -103,16 +124,20 @@ static int cg_is_enabled(struct clk_hw *hw)
 	u32 mask;
 	u32 val;
 	int r;
-#ifdef Bring_Up
-        return 0;
-#endif
+
+#if MT_CCF_BRINGUP
+	if (printk_ratelimit())
+		pr_debug("[CCF] %s: %s\n", __func__, __clk_get_name(hw->clk));
+	return 1;
+#endif /* MT_CCF_BRINGUP */
 
 	mask = BIT(cg->bit);
 	val = mask & readl(cg->sta_addr);
 
 	r = (cg->flags & CLK_GATE_INVERSE) ? (val != 0) : (val == 0);
 
-	pr_debug("%d, %s, bit[%d]\n", r, __clk_get_name(hw->clk), (int)cg->bit);
+	pr_debug("[CCF] %s: %d, %s, bit[%d]\n", __func__, r,
+		 __clk_get_name(hw->clk), (int)cg->bit);
 
 	return r;
 }
@@ -136,7 +161,9 @@ struct clk *mtk_clk_register_gate(
 	struct clk *clk;
 	struct clk_init_data init;
 
-	pr_debug("name: %s, bit: %d\n", name, (int)bit);
+#if MT_CCF_DEBUG
+	pr_debug("[CCF] name: %s, bit: %d\n", name, (int)bit);
+#endif /* MT_CCF_DEBUG */
 
 	cg = kzalloc(sizeof(*cg), GFP_KERNEL);
 	if (!cg)

@@ -341,6 +341,7 @@ void machine_power_off(void)
 	else
 	{
 		tsk = current;
+		dump_stack();
 	}
 
 	if(tsk->real_parent)
@@ -400,6 +401,7 @@ void machine_restart(char *cmd)
 	else
 	{
 		tsk = current;
+		dump_stack();
 	}
 
 	if(tsk->real_parent)

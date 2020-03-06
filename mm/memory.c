@@ -70,8 +70,7 @@
 #include "internal.h"
 
 #ifdef CONFIG_MTK_EXTMEM
-extern bool extmem_in_mspace(struct vm_area_struct *vma);
-extern unsigned long get_virt_from_mspace(unsigned long pa);
+#include <linux/exm_driver.h>
 #endif
 
 #ifdef LAST_NID_NOT_IN_PAGE_FLAGS
@@ -1799,9 +1798,7 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		}
     #ifdef CONFIG_MTK_EXTMEM
         if (!vma || !(vm_flags & vma->vm_flags))
-		{
 		    return i ? : -EFAULT;
-        }
 
 		if (vma->vm_flags & (VM_IO | VM_PFNMAP))
 		{
@@ -2387,9 +2384,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
 	 * See vm_normal_page() for details.
 	 */
 #ifdef CONFIG_MTK_EXTMEM
-	if (addr == vma->vm_start && end == vma->vm_end) {
+	if (addr == vma->vm_start && end == vma->vm_end)
 		vma->vm_pgoff = pfn;
-	} else if (is_cow_mapping(vma->vm_flags))
+	else if (is_cow_mapping(vma->vm_flags))
 		return -EINVAL;
 #else
 	if (is_cow_mapping(vma->vm_flags)) {
@@ -4130,7 +4127,10 @@ static int __access_remote_vm(struct task_struct *tsk, struct mm_struct *mm,
 				if (vma->vm_end < addr + len)
 					len = vma->vm_end - addr;
 				if (extmem_in_mspace(vma)) {
-					void *extmem_va = (void *)get_virt_from_mspace(vma->vm_pgoff << PAGE_SHIFT) + (addr - vma->vm_start);
+					unsigned long pa = vma->vm_pgoff << PAGE_SHIFT;
+					void *extmem_va =
+						(void *)(get_virt_from_mspace(pa) + (addr - vma->vm_start));
+
 					memcpy(buf, extmem_va, len);
 					buf += len;
 					break;

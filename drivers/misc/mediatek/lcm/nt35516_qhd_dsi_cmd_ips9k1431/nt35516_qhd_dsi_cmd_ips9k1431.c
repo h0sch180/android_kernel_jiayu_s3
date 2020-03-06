@@ -317,7 +317,7 @@ static void lcm_suspend(void)
 #ifdef BUILD_UBOOT
 	printf("zhibin uboot %s\n", __func__);
 #else
-	printk("zhibin kernel %s\n", __func__);
+	pr_debug("zhibin kernel %s\n", __func__);
 #endif
 
 	
@@ -330,7 +330,7 @@ static void lcm_resume(void)
 #ifdef BUILD_UBOOT
 	printf("zhibin uboot %s\n", __func__);
 #else
-	printk("zhibin kernel %s\n", __func__);
+	pr_debug("zhibin kernel %s\n", __func__);
 
 #endif
 	push_table(lcm_sleep_out_setting, sizeof(lcm_sleep_out_setting) / sizeof(struct LCM_setting_table), 1);
@@ -358,7 +358,7 @@ static void lcm_update(unsigned int x, unsigned int y,
 #ifdef BUILD_UBOOT
 	printf("zhibin uboot %s\n", __func__);
 #else
-	printk("zhibin kernel %s\n", __func__);
+	pr_debug("zhibin kernel %s\n", __func__);
 
 #endif
 

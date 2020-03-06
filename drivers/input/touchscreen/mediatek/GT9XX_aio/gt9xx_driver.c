@@ -27,6 +27,10 @@
 
 #include <linux/sched.h>
 
+ #ifdef CONFIG_LENOVO_POWEROFF_CHARGING_UI
+#include <cust_charging.h>
+ #endif
+
 extern struct tpd_device *tpd;
 #ifdef VELOCITY_CUSTOM
 extern int tpd_v_magnify_x;
@@ -45,12 +49,10 @@ static struct task_struct *probe_thread = NULL;
 static bool check_flag= false;
 static int tpd_polling_time=50;
 extern u8 load_fw_process;
-/*lenovo-sw xuwen1 add 20140724 begin */
-#ifdef LENOVO_GESTURE_WAKEUP
+
 static int letter = 0;
 static u8 letter_char = 0x00 ;
-#endif
-/*lenovo-sw xuwen1 add 20140724 end */
+
 static DECLARE_WAIT_QUEUE_HEAD(waiter);
 DEFINE_MUTEX(i2c_access);
 DEFINE_MUTEX(tp_wr_access);
@@ -287,7 +289,7 @@ u8 pnl_init_error = 0;
 static u8 chip_gt9xxs = 0;  // true if chip type is gt9xxs,like gt915s
 
 /*lenovo-sw xuwen1 add for read fw-version begin*/
-#ifdef LENOVO_READ_FW_ID
+#ifdef CONFIG_LENOVO_READ_FW_ID
 extern struct tpd_version_info *tpd_info_t;
 extern unsigned int have_correct_setting;
 static int get_tpd_info(void);
@@ -1312,7 +1314,7 @@ s32 gtp_read_version(struct i2c_client *client, u16 *version)
 }
 
 /*lenovo-sw xuwen1 add 20140418 for read FW & ID version begin*/
-#ifdef LENOVO_READ_FW_ID
+#ifdef CONFIG_LENOVO_READ_FW_ID
 u32 gtp_read_ID_version(struct i2c_client *client)
 {
    u32 ret = -1;
@@ -1358,7 +1360,7 @@ have_correct_setting = 1;
 #endif
 /*lenovo-sw xuwen1 add 20140418 for read FW & ID version end*/
 /*lenovo-sw xuwen1 add 20140418 for read gesture version begin*/
-#ifdef LENOVO_GESTURE_WAKEUP
+#ifdef CONFIG_LENOVO_GESTURE_WAKEUP
 int get_array_flag(void)
 {
     return letter;
@@ -2333,13 +2335,13 @@ static int tpd_registration(void *client)
 		}
 	
 /*lenovo-sw xuwen1 add 20140718 for read fw&id begin*/
-#ifdef LENOVO_READ_FW_ID
- ret = gtp_read_ID_version(client);
-    if (ret < 0)	
-    {
-        GTP_ERROR("Read id version failed.");
-    } 
- get_tpd_info();
+#ifdef CONFIG_LENOVO_READ_FW_ID
+		ret = gtp_read_ID_version(client);
+		if (ret < 0)
+		{
+			GTP_ERROR("Read id version failed.");
+		}
+		get_tpd_info();
 #endif
 /*lenovo-sw xuwen1 add 20140718 for read fw&id end*/
 	
@@ -2900,33 +2902,18 @@ static void gtp_charger_switch(s32 dir_update)
 }
 #endif
 /*lenovo-xuwen1 add code for tp button feature 2014-08-19, wangxf14 porting at 20140915 */
-#ifdef LENOVO_POWEROFF_CHARGING_UI
+
+/*lenovo-xuwen1 add code for tp button feature end 2014-08-19, wangxf14 porting at 20140915 */
+
+
+/*lenovo-xuwen1 add code for tp button feature 2014-08-19*/
+#ifdef CONFIG_LENOVO_POWEROFF_CHARGING_UI
 extern struct input_dev *kpd_input_dev;
 extern  int ipo_flag;
 int tp_button_flag = 0;
 extern int g_tp_poweron;
-
-#ifdef LENOVO_POWEROFF_CHARGING_UI_FHD
-//fhd
-#define LENOVO_CHARGING_DRAW_LEFT                 (540-144) // percent number_left + 2*number_width
-#define LENOVO_CHARGING_DRAW_RIGHT                (LENOVO_CHARGING_DRAW_LEFT+288)
-#define LENOVO_CHARGING_DRAW_BOTTOM               (1920-40)
-#define LENOVO_CHARGING_DRAW_TOP                  (LENOVO_CHARGING_DRAW_BOTTOM-108)
-#elif LENOVO_POWEROFF_CHARGING_UI_HD
-#define LENOVO_CHARGING_DRAW_LEFT                 (191) // percent number_left + 2*number_width
-#define LENOVO_CHARGING_DRAW_RIGHT                (191+337)
-#define LENOVO_CHARGING_DRAW_TOP                  (1280-80)
-#define LENOVO_CHARGING_DRAW_BOTTOM               (1280)
-#else
-#define LENOVO_CHARGING_DRAW_LEFT                 (191) // percent number_left + 2*number_width
-#define LENOVO_CHARGING_DRAW_RIGHT                (191+337)
-#define LENOVO_CHARGING_DRAW_TOP                  (1280-80)
-#define LENOVO_CHARGING_DRAW_BOTTOM               (1280)
 #endif
-
-#endif
-/*lenovo-xuwen1 add code for tp button feature end 2014-08-19, wangxf14 porting at 20140915 */
-
+/*lenovo-xuwen1 add code for tp button feature end 2014-08-19*/
 static int touch_event_handler(void *unused)
 {
     struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
@@ -3018,54 +3005,116 @@ static int touch_event_handler(void *unused)
             ret = gtp_i2c_read(i2c_client_point, doze_buf, 3);
             GTP_DEBUG("0x814B = 0x%02X", doze_buf[2]);
             if (ret > 0)
-            {  
-            /*lenovo-sw xuwen1 modify 20140718 for gesture begin*/
-                if((0xCC == doze_buf[2])&&(lpwg_int_flag == 1))             
-                 {
-                     ret = gtp_i2c_read(i2c_client_point, doze_buf_double, 3);
-                     GTP_DEBUG("0x814D = 0x%02X", doze_buf_double[2]);
-                    if(ret > 0)
-                      {
-                       if((doze_buf_double[2]!=0x01)&&(doze_buf_double[2]!=0x04)&&(doze_buf_double[2]!=0x08))//key
-                       	{
-                       	#if defined(LENOVO_GESTURE_WAKEUP)
-				 if(doze_buf_double[2]==0x02)
-				     letter = 0x50;//double home
-				 else
-				     letter = 0x24; //double VA
-				 #endif
-			 doze_status = DOZE_WAKEUP;
-                    input_report_key(tpd->dev, KEY_SLIDE, 1);
-                    input_sync(tpd->dev);
-                    input_report_key(tpd->dev, KEY_SLIDE, 0);
-                    input_sync(tpd->dev);
-                    // clear 0x814B
-                    lpwg_int_flag = 0;
-                    doze_buf_double[2] = 0x00;
-                    gtp_i2c_write(i2c_client_point, doze_buf_double, 3);
-                     doze_buf[2] = 0x00;
-                    gtp_i2c_write(i2c_client_point, doze_buf, 3);
-                       	}
-               					  					
-                   else
-                       {
-                     doze_buf_double[2] = 0x00;
-                    gtp_i2c_write(i2c_client_point, doze_buf_double, 3);
-                     doze_buf[2] = 0x00;
-                    gtp_i2c_write(i2c_client_point, doze_buf, 3);
-                    gtp_enter_doze(i2c_client_point);
-                       }
-             }
-           }
-                else
-                {
-                     doze_buf[2] = 0x00;
-                    gtp_i2c_write(i2c_client_point, doze_buf, 3);
-                    gtp_enter_doze(i2c_client_point);
-                }
-            }
-            continue;
-        }
+            {
+				if (((doze_buf[2] == 'a') || (doze_buf[2] == 'b') || (doze_buf[2] == 'c') ||
+				    (doze_buf[2] == 'd') || (doze_buf[2] == 'e') || (doze_buf[2] == 'g') || 
+				    (doze_buf[2] == 'h') || (doze_buf[2] == 'm') || (doze_buf[2] == 'o') ||
+				    (doze_buf[2] == 'q') || (doze_buf[2] == 's') || (doze_buf[2] == 'v') || 
+				    (doze_buf[2] == 'w') || (doze_buf[2] == 'y') || (doze_buf[2] == 'z') ||
+				    (doze_buf[2] == 0x5E) /* ^ */
+				    )){
+					    if (doze_buf[2] != 0x5E)
+					    {
+					        GTP_INFO("Gesture---->Wakeup by gesture(%c), light up the screen!", doze_buf[2]);
+					    }
+					    else
+					    {
+					        GTP_INFO("Gesture---->Wakeup by gesture(^), light up the screen!");
+					    }
+						doze_status = DOZE_WAKEUP;
+						switch (doze_buf[2])
+						{
+							case 'v':
+								letter = 0x34;
+								input_report_key(tpd->dev, KEY_SLIDE, 1);
+								input_sync(tpd->dev);
+								input_report_key(tpd->dev, KEY_SLIDE, 0);
+								input_sync(tpd->dev);
+							break;
+							case 'o':
+								letter = 0x33;
+								input_report_key(tpd->dev, KEY_SLIDE, 1);
+								input_sync(tpd->dev);
+								input_report_key(tpd->dev, KEY_SLIDE, 0);
+								input_sync(tpd->dev);
+							break;
+							default:
+							break;
+						}
+				                // clear 0x814B
+				                doze_buf[2] = 0x00;
+				                gtp_i2c_write(i2c_client_point, doze_buf, 3);
+					}
+	            /*lenovo-sw xuwen1 modify 20140718 for gesture begin*/
+					else if ( (doze_buf[2] == 0xAA) || (doze_buf[2] == 0xBB) ||
+							(doze_buf[2] == 0xAB) || (doze_buf[2] == 0xBA) )
+					{
+						char *direction[4] = {"Right", "Down", "Up", "Left"};
+						u8 type = ((doze_buf[2] & 0x0F) - 0x0A) + (((doze_buf[2] >> 4) & 0x0F) - 0x0A) * 2;
+
+						GTP_INFO("Gesture--->%s slide to light up the screen!", direction[type]);
+						doze_status = DOZE_WAKEUP;
+						letter = 0x20;
+						if(type == 0){
+							input_report_key(tpd->dev, KEY_SLIDE, 1);
+							input_sync(tpd->dev);
+							input_report_key(tpd->dev, KEY_SLIDE, 0);
+							input_sync(tpd->dev);
+						}
+						else if(type == 3){
+							input_report_key(tpd->dev, KEY_SLIDE, 1);
+							input_sync(tpd->dev);
+							input_report_key(tpd->dev, KEY_SLIDE, 0);
+							input_sync(tpd->dev);
+
+						}
+				                // clear 0x814B
+				                doze_buf[2] = 0x00;
+				                gtp_i2c_write(i2c_client_point, doze_buf, 3);
+			            }			
+					else if(0xCC == doze_buf[2])
+					{
+						ret = gtp_i2c_read(i2c_client_point, doze_buf_double, 3);
+						GTP_DEBUG("0x814D = 0x%02X", doze_buf_double[2]);
+						if(ret > 0)
+						{
+							if((doze_buf_double[2]!=0x01)&&(doze_buf_double[2]!=0x04)&&(doze_buf_double[2]!=0x08))//key
+							{
+							#if defined(CONFIG_LENOVO_GESTURE_WAKEUP)
+							if(doze_buf_double[2]==0x02)
+							letter = 0x50;//double home
+							else
+							letter = 0x24; //double VA
+							#endif
+							doze_status = DOZE_WAKEUP;
+							input_report_key(tpd->dev, KEY_SLIDE, 1);
+							input_sync(tpd->dev);
+							input_report_key(tpd->dev, KEY_SLIDE, 0);
+							input_sync(tpd->dev);
+							// clear 0x814B
+							doze_buf_double[2] = 0x00;
+							gtp_i2c_write(i2c_client_point, doze_buf_double, 3);
+							doze_buf[2] = 0x00;
+							gtp_i2c_write(i2c_client_point, doze_buf, 3);
+							}	  					
+							else
+							{
+								doze_buf_double[2] = 0x00;
+								gtp_i2c_write(i2c_client_point, doze_buf_double, 3);
+								doze_buf[2] = 0x00;
+								gtp_i2c_write(i2c_client_point, doze_buf, 3);
+							}
+						}
+					}
+		                else
+		                {
+		                     doze_buf[2] = 0x00;
+		                    gtp_i2c_write(i2c_client_point, doze_buf, 3);
+		                }
+		                gtp_enter_doze(i2c_client_point);
+		            }
+		            continue;
+		        }
     #endif
         if(tpd_halt||(is_reseting == 1) || (load_fw_process == 1))
         {
@@ -3375,7 +3424,7 @@ static int touch_event_handler(void *unused)
                 GTP_DEBUG(" %d)(%d, %d)[%d]", id, input_x, input_y, input_w);
                 tpd_down(input_x, input_y, input_w, id);
 /*lenovo-xw xuwen1 add code for tp button begin 2014-08-19, wangxf14 porting at 20140915 */
-		   #ifdef LENOVO_POWEROFF_CHARGING_UI
+		   #ifdef CONFIG_LENOVO_POWEROFF_CHARGING_UI
 		   if(((input_x>LENOVO_CHARGING_DRAW_LEFT)&&(input_x<LENOVO_CHARGING_DRAW_RIGHT)) &&((input_y>LENOVO_CHARGING_DRAW_TOP) &&(input_y<LENOVO_CHARGING_DRAW_BOTTOM)) &&(ipo_flag ==0x1) &&(g_tp_poweron !=0x1))
 		   {
 		        g_tp_poweron = 0x1;
@@ -3489,7 +3538,7 @@ static int tpd_local_init(void)
     tpd->dev->id.product = tpd_info.pid;
     tpd->dev->id.version = tpd_info.vid;
 
-    GTP_INFO("end %s, %d\n", __FUNCTION__, __LINE__);
+    GTP_INFO("end %s, %d\n", __func__, __LINE__);
     tpd_type_cap = 1;
 
     return 0;
@@ -3938,7 +3987,6 @@ if(get_tpd_suspend_status())
  {
      gtp_enter_doze(i2c_client_point);
 	lpwg_flag = 1;
-	lpwg_int_flag = 1;
   }
 else
   {
@@ -3976,7 +4024,7 @@ static void tpd_resume(struct early_suspend *h)
 {
     s32 ret = -1;
 
-    printk("mtk-tpd: %s start\n", __FUNCTION__);
+    printk("mtk-tpd: %s start\n", __func__);
 #ifdef TPD_PROXIMITY
 
     if (tpd_proximity_flag == 1)
@@ -4042,7 +4090,6 @@ static void tpd_resume(struct early_suspend *h)
  if(get_tpd_suspend_status() && (lpwg_flag == 1))
 	{
  	lpwg_flag = 0;
-	lpwg_int_flag = 0;
  	}
  else
       {
@@ -4073,7 +4120,7 @@ static void tpd_resume(struct early_suspend *h)
 
 #else
 
-    //mutex_lock(&i2c_access);
+   // mutex_lock(&i2c_access);
     tpd_halt = 0;
     //set again for IPO-H resume
    
@@ -4097,7 +4144,7 @@ static void tpd_resume(struct early_suspend *h)
 #ifdef GTP_CHARGER_DETECT
     queue_delayed_work(gtp_charger_check_workqueue, &gtp_charger_check_work, clk_tick_cnt);
 #endif
-    printk("mtk-tpd: %s end\n", __FUNCTION__);
+    printk("mtk-tpd: %s end\n", __func__);
 }
 /*Lenovo-sw xuwen1 modify 20140804 end */
 static struct tpd_driver_t tpd_device_driver =
@@ -4198,4 +4245,3 @@ static void __exit tpd_driver_exit(void)
 
 module_init(tpd_driver_init);
 module_exit(tpd_driver_exit);
-

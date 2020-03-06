@@ -1,5 +1,24 @@
+/*
+* Copyright (C) 2015 MediaTek Inc.
+*
+* This program is free software: you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef __MD32_HELPER_H__
 #define __MD32_HELPER_H__
+
+#include <linux/interrupt.h>
 
 struct md32_regs
 {
@@ -29,6 +48,9 @@ extern unsigned int flag_md32_addr;
 extern unsigned int flag_apmcu_addr;
 extern unsigned int apmcu_clk_init_count;
 
+extern irqreturn_t md32_irq_handler(int irq, void *dev_id);
+extern void irq_ast_ipi_handler(int id, void *data, unsigned int len);
+
 #define MD32_PTCM_SIZE 0x18000 /* 96KB */
 #define MD32_DTCM_SIZE 0x20000 /* 128KB */
 #define MD32_CFGREG_SIZE 0x100
@@ -44,11 +66,11 @@ extern unsigned int apmcu_clk_init_count;
 #define MD32_AED_STR_LEN  (512)
 
 #ifdef CONFIG_MTK_LDVT
-  #define MD32_DATA_IMAGE_PATH "/vendor/etc/firmware/md32_d.bin"
-  #define MD32_PROGRAM_IMAGE_PATH "/vendor/etc/firmware/md32_p.bin"
+  #define MD32_DATA_IMAGE_PATH "/system/etc/firmware/md32_d.bin"
+  #define MD32_PROGRAM_IMAGE_PATH "/system/etc/firmware/md32_p.bin"
 #else
-  #define MD32_DATA_IMAGE_PATH "/vendor/etc/firmware/md32_d.bin"
-  #define MD32_PROGRAM_IMAGE_PATH "/vendor/etc/firmware/md32_p.bin"
+  #define MD32_DATA_IMAGE_PATH "/etc/firmware/md32_d.bin"
+  #define MD32_PROGRAM_IMAGE_PATH "/etc/firmware/md32_p.bin"
 #endif
 /* Support dynamic TCM data/program swap macro */
 //#define DYNAMIC_TCM_SWAP

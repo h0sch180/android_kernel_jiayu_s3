@@ -1,7 +1,6 @@
 #include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/kobject.h>
 #include <linux/proc_fs.h>
@@ -12,19 +11,17 @@
 #include <mach/mt_ccci_common.h>
 // extern unsigned long ccci_get_md_boot_count(int md_id);
 
-extern struct proc_dir_entry * mtk_thermal_get_proc_drv_therm_dir_entry(void);
-
 extern int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf, unsigned int len);
 
 #define mtk_cooler_mutt_dprintk_always(fmt, args...) \
-    do { xlog_printk(ANDROID_LOG_INFO, "thermal/cooler/mutt", fmt, ##args); } while(0)
+	do { pr_debug("thermal/cooler/mutt" fmt, ##args); } while (0)
 
 #define mtk_cooler_mutt_dprintk(fmt, args...) \
-    do { \
-        if (1 == cl_mutt_klog_on) { \
-            xlog_printk(ANDROID_LOG_INFO, "thermal/cooler/mutt", fmt, ##args); \
-        } \
-    } while(0)
+	do { \
+		if (1 == cl_mutt_klog_on) { \
+			pr_debug("thermal/cooler/mutt" fmt, ##args); \
+		} \
+	} while (0)
 
 #define MAX_NUM_INSTANCE_MTK_COOLER_MUTT  3
 

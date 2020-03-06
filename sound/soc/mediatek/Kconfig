@@ -33,3 +33,13 @@ config MTK_NXP_TFA9890
 	default n
 	help
         If you say Y, enable MTK_NXP_TFA9890 driver.
+config LENOVO_PIEZO
+    bool "LENOVO_PIEZO"
+	default n
+	help
+        If you say Y, enable CONFIG_LENOVO_PIEZO driver.
+config AIO_ROW_HEADPHONES_SWITCH
+   bool "AIO_ROW_HEADPHONES_SWITCH"
+        default n
+        help
+        If you say Y, enable AIO_ROW_HEADPHONES_SWITCH function

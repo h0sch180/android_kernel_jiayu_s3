@@ -755,7 +755,7 @@ int sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 	if (err)
 		return -EINVAL;
 
-	ec_hdr = kzalloc(ubi->ec_hdr_alsize, GFP_NOFS);
+	ec_hdr = vzalloc(ubi->ec_hdr_alsize);
 	if (!ec_hdr)
 		return -ENOMEM;
 
@@ -796,7 +796,7 @@ int sync_erase(struct ubi_device *ubi, struct ubi_wl_entry *e,
 	spin_unlock(&ubi->wl_lock);
 
 out_free:
-	kfree(ec_hdr);
+	vfree(ec_hdr);
 	return err;
 }
 
@@ -1015,7 +1015,6 @@ static int wear_leveling_worker(struct ubi_device *ubi, struct ubi_work *wrk,
 				int cancel)
 {
 	int erase_e2=1, err, scrubbing = 0, torture = 0, protect = 0, erroneous = 0;
-	int err, scrubbing = 0, torture = 0, protect = 0, erroneous = 0;
 	int vol_id = -1, lnum = -1;
 #ifdef CONFIG_MTD_UBI_FASTMAP
 	int anchor = wrk->anchor;
@@ -2182,7 +2181,7 @@ void ubi_wl_close(struct ubi_device *ubi)
 	kfree(ubi->lookuptbl);
 }
 
-#ifdef MTK_IPOH_SUPPORT
+#ifdef CONFIG_MTK_HIBERNATION
 void ubi_wl_move_pg_to_used(struct ubi_device *ubi, int pnum) {
 	struct ubi_wl_entry *e;
 	e = ubi->lookuptbl[pnum];

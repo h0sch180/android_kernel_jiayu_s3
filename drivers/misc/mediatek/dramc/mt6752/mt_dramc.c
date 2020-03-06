@@ -15,7 +15,7 @@
 //#include <asm/delay.h>
 #include <mach/mt_reg_base.h>
 #include <mach/mt_clkmgr.h>
-#include <mach/mt_freqhopping.h>
+#include "mt_freqhopping.h"
 #include <mach/emi_bwl.h>
 #include <mach/mt_typedefs.h>
 #include <mach/memory.h>
@@ -672,7 +672,7 @@ __attribute__ ((__section__ (".sram.func"))) void uart_print(unsigned char ch)
 
 void do_DRAM_DFS(int high_freq)
 {
-	U32 u4HWTrackR0, u4HWTrackR1, u4HWGatingEnable;
+	U32 u4value, u4HWTrackR0, u4HWTrackR1, u4HWGatingEnable;
 	int ddr_type;  
 
 	  mutex_lock(&dram_dfs_mutex);    
@@ -800,7 +800,12 @@ void do_DRAM_DFS(int high_freq)
 
 		Reg_Sync_Writel((CHA_DRAMCAO_BASE + (0x77 << 2)), bak_data1);
 #else
-        while(md32_ipi_send(IPI_DFS, (void *)&shuffer_to_high, sizeof(U32), 1) != DONE);
+  #ifdef CONFIG_MTK_ENABLE_SPM_CHANGE_PMIC_MODE
+        u4value = (0 << 16) | shuffer_to_high;
+  #else
+        u4value = (1 << 16) | shuffer_to_high;
+  #endif        
+        while(md32_ipi_send(IPI_DFS, (void *)&u4value, sizeof(U32), 1) != DONE);
       
         //while(shuffer_done == 0);
         printk("[DRAM DFS] Shuffer to high by MD32\n");
@@ -909,7 +914,12 @@ void do_DRAM_DFS(int high_freq)
 
 		Reg_Sync_Writel((PCM_INI_PWRON0_REG), Reg_Readl(PCM_INI_PWRON0_REG) |0x8000000);
 #else
-        while(md32_ipi_send(IPI_DFS, (void *)&shuffer_to_high, sizeof(U32), 1) != DONE);
+  #ifdef CONFIG_MTK_ENABLE_SPM_CHANGE_PMIC_MODE
+        u4value = (0 << 16) | shuffer_to_high;
+  #else
+        u4value = (1 << 16) | shuffer_to_high;
+  #endif     
+        while(md32_ipi_send(IPI_DFS, (void *)&u4value, sizeof(U32), 1) != DONE);
        
         //while(shuffer_done == 0);   
         printk("[DRAM DFS] Shuffer to low by MD32\n");

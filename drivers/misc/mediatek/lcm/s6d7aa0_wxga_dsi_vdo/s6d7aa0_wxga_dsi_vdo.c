@@ -31,6 +31,12 @@
 #define GPIO_LCD_PWR_EN      0xFFFFFFFF
 #endif
 
+#ifdef GPIO_LCM_RST
+#define GPIO_LCD_RST      GPIO_LCM_RST
+#else
+#define GPIO_LCD_RST      0xFFFFFFFF
+#endif
+
 #ifndef BUILD_LK
 static bool fgisFirst = TRUE;
 #endif
@@ -42,7 +48,7 @@ static unsigned int lcm_esd_test = FALSE;      ///only for ESD test
 
 static LCM_UTIL_FUNCS lcm_util = {0};
 
-#define SET_RESET_PIN(v)    (lcm_util.set_reset_pin((v)))
+#define SET_RESET_PIN(v)   lcm_set_gpio_output(GPIO_LCD_RST, v) //(lcm_util.set_reset_pin((v)))
 
 #define UDELAY(n) (lcm_util.udelay(n))
 #define MDELAY(n) (lcm_util.mdelay(n))
@@ -64,7 +70,7 @@ static void lcm_init_register(void)
 #ifdef BUILD_LK
     printf("%s, LK \n", __func__);
 #else
-    printk("%s, kernel", __func__);
+    pr_debug("%s, kernel", __func__);
 #endif
     //DSI_Continuous_HS();
     //DSI_clk_HS_mode(1);
@@ -142,10 +148,10 @@ static void lcd_poweron(unsigned char enabled)
 		MDELAY(20);
 
 	#else
-		printk("[Kernel/LCM] lcm_resume_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
                 MDELAY(5);
-		hwPowerOn(MT6328_POWER_LDO_VCAM_AF, VOL_1800, "LCM");
+		hwPowerOn(MT6328_POWER_LDO_VCAMA, VOL_1800, "LCM");
 		MDELAY(20);
 	#endif
 	}
@@ -157,14 +163,14 @@ static void lcd_poweron(unsigned char enabled)
 		MDELAY(20);
 		lcm_Disable_HW();		
 	#else
-		printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+		pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 		lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 		MDELAY(20);
 		if(fgisFirst == TRUE) {
 		fgisFirst = FALSE;
-		hwPowerOn(MT6328_POWER_LDO_VCAM_AF, VOL_1800, "LCM"); 
+		hwPowerOn(MT6328_POWER_LDO_VCAMA, VOL_1800, "LCM"); 
 		}
-		hwPowerDown(MT6328_POWER_LDO_VCAM_AF, "LCM");	
+		hwPowerDown(MT6328_POWER_LDO_VCAMA, "LCM");	
 
 	#endif
 	}

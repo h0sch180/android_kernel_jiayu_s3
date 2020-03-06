@@ -40,6 +40,14 @@ typedef struct {
 	int z;
 } SENSOR_DATA;
 
+/*Lenovo-sw caoyi1 for proximity sensor cali 20140711 start*/
+typedef struct
+{
+    int close;
+    int far_away;
+    int valid;
+} HWMON_PS_STRUCT;
+/*Lenovo-sw caoyi1 for proximity sensor cali 20140711 end*/
 
 #define GSENSOR							0x85
 #define GSENSOR_IOCTL_INIT                  _IO(GSENSOR,  0x01)
@@ -53,10 +61,15 @@ typedef struct {
 #define GSENSOR_IOCTL_CLR_CALI				_IO(GSENSOR, 0x08)
 
 #ifdef CONFIG_COMPAT
+#define COMPAT_GSENSOR_IOCTL_INIT                  _IO(GSENSOR,  0x01)
+#define COMPAT_GSENSOR_IOCTL_READ_CHIPINFO         _IOR(GSENSOR, 0x02, compat_int_t)
+#define COMPAT_GSENSOR_IOCTL_READ_SENSORDATA       _IOR(GSENSOR, 0x03, compat_int_t)
+#define COMPAT_GSENSOR_IOCTL_READ_OFFSET			_IOR(GSENSOR, 0x04, GSENSOR_VECTOR3D)
+#define COMPAT_GSENSOR_IOCTL_READ_GAIN				_IOR(GSENSOR, 0x05, GSENSOR_VECTOR3D)
+#define COMPAT_GSENSOR_IOCTL_READ_RAW_DATA			_IOR(GSENSOR, 0x06, compat_int_t)
 #define COMPAT_GSENSOR_IOCTL_SET_CALI				_IOW(GSENSOR, 0x06, SENSOR_DATA)
 #define COMPAT_GSENSOR_IOCTL_GET_CALI				_IOW(GSENSOR, 0x07, SENSOR_DATA)
 #define COMPAT_GSENSOR_IOCTL_CLR_CALI				_IO(GSENSOR, 0x08)
-#define COMPAT_GSENSOR_IOCTL_READ_SENSORDATA       _IOR(GSENSOR, 0x03, compat_int_t)
 #endif
 /* mCube add start */
 /* G-sensor */
@@ -72,6 +85,24 @@ typedef struct {
 #define GSENSOR_MCUBE_IOCTL_VIRTUAL_Z          _IOR(GSENSOR, 0x11, int)
 #define GSENSOR_MCUBE_IOCTL_READ_PCODE         _IOR(GSENSOR, 0x12, char)
 #define	GSENSOR_MCUBE_IOCTL_GET_OFLAG          _IOR(GSENSOR, 0x13, short)
+/*lenovo-sw molg1 add fix mtk release bug 2150114 begin*/
+#define GSENSOR_IOCTL_READ_RAW_DATA			_IOR(GSENSOR, 0x14, int)
+/*lenovo-sw molg1 add fix mtk release bug 2150114 end*/
+
+#ifdef CONFIG_COMPAT
+#define COMPAT_GSENSOR_MCUBE_IOCTL_READ_RBM_DATA      _IOR(GSENSOR, 0x09, SENSOR_DATA)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_SET_RBM_MODE       _IO(GSENSOR, 0x0a)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_CLEAR_RBM_MODE     _IO(GSENSOR, 0x0b)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_SET_CALI           _IOW(GSENSOR, 0x0c, SENSOR_DATA)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_REGISTER_MAP       _IO(GSENSOR, 0x0d)
+#define COMPAT_GSENSOR_IOCTL_SET_CALI_MODE            _IOW(GSENSOR, 0x0e, compat_int_t)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_READ_PRODUCT_ID    _IOR(GSENSOR, 0x0f, compat_int_t)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_READ_FILEPATH      _IOR(GSENSOR, 0x10, char[256])
+#define COMPAT_GSENSOR_MCUBE_IOCTL_VIRTUAL_Z          _IOR(GSENSOR, 0x11, compat_int_t)
+#define COMPAT_GSENSOR_MCUBE_IOCTL_READ_PCODE         _IOR(GSENSOR, 0x12, char)
+#define	COMPAT_GSENSOR_MCUBE_IOCTL_GET_OFLAG          _IOR(GSENSOR, 0x13, compat_short_t)
+
+#endif
 
 
 /* IOCTLs for Msensor misc. device library */
@@ -112,9 +143,6 @@ typedef struct {
 #define COMPAT_QMC6983_READ_MAGN_XYZ    _IOR(QMC6983_IOCTL_BASE, 0x04, compat_int_t)
 #define COMPAT_QMC6983_SET_REGISTER_A   _IOW(QMC6983_IOCTL_BASE, 0x05, char *)
 #define COMPAT_QMC6983_SELF_TEST       _IOWR(QMC6983_IOCTL_BASE, 0x06, char *)
-#define COMPAT_MMC3524X_IOC_READ_REG           _IOWR(MSENSOR, 0x23, unsigned char)
-#define COMPAT_MMC3524X_IOC_WRITE_REG          _IOW(MSENSOR,  0x24, unsigned char[2])
-#define COMPAT_MMC3524X_IOC_READ_REGS          _IOWR(MSENSOR, 0x25, unsigned char[10])
 //End of Vanzo:zhangxinyu
 #endif
 
@@ -202,6 +230,36 @@ typedef struct {
 #define COMPAT_ECOMPASS_IOC_GET_LAYOUT		   _IOR(MSENSOR, 0X22, compat_int_t)
 #endif
 
+/* IOCTLs for QMCX983 device */
+
+#define QMC_IOCTL_WRITE                 _IOW(MSENSOR, 0x40, char*)
+#define QMC_IOCTL_READ                  _IOWR(MSENSOR, 0x41, char*)
+#define QMC_IOCTL_RESET                 _IO(MSENSOR, 0x42)
+#define QMC_IOCTL_SET_MODE              _IOW(MSENSOR, 0x43, short)
+#define QMC_IOCTL_GETDATA               _IOR(MSENSOR, 0x44, char[SENSOR_DATA_SIZE])
+#define QMC_IOCTL_SET_YPR               _IOW(MSENSOR, 0x45, short[28])
+#define QMC_IOCTL_GET_OPEN_STATUS       _IOR(MSENSOR, 0x46, int)
+#define QMC_IOCTL_GET_CLOSE_STATUS      _IOR(MSENSOR, 0x47, int)
+#define QMC_IOC_GET_MFLAG               _IOR(MSENSOR, 0x48, int)
+#define QMC_IOC_GET_OFLAG               _IOR(MSENSOR, 0x49, int)
+#define QMC_IOCTL_GET_DELAY             _IOR(MSENSOR, 0x4a, short)
+
+#ifdef CONFIG_COMPAT
+/* compat IOCTLs for QMCX983 device */
+
+#define COMPAT_QMC_IOCTL_WRITE                 _IOW(MSENSOR, 0x40, compat_uptr_t)
+#define COMPAT_QMC_IOCTL_READ                  _IOWR(MSENSOR, 0x41, compat_uptr_t)
+#define COMPAT_QMC_IOCTL_RESET                 _IO(MSENSOR, 0x42)
+#define COMPAT_QMC_IOCTL_SET_MODE              _IOW(MSENSOR, 0x43, compat_short_t)
+#define COMPAT_QMC_IOCTL_GETDATA               _IOR(MSENSOR, 0x44, char[SENSOR_DATA_SIZE])
+#define COMPAT_QMC_IOCTL_SET_YPR               _IOW(MSENSOR, 0x45, compat_short_t[28])
+#define COMPAT_QMC_IOCTL_GET_OPEN_STATUS       _IOR(MSENSOR, 0x46, compat_int_t)
+#define COMPAT_QMC_IOCTL_GET_CLOSE_STATUS      _IOR(MSENSOR, 0x47, compat_int_t)
+#define COMPAT_QMC_IOC_GET_MFLAG               _IOR(MSENSOR, 0x48, compat_int_t)
+#define COMPAT_QMC_IOC_GET_OFLAG               _IOR(MSENSOR, 0x49, compat_int_t)
+#define COMPAT_QMC_IOCTL_GET_DELAY             _IOR(MSENSOR, 0x4a, compat_short_t)
+
+#endif
 
 #define ALSPS							0X84
 #define ALSPS_SET_PS_MODE				_IOW(ALSPS, 0x01, int)
@@ -228,7 +286,40 @@ typedef struct {
 #define AAL_SET_ALS_MODE				_IOW(ALSPS, 0x14,int)
 #define AAL_GET_ALS_MODE				_IOR(ALSPS, 0x15,int)
 #define AAL_GET_ALS_DATA				_IOR(ALSPS, 0x16,int)
+#ifdef CONFIG_COMPAT
+#define COMPAT_ALSPS_SET_PS_MODE				_IOW(ALSPS, 0x01, compat_int_t)
+#define COMPAT_ALSPS_GET_PS_MODE				_IOR(ALSPS, 0x02, compat_int_t)
+#define COMPAT_ALSPS_GET_PS_DATA				_IOR(ALSPS, 0x03, compat_int_t)
+#define COMPAT_ALSPS_GET_PS_RAW_DATA			_IOR(ALSPS, 0x04, compat_int_t)
+#define COMPAT_ALSPS_SET_ALS_MODE				_IOW(ALSPS, 0x05, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_MODE				_IOR(ALSPS, 0x06, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_DATA				_IOR(ALSPS, 0x07, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_RAW_DATA			_IOR(ALSPS, 0x08, compat_int_t)
 
+/*Lenovo-sw caoyi1 for proximity sensor cali 20140711 start*/
+#define ALSPS_SET_PS_CALI           		_IOR(ALSPS, 0x17, HWMON_PS_STRUCT)
+#define ALSPS_GET_PS_RAW_DATA_FOR_CALI		 _IOR(ALSPS, 0x18, HWMON_PS_STRUCT)
+#define ALSPS_GET_PS_FAR_THRESHOLD					_IOR(ALSPS, 0x19, int)
+#define ALSPS_GET_PS_CLOSE_THRESHOLD					_IOR(ALSPS, 0x1A, int)
+#define ALSPS_GET_PS_AVERAGE					_IOR(ALSPS, 0x1B, int)
+/*Lenovo-sw caoyi1 for proximity sensor cali 20140711 end*/
+
+/*-------------------MTK add-------------------------------------------*/
+#define COMPAT_ALSPS_GET_PS_TEST_RESULT		_IOR(ALSPS, 0x09, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_TEST_RESULT		_IOR(ALSPS, 0x0A, compat_int_t)
+#define COMPAT_ALSPS_GET_PS_THRESHOLD_HIGH		_IOR(ALSPS, 0x0B, compat_int_t)
+#define COMPAT_ALSPS_GET_PS_THRESHOLD_LOW		_IOR(ALSPS, 0x0C, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_THRESHOLD_HIGH	_IOR(ALSPS, 0x0D, compat_int_t)
+#define COMPAT_ALSPS_GET_ALS_THRESHOLD_LOW		_IOR(ALSPS, 0x0E, compat_int_t)
+#define COMPAT_ALSPS_IOCTL_CLR_CALI			_IOW(ALSPS, 0x0F, compat_int_t)
+#define COMPAT_ALSPS_IOCTL_GET_CALI			_IOR(ALSPS, 0x10, compat_int_t)
+#define COMPAT_ALSPS_IOCTL_SET_CALI			_IOW(ALSPS, 0x11, compat_int_t)
+#define COMPAT_ALSPS_SET_PS_THRESHOLD			_IOW(ALSPS, 0x12, compat_int_t)
+#define COMPAT_ALSPS_SET_ALS_THRESHOLD			_IOW(ALSPS, 0x13, compat_int_t)
+#define COMPAT_AAL_SET_ALS_MODE				_IOW(ALSPS, 0x14, compat_int_t)
+#define COMPAT_AAL_GET_ALS_MODE				_IOR(ALSPS, 0x15, compat_int_t)
+#define COMPAT_AAL_GET_ALS_DATA				_IOR(ALSPS, 0x16, compat_int_t)
+#endif
 
 #define GYROSCOPE							0X86
 #define GYROSCOPE_IOCTL_INIT				_IO(GYROSCOPE, 0x01)
@@ -258,10 +349,21 @@ typedef struct {
 #define BAROMETER_GET_PRESS_DATA			_IOR(BROMETER, 0x02, int)
 #define BAROMETER_GET_TEMP_DATA			    _IOR(BROMETER, 0x03, int)
 #define BAROMETER_IOCTL_READ_CHIPINFO		_IOR(BROMETER, 0x04, int)
+#ifdef CONFIG_COMPAT
+#define COMPAT_BAROMETER_IOCTL_INIT				_IO(BROMETER, 0x01)
+#define COMPAT_BAROMETER_GET_PRESS_DATA			_IOR(BROMETER, 0x02, compat_int_t)
+#define COMPAT_BAROMETER_GET_TEMP_DATA			    _IOR(BROMETER, 0x03, compat_int_t)
+#define COMPAT_BAROMETER_IOCTL_READ_CHIPINFO		_IOR(BROMETER, 0x04, compat_int_t)
+#endif
 
 #define HEARTMONITOR						0x88
 #define HRM_IOCTL_INIT						_IO(HEARTMONITOR, 0x01)
 #define HRM_READ_SENSOR_DATA				_IOR(HEARTMONITOR, 0x02, int)
 
+#define HUMIDITY							0X89
+#define HUMIDITY_IOCTL_INIT					_IO(HUMIDITY, 0x01)
+#define HUMIDITY_GET_HMDY_DATA				_IOR(HUMIDITY, 0x02, int)
+#define HUMIDITY_GET_TEMP_DATA			    _IOR(HUMIDITY, 0x03, int)
+#define HUMIDITY_IOCTL_READ_CHIPINFO		_IOR(HUMIDITY, 0x04, int)
 
 #endif

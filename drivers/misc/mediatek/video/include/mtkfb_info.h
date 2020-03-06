@@ -39,6 +39,26 @@ extern "C" {
 		DISPIF_MODE_COMMAND
 	} MTKFB_DISPIF_MODE;
 
+////lenovo add begin by jixu@lenovo.com
+#if 1//def CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+typedef struct lenovo_disp_feature_info {
+	int display_id;
+	int cabc_support;
+	int inverse_support;
+	int gamma_support;
+	int ie_support;
+} lenovo_disp_feature_info_t;
+
+typedef struct lenovo_disp_feature_state {
+	int display_id;
+	int cabc_mode;
+	int inverse_mode;
+	int gamma_mode;
+	int ie_mode;
+} lenovo_disp_feature_state_t;
+#endif
+////lenovo add end by jixu@lenovo.com
+
 	typedef struct mtk_dispif_info {
 		unsigned int display_id;
 		unsigned int isHwVsyncAvailable;

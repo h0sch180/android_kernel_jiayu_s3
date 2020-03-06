@@ -43,6 +43,7 @@ typedef struct {
 	int (*fake_connect) (int connect);
 	int (*factory_mode_test) (int step, void *info);
 	int (*ioctl) (unsigned int ioctl_cmd, int param1, int param2, unsigned long *params);
+	int (*is_force_awake) (void *argp);
 } EXTD_DRIVER;
 
 /*get driver handle*/

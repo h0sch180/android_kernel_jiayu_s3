@@ -24,11 +24,6 @@
 #include <linux/aio.h>
 #include <linux/freezer.h>
 
-#define MET_FUSEIO_TRACE
-#if !defined(CONFIG_MT_ENG_BUILD)
-#undef MET_FUSEIO_TRACE
-#endif
-
 MODULE_ALIAS_MISCDEV(FUSE_MINOR);
 MODULE_ALIAS("devname:fuse");
 
@@ -533,13 +528,12 @@ static void __fuse_request_send(struct fuse_conn *fc, struct fuse_req *req)
 void fuse_request_send_ex(struct fuse_conn *fc, struct fuse_req *req,
     __u32 size)
 {
+	FUSE_IOLOG_INIT(size, req->in.h.opcode);
 #ifdef MET_FUSEIO_TRACE
 	int pid;
 	char task_name[TASK_COMM_LEN];
 	unsigned int opcode;
 #endif
-
-	FUSE_IOLOG_INIT();
 	req->isreply = 1;
 #ifdef MET_FUSEIO_TRACE
 	pid = task_pid_nr(current);
@@ -553,7 +547,7 @@ void fuse_request_send_ex(struct fuse_conn *fc, struct fuse_req *req,
 	met_fuse_stop(pid, task_name, opcode, size);
 #endif
 	FUSE_IOLOG_END();
-	FUSE_IOLOG_PRINT(size, req->in.h.opcode);
+	FUSE_IOLOG_PRINT();
 }
 EXPORT_SYMBOL_GPL(fuse_request_send_ex);
 
@@ -594,14 +588,11 @@ static void fuse_request_send_nowait(struct fuse_conn *fc, struct fuse_req *req)
 void fuse_request_send_background_ex(struct fuse_conn *fc, struct fuse_req *req,
     __u32 size)
 {
+	FUSE_IOLOG_INIT(size, req->in.h.opcode);
 #ifdef MET_FUSEIO_TRACE
 	int pid;
 	char task_name[TASK_COMM_LEN];
 	unsigned int opcode;
-#endif
-
-	FUSE_IOLOG_INIT();
-#ifdef MET_FUSEIO_TRACE
 	pid = task_pid_nr(current);
 	get_task_comm(task_name, current);
 	opcode = req->in.h.opcode;
@@ -614,7 +605,7 @@ void fuse_request_send_background_ex(struct fuse_conn *fc, struct fuse_req *req,
 	met_fuse_stop(pid, task_name, opcode, size);
 #endif
 	FUSE_IOLOG_END();
-	FUSE_IOLOG_PRINT(size, req->in.h.opcode);
+	FUSE_IOLOG_PRINT();
 }
 EXPORT_SYMBOL_GPL(fuse_request_send_background_ex);
 

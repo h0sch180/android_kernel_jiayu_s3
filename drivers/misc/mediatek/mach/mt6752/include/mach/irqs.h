@@ -16,12 +16,11 @@
 #if !defined(__ASSEMBLY__)
 
 enum {
-	IRQ_MASK_HEADER = 0xF1F1F1F1, 
+	IRQ_MASK_HEADER = 0xF1F1F1F1,
 	IRQ_MASK_FOOTER = 0xF2F2F2F2
 };
 
-struct mtk_irq_mask
-{
+struct mtk_irq_mask {
 	unsigned int header;   /* for error checking */
 	__u32 mask0;
 	__u32 mask1;
@@ -51,7 +50,8 @@ extern int mt_disable_fiq(int irq);
 #endif
 extern void mt_enable_ppi(int irq);
 extern void mt_gic_cfg_irq2cpu(unsigned int irq, unsigned int cpu, unsigned int set);
-
+extern unsigned int mt_irq_get_pending(unsigned int irq);
+extern void mt_irq_set_pending(unsigned int irq);
 #endif  /* !__ASSEMBLY__ */
 
 #endif

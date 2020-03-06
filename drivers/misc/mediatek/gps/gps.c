@@ -1,5 +1,4 @@
-/*
- * drivers/barcelona/gps/gps.c
+/* drivers/barcelona/gps/gps.c
  *
  * Implementation of the GPS driver.
  *
@@ -34,20 +33,13 @@
 #include <linux/errno.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
+/* #include <linux/xlog.h> */
 #include <linux/printk.h>
 #include <linux/semaphore.h>
 #include <linux/version.h>
 
-/*
- *superdragonpt July 15 2016
- *This is removed on 3.18 MediaTek Kernel, but we still need this
- *added needed files locally, slighlty modified to compile
- */
-#include "devs.h"
+#include <mach/devs.h>
 #include <mach/mt_typedefs.h>
- /*
-  *end superdragonpt
-  */ 
 
 #ifdef pr_fmt
 #undef pr_fmt
@@ -164,18 +156,6 @@ struct gps_dev_obj {
 	struct mt3326_gps_hardware *hw;
 };
 /******************************************************************************
- * GPS driver
-*******************************************************************************
-struct mt3326_gps_hardware {
-	int (*ext_power_on)(int);
-	int (*ext_power_off)(int);
-};
-
-struct mt3326_gps_hardware mt3326_gps_hw = {
-	.ext_power_on =  NULL,
-	.ext_power_off = NULL,
-};
-/******************************************************************************
  * local variables
 ******************************************************************************/
 static struct gps_data gps_private = { 0 };
@@ -212,7 +192,6 @@ static inline void mt3326_gps_power(struct mt3326_gps_hardware *hw, unsigned int
 	/*FIX ME: PM_api should provide a function to get current status */
 	static unsigned int power_on = 1;
 	int err;
-
 	GPS_DBG("Switching GPS device %s\n", on ? "on" : "off");
 	if (!hw) {
 		GPS_ERR("null pointer!!\n");
@@ -263,11 +242,11 @@ static inline void mt3326_gps_power(struct mt3326_gps_hardware *hw, unsigned int
 /*****************************************************************************/
 static inline void mt3326_gps_reset(struct mt3326_gps_hardware *hw, int delay, int force)
 {
-	mt3326_gps_power(hw, 1, 0);
+	mt3326_gps_power(hw, 1, FALSE);
 	mdelay(delay);
 	mt3326_gps_power(hw, 0, force);
 	mdelay(delay);
-	mt3326_gps_power(hw, 1, 0);
+	mt3326_gps_power(hw, 1, FALSE);
 }
 
 /******************************************************************************/
@@ -289,22 +268,21 @@ static inline int mt3326_gps_set_suspend(struct gps_drv_obj *obj, unsigned char 
 static inline int mt3326_gps_set_pwrctl(struct gps_drv_obj *obj, unsigned char pwrctl)
 {
 	int err = 0;
-
 	if (!obj)
 		return -1;
 	mutex_lock(&obj->sem);
 
 	if ((pwrctl == GPS_PWRCTL_ON) || (pwrctl == GPS_PWRCTL_OFF)) {
 		obj->pwrctl = pwrctl;
-		mt3326_gps_power(obj->hw, pwrctl, 0);
+		mt3326_gps_power(obj->hw, pwrctl, FALSE);
 	} else if (pwrctl == GPS_PWRCTL_OFF_FORCE) {
 		obj->pwrctl = pwrctl;
-		mt3326_gps_power(obj->hw, pwrctl, 1);
+		mt3326_gps_power(obj->hw, pwrctl, TRUE);
 	} else if (pwrctl == GPS_PWRCTL_RST) {
-		mt3326_gps_reset(obj->hw, obj->rdelay, 0);
+		mt3326_gps_reset(obj->hw, obj->rdelay, FALSE);
 		obj->pwrctl = GPS_PWRCTL_ON;
 	} else if (pwrctl == GPS_PWRCTL_RST_FORCE) {
-		mt3326_gps_reset(obj->hw, obj->rdelay, 1);
+		mt3326_gps_reset(obj->hw, obj->rdelay, TRUE);
 		obj->pwrctl = GPS_PWRCTL_ON;
 	} else {
 		err = -1;
@@ -318,14 +296,12 @@ static inline int mt3326_gps_set_status(struct gps_drv_obj *obj, const char *buf
 {
 	int err = 0;
 	int year, mon, day, hour, minute, sec, cnt, reason, idx;
-
 	if (!obj)
 		return -1;
 
 	mutex_lock(&obj->sem);
 	if (sscanf(buf, "(%d/%d/%d %d:%d:%d) - %d/%d", &year, &mon, &day, &hour, &minute, &sec, &cnt, &reason) == 8) {
 		int number = (int)(sizeof(obj->status.items) / sizeof(obj->status.items[0]));
-
 		idx = obj->status.index % number;
 		obj->status.items[idx].year = (unsigned char)year;
 		obj->status.items[idx].month = (unsigned char)mon;
@@ -347,7 +323,6 @@ static inline int mt3326_gps_set_status(struct gps_drv_obj *obj, const char *buf
 static inline int mt3326_gps_set_state(struct gps_drv_obj *obj, unsigned char state)
 {
 	int err = 0;
-
 	if (!obj)
 		return -1;
 	mutex_lock(&obj->sem);
@@ -380,7 +355,6 @@ static inline int mt3326_gps_dev_suspend(struct gps_drv_obj *obj)
 {
 #if defined(GPS_SUSPEND_RESUME)
 	int err;
-
 	err = mt3326_gps_set_suspend(obj, GPS_PWR_SUSPEND);
 	if (err)
 		GPS_DBG("set suspend fail: %d\n", err);
@@ -396,7 +370,6 @@ static inline int mt3326_gps_dev_resume(struct gps_drv_obj *obj)
 {
 #if defined(GPS_SUSPEND_RESUME)
 	int err;
-
 	err = mt3326_gps_set_suspend(obj, GPS_PWR_RESUME);
 	if (err)
 		GPS_DBG("set suspend fail: %d\n", err);
@@ -410,7 +383,6 @@ static ssize_t mt3326_show_pwrctl(struct device *dev, struct device_attribute *a
 {
 	struct gps_drv_obj *obj;
 	ssize_t res;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -429,7 +401,6 @@ static ssize_t mt3326_show_pwrctl(struct device *dev, struct device_attribute *a
 static ssize_t mt3326_store_pwrctl(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -440,7 +411,6 @@ static ssize_t mt3326_store_pwrctl(struct device *dev, struct device_attribute *
 	}
 	if ((count == 1) || ((count == 2) && (buf[1] == '\n'))) {
 		unsigned char pwrctl = buf[0] - '0';
-
 		if (!mt3326_gps_set_pwrctl(obj, pwrctl))
 			return count;
 	}
@@ -453,7 +423,6 @@ static ssize_t mt3326_show_suspend(struct device *dev, struct device_attribute *
 {
 	struct gps_drv_obj *obj;
 	ssize_t res;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -472,7 +441,6 @@ static ssize_t mt3326_show_suspend(struct device *dev, struct device_attribute *
 static ssize_t mt3326_store_suspend(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -483,7 +451,6 @@ static ssize_t mt3326_store_suspend(struct device *dev, struct device_attribute 
 	}
 	if ((count == 1) || ((count == 2) && (buf[1] == '\n'))) {
 		unsigned char suspend = buf[0] - '0';
-
 		if (suspend == GPS_PWR_SUSPEND) {
 			if (!mt3326_gps_dev_suspend(obj))
 				return count;
@@ -567,7 +534,6 @@ static ssize_t mt3326_show_state(struct device *dev, struct device_attribute *at
 {
 	ssize_t res;
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -586,7 +552,6 @@ static ssize_t mt3326_show_state(struct device *dev, struct device_attribute *at
 static ssize_t mt3326_store_state(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -597,7 +562,6 @@ static ssize_t mt3326_store_state(struct device *dev, struct device_attribute *a
 	}
 	if ((count == 1) || ((count == 2) && (buf[1] == '\n'))) {	/*To Do: dynamic change according to input */
 		unsigned char state = buf[0] - '0';
-
 		if (!mt3326_gps_set_state(obj, state))
 			return count;
 	}
@@ -610,7 +574,6 @@ static ssize_t mt3326_show_pwrsave(struct device *dev, struct device_attribute *
 {
 	ssize_t res;
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -629,7 +592,6 @@ static ssize_t mt3326_show_pwrsave(struct device *dev, struct device_attribute *
 static ssize_t mt3326_store_pwrsave(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -640,7 +602,6 @@ static ssize_t mt3326_store_pwrsave(struct device *dev, struct device_attribute 
 	}
 	if ((count == 1) || ((count == 2) && (buf[1] == '\n'))) {
 		unsigned char pwrsave = buf[0] - '0';
-
 		if (!mt3326_gps_set_pwrsave(obj, pwrsave))
 			return count;
 	}
@@ -655,7 +616,6 @@ static ssize_t mt3326_show_rdelay(struct device *dev, struct device_attribute *a
 {
 	ssize_t res;
 	struct gps_drv_obj *obj;
-
 	obj = (struct gps_drv_obj *)dev_get_drvdata(dev);
 	if (!dev) {
 		GPS_DBG("dev is null!!\n");
@@ -723,7 +683,6 @@ static int mt3326_gps_create_attr(struct device *dev)
 {
 	int idx, err = 0;
 	int num = (int)(sizeof(gps_attr_list) / sizeof(gps_attr_list[0]));
-
 	if (!dev)
 		return -EINVAL;
 
@@ -816,6 +775,8 @@ static ssize_t mt3326_gps_read(struct file *file, char __user *buf, size_t count
 	/*data is available */
 	copy_len = (dev->dat_len < (int)count) ? (dev->dat_len) : (int)(count);
 	if (copy_to_user(buf, (dev->dat_buf + dev->dat_pos), (unsigned long)copy_len)) {
+/* GPS_DBG("copy_to_user error: 0x%X 0x%X, %d\n", (long)buf, */
+/* (unsigned int)dev->dat_buf, dev->dat_len); */
 		ret = -EFAULT;
 	} else {
 		/* GPS_VER("mt3326_gps_read(%ld,%d,%d) = %d\n", count, dev->dat_pos, dev->dat_len, */
@@ -839,6 +800,7 @@ static ssize_t mt3326_gps_write(struct file *file, const char __user *buf, size_
 {
 	struct gps_data *dev = file->private_data;
 	ssize_t ret = 0;
+	size_t copy_size = 0;
 
 	GPS_TRC();
 
@@ -854,7 +816,8 @@ static ssize_t mt3326_gps_write(struct file *file, const char __user *buf, size_
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
 
-	if (copy_from_user(dev->dat_buf, buf, count)) {
+	copy_size = min(count, sizeof(dev->dat_buf));
+	if (copy_from_user(dev->dat_buf, buf, copy_size)) {
 		GPS_DBG("copy_from_user error");
 		ret = -EFAULT;
 	} else {
@@ -905,13 +868,13 @@ static const struct file_operations mt3326_gps_fops = {
 /*****************************************************************************/
 static void mt3326_gps_hw_init(struct mt3326_gps_hardware *hw)
 {
-	mt3326_gps_power(hw, 1, 0);
+	mt3326_gps_power(hw, 1, FALSE);
 }
 
 /*****************************************************************************/
 static void mt3326_gps_hw_exit(struct mt3326_gps_hardware *hw)
 {
-	mt3326_gps_power(hw, 0, 0);
+	mt3326_gps_power(hw, 0, FALSE);
 }
 
 /*****************************************************************************/
@@ -919,10 +882,8 @@ static int mt3326_gps_probe(struct platform_device *dev)
 {
 	int ret = 0, err = 0;
 	struct gps_drv_obj *drvobj = NULL;
-	/* struct mt3326_gps_hardware *hw = (struct mt3326_gps_hardware *)dev->dev.platform_data; */
-	struct mt3326_gps_hardware *hw = &mt3326_gps_hw;
+	struct mt3326_gps_hardware *hw = (struct mt3326_gps_hardware *)dev->dev.platform_data;
 	struct gps_dev_obj *devobj = NULL;
-
 	devobj = kzalloc(sizeof(*devobj), GFP_KERNEL);
 	if (!devobj) {
 		GPS_ERR("-ENOMEM\n");
@@ -1028,7 +989,6 @@ static int mt3326_gps_remove(struct platform_device *dev)
 static void mt3326_gps_shutdown(struct platform_device *dev)
 {
 	struct gps_dev_obj *devobj = (struct gps_dev_obj *)platform_get_drvdata(dev);
-
 	GPS_DBG("Shutting down\n");
 	mt3326_gps_hw_exit(devobj->hw);
 }
@@ -1093,7 +1053,6 @@ static struct platform_driver mt3326_gps_driver = {
 static int __init mt3326_gps_mod_init(void)
 {
 	int ret = 0;
-
 	GPS_TRC();
 
 	/* ret = driver_register(&mt3326_gps_driver); */

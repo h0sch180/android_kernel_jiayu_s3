@@ -47,7 +47,7 @@ static DEFINE_SEMAPHORE(aed_ee_sem);
  *  may be accessed from irq
 */
 static spinlock_t aed_device_lock;
-int aee_mode = AEE_MODE_CUSTOMER_USER;
+int aee_mode = AEE_MODE_NOT_INIT;
 static int force_red_screen = AEE_FORCE_NOT_SET;
 
 static struct proc_dir_entry *aed_proc_dir;
@@ -235,11 +235,20 @@ static ssize_t msg_copy_to_user(const char *prefix, const char *msg, char __user
 {
 	ssize_t ret = 0;
 	int len;
+    char *msg_tmp;
 
 	msg_show(prefix, (AE_Msg *) msg);
 
 	if (msg == NULL)
 		return 0;
+    msg_tmp = kzalloc(count, GFP_KERNEL);
+    if (msg_tmp != NULL) {
+        memcpy(msg_tmp, msg, count);
+    }
+    else {
+        LOGE("%s : kzalloc() fail!\n", __func__);
+        msg_tmp = msg;
+    }
 
 	len = ((AE_Msg *) msg)->len + sizeof(AE_Msg);
 
@@ -263,6 +272,8 @@ static ssize_t msg_copy_to_user(const char *prefix, const char *msg, char __user
 	*f_pos += count;
 	ret = count;
  out:
+    if (msg_tmp != msg)
+        kfree(msg_tmp);
 	return ret;
 }
 
@@ -851,6 +862,13 @@ static int ee_log_avail(void)
 	return (aed_dev.eerec != NULL);
 }
 
+static char* ee_msg_avail(void)
+{
+    if (aed_dev.eerec)
+        return aed_dev.eerec->msg;
+	return NULL;
+}
+
 static void ee_gen_ind_msg(struct aed_eerec *eerec)
 {
 	unsigned long flags = 0;
@@ -941,7 +959,7 @@ static int aed_ee_release(struct inode *inode, struct file *filp)
 static unsigned int aed_ee_poll(struct file *file, struct poll_table_struct *ptable)
 {
 	/* LOGD("%s\n", __func__); */
-	if (ee_log_avail()) {
+	if (ee_log_avail() && ee_msg_avail()) {
 		return POLLIN | POLLRDNORM | POLLOUT | POLLWRNORM;
 	} else {
 		poll_wait(file, &aed_dev.eewait, ptable);
@@ -1720,7 +1738,7 @@ static void kernel_reportAPI(const AE_DEFECT_ATTR attr, const int db_opt, const 
 {
 	struct aee_oops *oops;
 	int n = 0;
-	if (aee_mode >= AEE_MODE_CUSTOMER_USER || (aee_mode == AEE_MODE_CUSTOMER_ENG && attr > AE_DEFECT_EXCEPTION))
+	if (aee_mode == AEE_MODE_CUSTOMER_USER || (aee_mode == AEE_MODE_CUSTOMER_ENG && attr == AE_DEFECT_WARNING))
 		return;
 	oops = aee_oops_create(attr, AE_KERNEL_PROBLEM_REPORT, module);
 	if (NULL != oops) {
@@ -1759,7 +1777,7 @@ static void kernel_reportAPI(const AE_DEFECT_ATTR attr, const int db_opt, const 
 	}
 }
 
-#ifndef PARTIAL_BUILD
+#if 0/*disable aee_kernel_dal_api*/
 void aee_kernel_dal_api(const char *file, const int line, const char *msg)
 {
 	LOGW("aee_kernel_dal_api : <%s:%d> %s ", file, line, msg);
@@ -1803,8 +1821,7 @@ void aee_kernel_dal_api(const char *file, const int line, const char *msg)
 #else
 void aee_kernel_dal_api(const char *file, const int line, const char *msg)
 {
-	LOGW("aee_kernel_dal_api : <%s:%d> %s ", file, line, msg);
-	return;
+	LOGW("aee_kernel_dal_api has been phased out! caller info: <%s:%d> %s ", file, line, msg);
 }
 #endif
 EXPORT_SYMBOL(aee_kernel_dal_api);
@@ -1840,6 +1857,7 @@ static void external_exception(const char *assert_type, const int *log, int log_
 
 	if (NULL == ee_log) {
 		LOGE("%s : memory alloc() fail\n", __func__);
+		kfree(eerec);
 		return;
 	}
 

@@ -94,6 +94,8 @@
 #include <mach/power_loss_test.h>
 #endif
 
+extern void *ubi_peb_buf;
+extern struct mutex ubi_buf_mutex;
 static int self_check_not_bad(const struct ubi_device *ubi, int pnum);
 static int self_check_peb_ec_hdr(const struct ubi_device *ubi, int pnum);
 static int self_check_ec_hdr(const struct ubi_device *ubi, int pnum,
@@ -419,18 +421,18 @@ static int torture_peb(struct ubi_device *ubi, int pnum)
 	patt_count = ARRAY_SIZE(patterns);
 	ubi_assert(patt_count > 0);
 
-	mutex_lock(&ubi->buf_mutex);
+	mutex_lock(&ubi_buf_mutex);
 	for (i = 0; i < patt_count; i++) {
 		err = do_sync_erase(ubi, pnum);
 		if (err)
 			goto out;
 
 		/* Make sure the PEB contains only 0xFF bytes */
-		err = ubi_io_read(ubi, ubi->peb_buf, pnum, 0, ubi->peb_size);
+		err = ubi_io_read(ubi, ubi_peb_buf, pnum, 0, ubi->peb_size);
 		if (err)
 			goto out;
 
-		err = ubi_check_pattern(ubi->peb_buf, 0xFF, ubi->peb_size);
+		err = ubi_check_pattern(ubi_peb_buf, 0xFF, ubi->peb_size);
 		if (err == 0) {
 			ubi_err("erased PEB %d, but a non-0xFF byte found",
 				pnum);
@@ -439,17 +441,17 @@ static int torture_peb(struct ubi_device *ubi, int pnum)
 		}
 
 		/* Write a pattern and check it */
-		memset(ubi->peb_buf, patterns[i], ubi->peb_size);
-		err = ubi_io_write(ubi, ubi->peb_buf, pnum, 0, ubi->peb_size);
+		memset(ubi_peb_buf, patterns[i], ubi->peb_size);
+		err = ubi_io_write(ubi, ubi_peb_buf, pnum, 0, ubi->peb_size);
 		if (err)
 			goto out;
 
-		memset(ubi->peb_buf, ~patterns[i], ubi->peb_size);
-		err = ubi_io_read(ubi, ubi->peb_buf, pnum, 0, ubi->peb_size);
+		memset(ubi_peb_buf, ~patterns[i], ubi->peb_size);
+		err = ubi_io_read(ubi, ubi_peb_buf, pnum, 0, ubi->peb_size);
 		if (err)
 			goto out;
 
-		err = ubi_check_pattern(ubi->peb_buf, patterns[i],
+		err = ubi_check_pattern(ubi_peb_buf, patterns[i],
 					ubi->peb_size);
 		if (err == 0) {
 			ubi_err("pattern %x checking failed for PEB %d",
@@ -463,7 +465,7 @@ static int torture_peb(struct ubi_device *ubi, int pnum)
 	ubi_msg("PEB %d passed torture test, do not mark it as bad", pnum);
 
 out:
-	mutex_unlock(&ubi->buf_mutex);
+	mutex_unlock(&ubi_buf_mutex);
 	if (err == UBI_IO_BITFLIPS || mtd_is_eccerr(err)) {
 		/*
 		 * If a bit-flip or data integrity error was detected, the test
@@ -1410,7 +1412,7 @@ static int self_check_write(struct ubi_device *ubi, const void *buf, int pnum,
 	if (!ubi_dbg_chk_io(ubi))
 		return 0;
 
-	buf1 = kmalloc(len, GFP_KERNEL);
+	buf1 = __vmalloc(len, GFP_NOFS, PAGE_KERNEL);
 	if (!buf1) {
 		ubi_err("cannot allocate memory to check writes");
 		return 0;
@@ -1445,11 +1447,11 @@ static int self_check_write(struct ubi_device *ubi, const void *buf, int pnum,
 		goto out_free;
 	}
 
-	kfree(buf1);
+	vfree(buf1);
 	return 0;
 
 out_free:
-	kfree(buf1);
+	vfree(buf1);
 	return err;
 }
 
@@ -1474,7 +1476,7 @@ int ubi_self_check_all_ff(struct ubi_device *ubi, int pnum, int offset, int len)
 	if (!ubi_dbg_chk_io(ubi))
 		return 0;
 
-	buf = kmalloc(len, GFP_KERNEL);
+	buf = __vmalloc(len, GFP_NOFS, PAGE_KERNEL);
 	if (!buf) {
 		ubi_err("cannot allocate memory to check for 0xFFs");
 		return 0;
@@ -1494,7 +1496,7 @@ int ubi_self_check_all_ff(struct ubi_device *ubi, int pnum, int offset, int len)
 		goto fail;
 	}
 
-	kfree(buf);
+	vfree(buf);
 	return 0;
 
 fail:

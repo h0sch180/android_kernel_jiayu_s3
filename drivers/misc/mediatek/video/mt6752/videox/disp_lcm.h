@@ -34,5 +34,17 @@ int disp_lcm_set_cmd(disp_lcm_handle *plcm, void *handle, int *lcm_cmd, unsigned
 /* these 2 variables are defined in mt65xx_lcm_list.c */
 extern LCM_DRIVER *lcm_driver_list[];
 extern unsigned int lcm_count;
+//lenovo jixu add begin
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+int disp_lcm_set_cabc(disp_lcm_handle *plcm, unsigned int mode);
+int disp_lcm_set_cabc_cmd(disp_lcm_handle *plcm,void* handle, unsigned int mode);
+int disp_lcm_set_inverse(disp_lcm_handle *plcm, unsigned int mode);
+#endif
+//lenovo jixu add end
+//lenovo wangyq13 add for sre 20150402
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+int disp_lcm_set_sre(disp_lcm_handle *plcm,void* handle, unsigned int mode);
+int disp_lcm_set_sre_video(disp_lcm_handle *plcm, unsigned int mode);
+#endif
 
 #endif

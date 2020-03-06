@@ -32,6 +32,12 @@
 #define GPIO_LCD_PWR_EN      0xFFFFFFFF
 #endif
 
+#ifdef GPIO_LCM_RST
+#define GPIO_LCD_RST      GPIO_LCM_RST
+#else
+#define GPIO_LCD_RST      0xFFFFFFFF
+#endif
+
 #ifndef BUILD_LK
 static bool fgisFirst = TRUE;
 #endif
@@ -43,7 +49,7 @@ static unsigned int lcm_esd_test = FALSE;      ///only for ESD test
 
 static LCM_UTIL_FUNCS lcm_util = {0};
 
-#define SET_RESET_PIN(v)    (lcm_util.set_reset_pin((v)))
+#define SET_RESET_PIN(v)   lcm_set_gpio_output(GPIO_LCD_RST, v) //(lcm_util.set_reset_pin((v)))
 
 #define UDELAY(n) (lcm_util.udelay(n))
 #define MDELAY(n) (lcm_util.mdelay(n))
@@ -423,7 +429,7 @@ static void lcm_init_power(void)
 	lcm_Enable_HW(1800);
 	MDELAY(1);	
 #else
-	printk("[Kernel/LCM] lcm_init_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 	
 #endif
 
@@ -437,14 +443,14 @@ static void lcm_suspend_power(void)
 	MDELAY(20);
 	lcm_Disable_HW();		
 #else
-	printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ZERO);
 	MDELAY(20);
 	if(fgisFirst == TRUE) {
     fgisFirst = FALSE;
-    hwPowerOn(MT6328_POWER_LDO_VCAM_AF, VOL_1800, "LCM"); 
+    hwPowerOn(MT6328_POWER_LDO_VCAMA, VOL_1800, "LCM"); 
   	}
-	hwPowerDown(MT6328_POWER_LDO_VCAM_AF, "LCM");	
+	hwPowerDown(MT6328_POWER_LDO_VCAMA, "LCM");	
 		
 #endif
 
@@ -459,9 +465,9 @@ static void lcm_resume_power(void)
 	MDELAY(20);
 			
 #else
-	printk("[Kernel/LCM] lcm_resume_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR_EN, GPIO_OUT_ONE);
-	hwPowerOn(MT6328_POWER_LDO_VCAM_AF, VOL_1800, "LCM");
+	hwPowerOn(MT6328_POWER_LDO_VCAMA, VOL_1800, "LCM");
 	MDELAY(1);
 #endif
 
@@ -488,11 +494,11 @@ static void lcm_suspend(void)
 {
 
  
-	SET_RESET_PIN(1);
-    MDELAY(20);
+	//SET_RESET_PIN(1);
+    //MDELAY(20);
     SET_RESET_PIN(0);
-    MDELAY(20);
-    SET_RESET_PIN(1);
+    //MDELAY(20);
+    //SET_RESET_PIN(1);
     MDELAY(150);
   
 }
@@ -573,7 +579,7 @@ static unsigned int lcm_compare_id(void)
 #ifdef BUILD_LK
 		printf("=====>compare id for test %s, id = 0x%08x,buffer[1] = %x,buffer[2] = %x,buffer[3] = %x\n", __func__, id,buffer[1],buffer[2],buffer[3]);
 #else 
-		printk("=====>compare id for test %s, id = 0x%08x,buffer[1] = %x,buffer[2] = %x,buffer[3] = %x\n", __func__, id,buffer[1],buffer[2],buffer[3]);
+		pr_debug("=====>compare id for test %s, id = 0x%08x,buffer[1] = %x,buffer[2] = %x,buffer[3] = %x\n", __func__, id,buffer[1],buffer[2],buffer[3]);
 #endif
 	
 		return (LCM_ID == id)?1:0;
@@ -601,7 +607,7 @@ char  buffer[3],buffer1[6],buffer2[3];
 	dsi_set_cmdq(array1, 1, 1);
 	read_reg_v2(0xB1, buffer1, 7);
 	
-	printk("esdcheck:0x%x ,0x%x ,0x%x, 0x%x \n",buffer[0],buffer[1],buffer[2],buffer[3]);
+	pr_debug("esdcheck:0x%x ,0x%x ,0x%x, 0x%x \n",buffer[0],buffer[1],buffer[2],buffer[3]);
 	
 	if((buffer[0]==0x80)&&(buffer[1]==0x73)&&(buffer[2]==0x4)&&(buffer1[5]==0x11)&&(buffer1[6]==0x11))
 	{

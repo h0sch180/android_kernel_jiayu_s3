@@ -43,7 +43,7 @@ static LCM_UTIL_FUNCS lcm_util = {0};
 #define ASSERT(expr)                             \
     do {                                         \
         if(expr) break;                          \
-        printk("DDP ASSERT FAILED %s, %d\n",     \
+        pr_debug("DDP ASSERT FAILED %s, %d\n",     \
             __FILE__, __LINE__); BUG();          \
     }while(0)
 #endif
@@ -350,7 +350,7 @@ static void lcm_resume(void)
         recv_cnt = read_reg_v2(0x0A, buffer, 1);
         //atomic_set(&ESDCheck_byCPU, 0);
         if (buffer[0] != 0x0) return;
-        printk("DDP/LCM resume fail, resume again\n");
+        pr_debug("DDP/LCM resume fail, resume again\n");
         resume_count --;
     }while(resume_count >= 0);
     

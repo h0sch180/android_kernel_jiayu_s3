@@ -43,7 +43,7 @@
 /*----------------------------------------------------------------------------*/
 #define I2C_DRIVERID_KXTJ2_1009 150
 /*----------------------------------------------------------------------------*/
-#define DEBUG 1
+//#define DEBUG 1
 /*----------------------------------------------------------------------------*/
 //#define CONFIG_KXTJ2_1009_LOWPASS   /*apply low pass filter on output*/       
 #define SW_CALIBRATION
@@ -79,6 +79,7 @@ typedef enum {
     ADX_TRC_IOCTL   = 0x04,
     ADX_TRC_CALI	= 0X08,
     ADX_TRC_INFO	= 0X10,
+	ADX_TRC_LP		= 0x80,
 } ADX_TRC;
 /*----------------------------------------------------------------------------*/
 struct scale_factor{
@@ -157,8 +158,8 @@ static bool enable_status = false;
 
 /*----------------------------------------------------------------------------*/
 #define GSE_TAG                  "[Gsensor] "
-#define GSE_FUN(f)               printk( GSE_TAG"%s\n", __FUNCTION__)
-#define GSE_ERR(fmt, args...)    printk(KERN_ERR GSE_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define GSE_FUN(f)               printk( GSE_TAG"%s\n", __func__)
+#define GSE_ERR(fmt, args...)    printk(KERN_ERR GSE_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define GSE_LOG(fmt, args...)    printk( GSE_TAG fmt, ##args)
 /*----------------------------------------------------------------------------*/
 static struct data_resolution kxtj2_1009_data_resolution[1] = {
@@ -513,6 +514,20 @@ static int KXTJ2_1009_CheckDeviceID(struct i2c_client *client)
 	}
 	
 	return KXTJ2_1009_SUCCESS;
+}
+/*----------------------------------------------------------------------------*/
+static void KXTJ2_1009_GetPowerMode(struct i2c_client *client)
+{
+	u8 databuf[2];
+	int res = 0;
+	u8 addr = KXTJ2_1009_REG_POWER_CTL;
+
+	if (hwmsen_read_block(client, addr, databuf, 0x01))	{
+		GSE_ERR("read power ctl register err!\n");
+	} else{
+		GSE_ERR("reg[0x%x] = 0x%x, bit[7] should be 0. (%c)\n",
+			KXTJ2_1009_REG_POWER_CTL, databuf[0], (databuf[0]&0x80) == 0x00?'O':'X');
+	}
 }
 /*----------------------------------------------------------------------------*/
 static int KXTJ2_1009_SetPowerMode(struct i2c_client *client, bool enable)
@@ -1791,6 +1806,10 @@ static int kxtj2_1009_suspend(struct i2c_client *client, pm_message_t msg)
 		//sensor_power = false;      
 		KXTJ2_1009_power(obj->hw, 0);
 	}
+	if (atomic_read(&obj->trace) & ADX_TRC_LP) {
+		KXTJ2_1009_GetPowerMode(obj->client);
+	}
+
 	return err;
 }
 /*----------------------------------------------------------------------------*/
@@ -1807,6 +1826,9 @@ static int kxtj2_1009_resume(struct i2c_client *client)
 	}
 
 	KXTJ2_1009_power(obj->hw, 1);
+	if (atomic_read(&obj->trace) & ADX_TRC_LP) {
+		KXTJ2_1009_GetPowerMode(client);
+	}
     mutex_lock(&kxtj2_1009_mutex);
 	if(0 != (err = kxtj2_1009_init_client(client, 0)))
 	{

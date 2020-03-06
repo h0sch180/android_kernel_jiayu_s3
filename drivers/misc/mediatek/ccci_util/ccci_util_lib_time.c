@@ -19,17 +19,16 @@
 #include <linux/of_fdt.h>
 #endif
 #include <asm/setup.h>
-#include <asm/atomic.h>
-#include <mach/mt_typedefs.h>
+#include <linux/atomic.h>
 #include <mach/mt_boot_common.h>
 
 #include <mach/mt_ccci_common.h>
 
-static wait_queue_head_t	time_update_notify_queue_head;
-static spinlock_t		wait_count_lock;
-static volatile unsigned int	wait_count;
-static volatile unsigned int	get_update;
-static volatile unsigned int	api_ready;
+static wait_queue_head_t time_update_notify_queue_head;
+static spinlock_t wait_count_lock;
+static volatile unsigned int wait_count;
+static volatile unsigned int get_update;
+static volatile unsigned int api_ready;
 
 void ccci_timer_for_md_init(void)
 {
@@ -41,23 +40,22 @@ void ccci_timer_for_md_init(void)
 	api_ready = 1;
 }
 
-int wait_time_update_notify(void) // Only support one wait currently
-{
+int wait_time_update_notify(void)
+{				/* Only support one wait currently */
 	int ret = -1;
 	unsigned long flags;
-	if(api_ready) {
-		// Update wait count ++
+
+	if (api_ready) {
+		/* Update wait count ++ */
 		spin_lock_irqsave(&wait_count_lock, flags);
 		wait_count++;
 		spin_unlock_irqrestore(&wait_count_lock, flags);
 
 		ret = wait_event_interruptible(time_update_notify_queue_head, get_update);
-		if(ret == -ERESTARTSYS) {
-		} else {
+		if (ret != -ERESTARTSYS)
 			get_update = 0;
-		}
 
-		// Update wait count --
+		/* Update wait count -- */
 		spin_lock_irqsave(&wait_count_lock, flags);
 		wait_count--;
 		spin_unlock_irqrestore(&wait_count_lock, flags);
@@ -69,15 +67,12 @@ int wait_time_update_notify(void) // Only support one wait currently
 void notify_time_update(void)
 {
 	unsigned long flags;
-	if(!api_ready)
-		return; // API not ready
 
+	if (!api_ready)
+		return;		/* API not ready */
 	get_update = 1;
 	spin_lock_irqsave(&wait_count_lock, flags);
-	if(wait_count) {
+	if (wait_count)
 		wake_up_all(&time_update_notify_queue_head);
-	}
 	spin_unlock_irqrestore(&wait_count_lock, flags);
 }
-
-

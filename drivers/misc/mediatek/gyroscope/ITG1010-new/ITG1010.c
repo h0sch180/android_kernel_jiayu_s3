@@ -162,9 +162,18 @@ struct ITG1010_i2c_data
 #endif
 };
 /*----------------------------------------------------------------------------*/
+#ifdef CONFIG_OF
+static const struct of_device_id gyro_of_match[] = {
+        {.compatible = "mediatek,GYRO"},
+        {},
+};
+#endif
 static struct i2c_driver ITG1010_i2c_driver = {
     .driver = {
         .name           = ITG1010_DEV_NAME,
+#ifdef CONFIG_OF
+        .of_match_table = gyro_of_match,
+#endif			
     },
     .probe              = ITG1010_i2c_probe,
     .remove             = ITG1010_i2c_remove,
@@ -1254,7 +1263,7 @@ static ssize_t show_chip_orientation(struct device_driver *ddri, char *buf)
     ssize_t          _tLength = 0;
     struct gyro_hw   *_ptAccelHw = hw;
 
-   GYRO_LOG("[%s] default direction: %d\n", __FUNCTION__, _ptAccelHw->direction);
+   GYRO_LOG("[%s] default direction: %d\n", __func__, _ptAccelHw->direction);
 
     _tLength = snprintf(buf, PAGE_SIZE, "default direction = %d\n", _ptAccelHw->direction);
 
@@ -1275,7 +1284,7 @@ static ssize_t store_chip_orientation(struct device_driver *ddri, const char *bu
             GYRO_ERR("ERR: fail to set direction\n");
     }
 
-    GYRO_LOG("[%s] set direction: %d\n", __FUNCTION__, _nDirection);
+    GYRO_LOG("[%s] set direction: %d\n", __func__, _nDirection);
 
     return (tCount);
 }
@@ -1819,7 +1828,7 @@ static long ITG1010_compat_ioctl(struct file *file, unsigned int cmd, unsigned l
 			 break;	
 			 
 		 default:
-			 printk(KERN_ERR "%s not supported = 0x%04x", __FUNCTION__, cmd);
+			 printk(KERN_ERR "%s not supported = 0x%04x", __func__, cmd);
 			 return -ENOIOCTLCMD;
 			 break;
 	}
@@ -2267,9 +2276,11 @@ static int __init ITG1010_init(void)
     hw = get_gyro_dts_func(name, hw);
 	if (!hw)
 		hw = get_cust_gyro_hw();
+#ifdef CONFIG_MTK_LEGACY
 	struct i2c_board_info i2c_ITG1010={ I2C_BOARD_INFO(ITG1010_DEV_NAME, hw->i2c_addr[0])};
     GYRO_LOG("%s: i2c_number=%d,i2c_addr=0x%x\n", __func__,hw->i2c_num,hw->i2c_addr[0]);
     i2c_register_board_info(hw->i2c_num, &i2c_ITG1010, 1);
+#endif
     gyro_driver_add(&ITG1010_init_info);
 
     return 0;

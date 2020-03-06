@@ -2,7 +2,7 @@
 
 #include "lcm_drv.h"
 #ifndef BUILD_UBOOT
-#include <linux/kernel.h>       ///for printk
+#include <linux/kernel.h>       ///for pr_debug
 #endif
 
 // ---------------------------------------------------------------------------

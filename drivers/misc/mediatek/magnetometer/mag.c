@@ -6,24 +6,59 @@ struct mag_context *mag_context_obj = NULL;
 
 static struct mag_init_info* msensor_init_list[MAX_CHOOSE_G_NUM]= {0}; //modified
 
+#if defined(CONFIG_EARLYSUSPEND)
 static void mag_early_suspend(struct early_suspend *h);
 static void mag_late_resume(struct early_suspend *h);
+#endif
+
+static void initTimer(struct hrtimer *timer, enum hrtimer_restart (*callback)(struct hrtimer *))
+{
+	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_ABS);
+	timer->function = callback;
+}
+
+static void startTimer(struct hrtimer *timer, int delay_ms, bool first)
+{
+	struct acc_context *obj = (struct acc_context *)container_of(timer, struct acc_context, hrTimer);
+
+	if (obj == NULL) {
+		MAG_ERR("NULL pointer\n");
+		return;
+	}
+
+	if (first) {
+		obj->target_ktime = ktime_add_ns(ktime_get(), (int64_t)delay_ms*1000000);
+	} else {
+		do {
+			obj->target_ktime = ktime_add_ns(obj->target_ktime, (int64_t)delay_ms*1000000);
+		} while (ktime_to_ns(obj->target_ktime) < ktime_to_ns(ktime_get()));
+	}
+
+	hrtimer_start(timer, obj->target_ktime, HRTIMER_MODE_ABS);
+}
+
+static void stopTimer(struct hrtimer *timer)
+{
+	hrtimer_cancel(timer);
+}
 
 static void mag_work_func(struct work_struct *work)
 {
 
 	struct mag_context *cxt = NULL;
 	hwm_sensor_data sensor_data;
-	int64_t  nt;
+	int64_t m_pre_ns, o_pre_ns, cur_ns;
+	int64_t delay_ms;
 	struct timespec time; 
 	int err;	
 	int i;
 	int x,y,z,status;
 	cxt  = mag_context_obj;
+	delay_ms = atomic_read(&cxt->delay);
     memset(&sensor_data, 0, sizeof(sensor_data));	
 	time.tv_sec = time.tv_nsec = 0;    
-	time = get_monotonic_coarse(); 
-	nt = time.tv_sec*1000000000LL+time.tv_nsec;
+	get_monotonic_boottime(&time);
+	cur_ns = time.tv_sec*1000000000LL+time.tv_nsec;
 	
 	for(i = 0; i < MAX_M_V_SENSOR; i++)
 	{
@@ -46,9 +81,12 @@ static void mag_work_func(struct work_struct *work)
 			cxt->drv_data[i].mag_data.values[1]=y;
 			cxt->drv_data[i].mag_data.values[2]=z;
 			cxt->drv_data[i].mag_data.status = status;
-			if(true ==  cxt->is_first_data_after_enable)
+			m_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
 	    	{
-		   		cxt->is_first_data_after_enable = false;
+				m_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
 		   		//filter -1 value
 	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
 		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
@@ -59,10 +97,18 @@ static void mag_work_func(struct work_struct *work)
 			
 	       		}
 	    	}
+			while ((cur_ns - m_pre_ns) >= delay_ms*1800000LL) {
+				m_pre_ns += delay_ms*1000000LL;
+				mag_data_report(MAGNETIC, cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, m_pre_ns);
+			}
+
 			mag_data_report(MAGNETIC,cxt->drv_data[i].mag_data.values[0],
 				cxt->drv_data[i].mag_data.values[1],
 				cxt->drv_data[i].mag_data.values[2],
-				cxt->drv_data[i].mag_data.status);
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
 		
 		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
 	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
@@ -81,9 +127,12 @@ static void mag_work_func(struct work_struct *work)
 			cxt->drv_data[i].mag_data.values[1]=y;
 			cxt->drv_data[i].mag_data.values[2]=z;
 			cxt->drv_data[i].mag_data.status = status;
-			if(true ==  cxt->is_first_data_after_enable)
+			o_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
 	    	{
-		   		cxt->is_first_data_after_enable = false;
+				o_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
 		   		//filter -1 value
 	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
 		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
@@ -94,34 +143,224 @@ static void mag_work_func(struct work_struct *work)
 			
 	       		}
 	    	}
+			while ((cur_ns - o_pre_ns) >= delay_ms*1800000LL) {
+				o_pre_ns += delay_ms*1000000LL;
+				mag_data_report(ORIENTATION, cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, o_pre_ns);
+			}
+
 			mag_data_report(ORIENTATION,cxt->drv_data[i].mag_data.values[0],
 				cxt->drv_data[i].mag_data.values[1],
 				cxt->drv_data[i].mag_data.values[2],
-				cxt->drv_data[i].mag_data.status);
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
 		
 		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
 	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
 		}
 	    
+#ifdef AKM_Pseudogyro
+		if(ID_M_V_SOFT_GYRO ==i)
+		{
+			
+			err = cxt->mag_dev_data.get_data_gs(&x,&y,&z,&status);
+			if(err)
+	   		{
+		  		MAG_ERR("get %d data fails!!\n" ,i);
+		  		return;
+	   		}
+			cxt->drv_data[i].mag_data.values[0]=x;
+			cxt->drv_data[i].mag_data.values[1]=y;
+			cxt->drv_data[i].mag_data.values[2]=z;
+			cxt->drv_data[i].mag_data.status = status;
+			o_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
+	    	{
+				o_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
+		   		//filter -1 value
+	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[2])
+	       		{
+	          		MAG_LOG(" read invalid data \n");
+	       	  		continue;
+			
+	       		}
+	    	}
+			while ((cur_ns - o_pre_ns) >= delay_ms*1800000LL) {
+				o_pre_ns += delay_ms*1000000LL;
+				mag_data_report(SOFT_GYRO,cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, o_pre_ns);
+			}
 
+			mag_data_report(SOFT_GYRO,cxt->drv_data[i].mag_data.values[0],
+				cxt->drv_data[i].mag_data.values[1],
+				cxt->drv_data[i].mag_data.values[2],
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
+
+		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
+	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
+		}
+
+        if(ID_M_V_GRAVITY ==i)
+		{
+			
+			err = cxt->mag_dev_data.get_data_gr(&x,&y,&z,&status);
+			if(err)
+	   		{
+		  		MAG_ERR("get %d data fails!!\n" ,i);
+		  		return;
+	   		}
+			cxt->drv_data[i].mag_data.values[0]=x;
+			cxt->drv_data[i].mag_data.values[1]=y;
+			cxt->drv_data[i].mag_data.values[2]=z;
+			cxt->drv_data[i].mag_data.status = status;
+			o_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
+	    	{
+				o_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
+		   		//filter -1 value
+	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[2])
+	       		{
+	          		MAG_LOG(" read invalid data \n");
+	       	  		continue;
+			
+	       		}
+	    	}
+			while ((cur_ns - o_pre_ns) >= delay_ms*1800000LL) {
+				o_pre_ns += delay_ms*1000000LL;
+				mag_data_report(GRAVITY,cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, o_pre_ns);
+			}
+
+			mag_data_report(GRAVITY,cxt->drv_data[i].mag_data.values[0],
+				cxt->drv_data[i].mag_data.values[1],
+				cxt->drv_data[i].mag_data.values[2],
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
+
+		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
+	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
+		}
+        
+		if(ID_M_V_LINEAR_ACC ==i)
+		{
+			
+			err = cxt->mag_dev_data.get_data_la(&x,&y,&z,&status);
+			if(err)
+	   		{
+		  		MAG_ERR("get %d data fails!!\n" ,i);
+		  		return;
+	   		}
+			cxt->drv_data[i].mag_data.values[0]=x;
+			cxt->drv_data[i].mag_data.values[1]=y;
+			cxt->drv_data[i].mag_data.values[2]=z;
+			cxt->drv_data[i].mag_data.status = status;
+			o_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
+	    	{
+				o_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
+		   		//filter -1 value
+	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[2])
+	       		{
+	          		MAG_LOG(" read invalid data \n");
+	       	  		continue;
+			
+	       		}
+	    	}
+			while ((cur_ns - o_pre_ns) >= delay_ms*1800000LL) {
+				o_pre_ns += delay_ms*1000000LL;
+				mag_data_report(LINEAR_ACC,cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, o_pre_ns);
+			}
+
+			mag_data_report(LINEAR_ACC,cxt->drv_data[i].mag_data.values[0],
+				cxt->drv_data[i].mag_data.values[1],
+				cxt->drv_data[i].mag_data.values[2],
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
+
+		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
+	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
+		}
+
+        if(ID_M_V_ROTATION_VECTOR ==i)
+		{
+			
+			err = cxt->mag_dev_data.get_data_rv(&x,&y,&z,&status);
+			if(err)
+	   		{
+		  		MAG_ERR("get %d data fails!!\n" ,i);
+		  		return;
+	   		}
+			cxt->drv_data[i].mag_data.values[0]=x;
+			cxt->drv_data[i].mag_data.values[1]=y;
+			cxt->drv_data[i].mag_data.values[2]=z;
+			cxt->drv_data[i].mag_data.status = status;
+			o_pre_ns = cxt->drv_data[i].mag_data.time;
+			cxt->drv_data[i].mag_data.time = cur_ns;
+			if(cxt->is_first_data_after_enable&(1<<i))
+	    	{
+				o_pre_ns = cur_ns;
+		   		cxt->is_first_data_after_enable &= ~(1<<i);
+		   		//filter -1 value
+	       		if(MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[0] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[1] ||
+		   	     MAG_INVALID_VALUE == cxt->drv_data[i].mag_data.values[2])
+	       		{
+	          		MAG_LOG(" read invalid data \n");
+	       	  		continue;
+			
+	       		}
+	    	}
+			while ((cur_ns - o_pre_ns) >= delay_ms*1800000LL) {
+				o_pre_ns += delay_ms*1000000LL;
+				mag_data_report(ROTATION_VECTOR,cxt->drv_data[i].mag_data.values[0],
+					cxt->drv_data[i].mag_data.values[1],
+					cxt->drv_data[i].mag_data.values[2],
+					cxt->drv_data[i].mag_data.status, o_pre_ns);
+			}
+
+			mag_data_report(ROTATION_VECTOR,cxt->drv_data[i].mag_data.values[0],
+				cxt->drv_data[i].mag_data.values[1],
+				cxt->drv_data[i].mag_data.values[2],
+				cxt->drv_data[i].mag_data.status, cxt->drv_data[i].mag_data.time);
+		
+		  	//MAG_LOG("mag_type(%d) data[%d,%d,%d] \n" ,i,cxt->drv_data[i].mag_data.values[0],
+	    	//cxt->drv_data[i].mag_data.values[1],cxt->drv_data[i].mag_data.values[2]);
+		}
+#endif
 	}
 
 	//report data to input device
 	//printk("new mag work run....\n");
 	
 	if(true == cxt->is_polling_run)
-	{
-		  mod_timer(&cxt->timer, jiffies + atomic_read(&cxt->delay)/(1000/HZ)); 
-	}
+		startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), false);
 }
 
-static void mag_poll(unsigned long data)
+enum hrtimer_restart mag_poll(struct hrtimer *timer)
 {
-	struct mag_context *obj = (struct mag_context *)data;
-	if(obj != NULL)
-	{
-		schedule_work(&obj->report);
-	}
+	struct mag_context *obj = (struct mag_context *)container_of(timer, struct mag_context, hrTimer);
+
+	queue_work(obj->mag_workqueue, &obj->report);
+
+	return HRTIMER_NORESTART;
 }
 
 static struct mag_context *mag_context_alloc_object(void)
@@ -137,11 +376,14 @@ static struct mag_context *mag_context_alloc_object(void)
 	atomic_set(&obj->delay, 200); /*5Hz*/// set work queue delay time 200ms
 	atomic_set(&obj->wake, 0);
 	INIT_WORK(&obj->report, mag_work_func);
-	init_timer(&obj->timer);
-	obj->timer.expires	= jiffies + atomic_read(&obj->delay)/(1000/HZ);
-	obj->timer.function	= mag_poll;
-	obj->timer.data		= (unsigned long)obj;
-	obj->is_first_data_after_enable = false;
+	obj->mag_workqueue = NULL;
+	obj->mag_workqueue = create_workqueue("mag_polling");
+	if (!obj->mag_workqueue) {
+		kfree(obj);
+		return NULL;
+	}
+	initTimer(&obj->hrTimer, mag_poll);
+	obj->is_first_data_after_enable = 0;
 	obj->is_polling_run = false;
 	obj->active_data_sensor = 0;
 	obj->active_nodata_sensor = 0;
@@ -165,9 +407,31 @@ static int mag_enable_data(int handle,int enable)
     if(1 == enable)
     {
        MAG_LOG("MAG(%d) enable \n",handle);
-       cxt->is_first_data_after_enable = true;
+       cxt->is_first_data_after_enable |=  1<<handle;
 	   cxt->active_data_sensor |= 1<<handle;
 	   
+#ifdef AKM_Pseudogyro
+	   if(ID_M_V_SOFT_GYRO == handle)
+	   {
+	        cxt->mag_ctl.gs_enable(1);
+			cxt->mag_ctl.gs_open_report_data(1);
+	   }
+	   if(ID_M_V_GRAVITY == handle)
+	   {
+	        cxt->mag_ctl.gr_enable(1);
+			cxt->mag_ctl.gr_open_report_data(1);
+	   }
+	   if(ID_M_V_LINEAR_ACC == handle)
+	   {
+	        cxt->mag_ctl.la_enable(1);
+			cxt->mag_ctl.la_open_report_data(1);
+	   }
+	   if(ID_M_V_ROTATION_VECTOR == handle)
+	   {
+	        cxt->mag_ctl.rv_enable(1);
+			cxt->mag_ctl.rv_open_report_data(1);
+	   }
+#endif
 	   if(ID_M_V_ORIENTATION == handle)
 	   {
 	   		cxt->mag_ctl.o_enable(1);
@@ -184,7 +448,7 @@ static int mag_enable_data(int handle,int enable)
 	      if(false == cxt->mag_ctl.is_report_input_direct)
 	      {
 	       		MAG_LOG("MAG(%d)  mod timer \n",handle);
-	      		mod_timer(&cxt->timer, jiffies + atomic_read(&cxt->delay)/(1000/HZ));
+				startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), true);
 		  		cxt->is_polling_run = true;
 	      }
 	   }
@@ -195,6 +459,29 @@ static int mag_enable_data(int handle,int enable)
 	{
 	   MAG_LOG("MAG(%d) disable \n",handle);
 	   cxt->active_data_sensor &= ~(1<<handle);
+
+#ifdef AKM_Pseudogyro       
+	   if(ID_M_V_SOFT_GYRO== handle)
+	   {
+	   		cxt->mag_ctl.gs_enable(0);
+		  	cxt->mag_ctl.gs_open_report_data(0);
+	   }
+ 	   if(ID_M_V_GRAVITY == handle)
+	   {
+	        cxt->mag_ctl.gr_enable(0);
+			cxt->mag_ctl.gr_open_report_data(0);
+	   }
+	   if(ID_M_V_LINEAR_ACC == handle)
+	   {
+	        cxt->mag_ctl.la_enable(0);
+			cxt->mag_ctl.la_open_report_data(0);
+	   }
+	   if(ID_M_V_ROTATION_VECTOR == handle)
+	   {
+	        cxt->mag_ctl.rv_enable(0);
+			cxt->mag_ctl.rv_open_report_data(0);
+	   }
+#endif
 	   if(ID_M_V_ORIENTATION == handle)
 	   {
 	   		cxt->mag_ctl.o_enable(0);
@@ -212,9 +499,9 @@ static int mag_enable_data(int handle,int enable)
 	   		{
 	   			MAG_LOG("MAG(%d)  del timer \n",handle);
 	      		cxt->is_polling_run = false;
-                  smp_mb();
-	      		del_timer_sync(&cxt->timer);
-                  smp_mb();
+				smp_mb();/*fo memory barrier*/
+				stopTimer(&cxt->hrTimer);
+				smp_mb();/*for memory barrier*/
 	      		cancel_work_sync(&cxt->report);
 				cxt->drv_data[handle].mag_data.values[0] = MAG_INVALID_VALUE;
 	   			cxt->drv_data[handle].mag_data.values[1] = MAG_INVALID_VALUE;
@@ -335,10 +622,197 @@ static ssize_t mag_show_oactive(struct device* dev,
 	int div = 0;
 	cxt = mag_context_obj;
 	div = cxt->mag_dev_data.div_o;
-	ACC_LOG("acc mag_dev_data o_div value: %d\n", div);
+	MAG_LOG("mag_dev_data o_div value: %d\n", div);
 	return snprintf(buf, PAGE_SIZE, "%d\n", div);
 
 }
+//ocean add for Gyro ---------start
+#ifdef AKM_Pseudogyro
+static ssize_t mag_store_gsactive(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_gsactive buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.gs_enable)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl g-enable NULL\n");
+	 	return count;
+	}
+	
+    if (!strncmp(buf, "1", 1)) 
+	{
+       mag_enable_data(ID_M_V_SOFT_GYRO,1);
+       //cxt->mag_ctl.gs_enable(1);
+    } 
+	else if (!strncmp(buf, "0", 1))
+	{
+       mag_enable_data(ID_M_V_SOFT_GYRO,0);    
+       //cxt->mag_ctl.gs_enable(0);
+    }
+	else
+	{
+	  MAG_ERR(" mag_store_gsactive error !!\n");
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_gsactive done\n");
+    return count;
+}
+/*----------------------------------------------------------------------------*/
+static ssize_t mag_show_gsactive(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+	struct mag_context *cxt = NULL;
+	int div = 0;
+	cxt = mag_context_obj;
+	div = cxt->mag_dev_data.div_gs;
+	MAG_LOG("mag_dev_data gs_div value: %d\n", div);
+	return snprintf(buf, PAGE_SIZE, "%d\n", div);
+
+}
+
+static ssize_t mag_store_gractive(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_gractive buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.gr_enable)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl g-enable NULL\n");
+	 	return count;
+	}
+	
+    if (!strncmp(buf, "1", 1)) 
+	{
+       mag_enable_data(ID_M_V_GRAVITY,1);
+       //cxt->mag_ctl.gr_enable(1);
+    } 
+	else if (!strncmp(buf, "0", 1))
+	{
+       mag_enable_data(ID_M_V_GRAVITY,0);    
+       //cxt->mag_ctl.gr_enable(0);
+    }
+	else
+	{
+	  MAG_ERR(" mag_store_gractive error !!\n");
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_gsactive done\n");
+    return count;
+}
+/*----------------------------------------------------------------------------*/
+static ssize_t mag_show_gractive(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+	struct mag_context *cxt = NULL;
+	int div = 0;
+	cxt = mag_context_obj;
+	div = cxt->mag_dev_data.div_gr;
+	MAG_LOG("mag_dev_data gr_div value: %d\n", div);
+	return snprintf(buf, PAGE_SIZE, "%d\n", div);
+
+}
+
+static ssize_t mag_store_laactive(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_laactive buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.la_enable)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl g-enable NULL\n");
+	 	return count;
+	}
+	
+    if (!strncmp(buf, "1", 1)) 
+	{
+       mag_enable_data(ID_M_V_LINEAR_ACC,1);
+       //cxt->mag_ctl.la_enable(1);
+    } 
+	else if (!strncmp(buf, "0", 1))
+	{
+       mag_enable_data(ID_M_V_LINEAR_ACC,0);    
+       //cxt->mag_ctl.la_enable(0);
+    }
+	else
+	{
+	  MAG_ERR(" mag_store_laactive error !!\n");
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_laactive done\n");
+    return count;
+}
+/*----------------------------------------------------------------------------*/
+static ssize_t mag_show_laactive(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+	struct mag_context *cxt = NULL;
+	int div = 0;
+	cxt = mag_context_obj;
+	div = cxt->mag_dev_data.div_la;
+	MAG_LOG("mag_dev_data la_div value: %d\n", div);
+	return snprintf(buf, PAGE_SIZE, "%d\n", div);
+
+}
+
+static ssize_t mag_store_rvactive(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_rvactive buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.rv_enable)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl g-enable NULL\n");
+	 	return count;
+	}
+	
+    if (!strncmp(buf, "1", 1)) 
+	{
+       mag_enable_data(ID_M_V_ROTATION_VECTOR,1);
+       //cxt->mag_ctl.rv_enable(1);
+    } 
+	else if (!strncmp(buf, "0", 1))
+	{
+       mag_enable_data(ID_M_V_ROTATION_VECTOR,0);    
+       //cxt->mag_ctl.rv_enable(0);
+    }
+	else
+	{
+	  MAG_ERR(" mag_store_rvactive error !!\n");
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_rvactive done\n");
+    return count;
+}
+/*----------------------------------------------------------------------------*/
+static ssize_t mag_show_rvactive(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+	struct mag_context *cxt = NULL;
+	int div = 0;
+	cxt = mag_context_obj;
+	div = cxt->mag_dev_data.div_rv;
+	MAG_LOG("mag_dev_data rv_div value: %d\n", div);
+	return snprintf(buf, PAGE_SIZE, "%d\n", div);
+
+}
+#endif
+//ocean add for Gyro ---------end
 
 static ssize_t mag_store_active(struct device* dev, struct device_attribute *attr,
                                   const char *buf, size_t count)
@@ -381,7 +855,7 @@ static ssize_t mag_show_active(struct device* dev,
 	int div = 0;
 	cxt = mag_context_obj;
 	div = cxt->mag_dev_data.div_m;
-	ACC_LOG("acc mag_dev_data m_div value: %d\n", div);
+	MAG_LOG("mag_dev_data m_div value: %d\n", div);
 	return snprintf(buf, PAGE_SIZE, "%d\n", div); 
 }
 
@@ -389,7 +863,7 @@ static ssize_t mag_store_odelay(struct device* dev, struct device_attribute *att
                                   const char *buf, size_t count)
 {
   //  struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
-    int delay=0;
+    long delay=0;
 	int mdelay=0;
 	struct mag_context *cxt = NULL;
 	//int err =0;
@@ -405,19 +879,19 @@ static ssize_t mag_store_odelay(struct device* dev, struct device_attribute *att
     MAG_LOG(" mag_odelay ++ \n");
  
 
-    if (1 != sscanf(buf, "%d", &delay)) {
+    if (1 != sscanf(buf, "%ld", &delay)) {
 		mutex_unlock(&mag_context_obj->mag_op_mutex);
 		MAG_ERR("invalid format!!\n");
         return count;
     }
 	if(false == cxt->mag_ctl.is_report_input_direct)
     {
-    	mdelay = (int)delay/1000/1000;
+    	mdelay = (int)(delay/1000/1000);
     	atomic_set(&mag_context_obj->delay, mdelay);
     }
     cxt->mag_ctl.o_set_delay(delay);
 	mutex_unlock(&mag_context_obj->mag_op_mutex);
-	MAG_LOG(" mag_odelay %d ns done\n",delay);
+	MAG_LOG(" mag_odelay %ld ns done\n",delay);
     return count;
 }
 
@@ -429,14 +903,198 @@ static ssize_t mag_show_odelay(struct device* dev,
 	return len;
 }
 
+//ocean add for Gyro ---------start
+#ifdef AKM_Pseudogyro
+static ssize_t mag_store_gsdelay(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+  //  struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
+    long delay=0;
+	int mdelay=0;
+	struct mag_context *cxt = NULL;
+	MAG_LOG("ocean mag_ctl gyro_delay buf=%s\n",buf);
+	//int err =0;
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.gs_set_delay)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl gyro_delay NULL\n");
+	 	return count;
+	}
+	
+    MAG_LOG(" gyro_delay ++ \n");
+ 
+
+    if (1 != sscanf(buf, "%ld", &delay)) {
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_ERR("invalid format!!\n");
+        return count;
+    }
+	if(false == cxt->mag_ctl.is_report_input_direct)
+    {
+    	mdelay = (int)(delay/1000/1000);
+    	atomic_set(&mag_context_obj->delay, mdelay);
+    }
+    cxt->mag_ctl.gs_set_delay(delay);
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_odelay %ld ns done\n",delay);
+    return count;
+}
+
+static ssize_t mag_show_gsdelay(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_grdelay(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+  //  struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
+    long delay=0;
+	int mdelay=0;
+	struct mag_context *cxt = NULL;
+	MAG_LOG("ocean mag_ctl gr_delay buf=%s\n",buf);
+	//int err =0;
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.gr_set_delay)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl gr_delay NULL\n");
+	 	return count;
+	}
+	
+    MAG_LOG(" gr_delay ++ \n");
+ 
+
+    if (1 != sscanf(buf, "%ld", &delay)) {
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_ERR("invalid format!!\n");
+        return count;
+    }
+	if(false == cxt->mag_ctl.is_report_input_direct)
+    {
+    	mdelay = (int)(delay/1000/1000);
+    	atomic_set(&mag_context_obj->delay, mdelay);
+    }
+    cxt->mag_ctl.gr_set_delay(delay);
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_grdelay %ld ns done\n",delay);
+    return count;
+}
+
+static ssize_t mag_show_grdelay(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_ladelay(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+  //  struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
+    long delay=0;
+	int mdelay=0;
+	struct mag_context *cxt = NULL;
+	MAG_LOG("ocean mag_ctl la_delay buf=%s\n",buf);
+	//int err =0;
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.la_set_delay)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl la_delay NULL\n");
+	 	return count;
+	}
+	
+    MAG_LOG(" la_delay ++ \n");
+ 
+
+    if (1 != sscanf(buf, "%ld", &delay)) {
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_ERR("invalid format!!\n");
+        return count;
+    }
+	if(false == cxt->mag_ctl.is_report_input_direct)
+    {
+    	mdelay = (int)(delay/1000/1000);
+    	atomic_set(&mag_context_obj->delay, mdelay);
+    }
+    cxt->mag_ctl.la_set_delay(delay);
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_ladelay %ld ns done\n",delay);
+    return count;
+}
+
+static ssize_t mag_show_ladelay(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_rvdelay(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+  //  struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
+    long delay=0;
+	int mdelay=0;
+	struct mag_context *cxt = NULL;
+	MAG_LOG("ocean mag_ctl gyro_delay buf=%s\n",buf);
+	//int err =0;
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(NULL == cxt->mag_ctl.rv_set_delay)
+	{
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_LOG("mag_ctl gyro_delay NULL\n");
+	 	return count;
+	}
+	
+    MAG_LOG(" rv_delay ++ \n");
+ 
+
+    if (1 != sscanf(buf, "%ld", &delay)) {
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+		MAG_ERR("invalid format!!\n");
+        return count;
+    }
+	if(false == cxt->mag_ctl.is_report_input_direct)
+    {
+    	mdelay = (int)(delay/1000/1000);
+    	atomic_set(&mag_context_obj->delay, mdelay);
+    }
+    cxt->mag_ctl.rv_set_delay(delay);
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_rvdelay %ld ns done\n",delay);
+    return count;
+}
+
+static ssize_t mag_show_rvdelay(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+#endif
+//ocean add for Gyro ---------end
 static ssize_t mag_store_delay(struct device* dev, struct device_attribute *attr,
                                   const char *buf, size_t count)
 {
    // struct mag_context *devobj = (struct mag_context*)dev_get_drvdata(dev);
-    int delay=0;
+    long delay=0;
 	int mdelay=0;
 	struct mag_context *cxt = NULL;
 	//int err =0;
+	MAG_LOG("ocean mag_ctl m_delay buf=%s\n",buf);
 	mutex_lock(&mag_context_obj->mag_op_mutex);
 	cxt = mag_context_obj;
 	if(NULL == cxt->mag_ctl.m_set_delay)
@@ -448,19 +1106,19 @@ static ssize_t mag_store_delay(struct device* dev, struct device_attribute *attr
 	
     MAG_LOG(" mag_delay ++ \n");
   
-	if (1 != sscanf(buf, "%d", &delay)) {
+	if (1 != sscanf(buf, "%ld", &delay)) {
 		mutex_unlock(&mag_context_obj->mag_op_mutex);
         MAG_ERR("invalid format!!\n");
         return count;
     }
 	if(false == cxt->mag_ctl.is_report_input_direct)
     {
-    	mdelay = (int)delay/1000/1000;
+    	mdelay = (int)(delay/1000/1000);
     	atomic_set(&mag_context_obj->delay, mdelay);
     }
 	cxt->mag_ctl.m_set_delay(delay);
 	mutex_unlock(&mag_context_obj->mag_op_mutex);
-	MAG_LOG(" mag_delay %d ns done\n",delay);
+	MAG_LOG(" mag_delay %ld ns done\n",delay);
     return count;
 }
 
@@ -622,7 +1280,305 @@ static ssize_t mag_show_oflush(struct device* dev,
 	MAG_LOG(" not support now\n");
 	return len;
 }
+#ifdef AKM_Pseudogyro
+static ssize_t mag_store_gsbatch(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_obatch buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(cxt->mag_ctl.is_support_batch){
+	    	if (!strncmp(buf, "1", 1)) 
+		{
+	    		cxt->is_batch_enable = true;
+                if(true == cxt->is_polling_run)
+                {
+                    cxt->is_polling_run = false;
+                    del_timer_sync(&cxt->timer);
+                    cancel_work_sync(&cxt->report);
+                    cxt->drv_data[ID_M_V_SOFT_GYRO].mag_data.values[0] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_SOFT_GYRO].mag_data.values[1] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_SOFT_GYRO].mag_data.values[2] = MAG_INVALID_VALUE;
+                }
+	   	 } 
+		else if (!strncmp(buf, "0", 1))
+		{
+			cxt->is_batch_enable = false;
+                if(false == cxt->is_polling_run)
+                {
+                    if(false == cxt->mag_ctl.is_report_input_direct)
+                    {
+                        mod_timer(&cxt->timer, jiffies + atomic_read(&cxt->delay)/(1000/HZ));
+                        cxt->is_polling_run = true;
+                    }
+                }
+	    	}
+		else
+		{
+			MAG_ERR(" mag_store_gbatch error !!\n");
+		}
+	}else{
+		MAG_LOG(" mag_store_gbatch not supported\n");		
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_gbatch done: %d\n", cxt->is_batch_enable);
+    	return count;
+}
 
+static ssize_t mag_show_gsbatch(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_gsflush(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    	return count;
+}
+
+
+static ssize_t mag_show_gsflush(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_grbatch(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	int64_t delay = 0;
+	int64_t mdelay = 0;
+	int ret = 0;
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_obatch buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(cxt->mag_ctl.is_support_batch){
+	    	if (!strncmp(buf, "1", 1)) 
+		{
+	    		cxt->is_batch_enable = true;
+                if(true == cxt->is_polling_run)
+                {
+                    cxt->is_polling_run = false;
+                    del_timer_sync(&cxt->timer);
+                    cancel_work_sync(&cxt->report);
+                    cxt->drv_data[ID_M_V_GRAVITY].mag_data.values[0] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_GRAVITY].mag_data.values[1] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_GRAVITY].mag_data.values[2] = MAG_INVALID_VALUE;
+                }
+	   	 } 
+		else if (!strncmp(buf, "0", 1))
+		{
+			cxt->is_batch_enable = false;
+                if(false == cxt->is_polling_run)
+                {
+                    if(false == cxt->mag_ctl.is_report_input_direct)
+                    {
+                        mod_timer(&cxt->timer, jiffies + atomic_read(&cxt->delay)/(1000/HZ));
+                        cxt->is_polling_run = true;
+                    }
+                }
+	    	}
+		else
+		{
+			MAG_ERR(" mag_store_grbatch error !!\n");
+		}
+	}else{
+		MAG_LOG(" mag_store_grbatch not supported\n");		
+	}
+	
+    MAG_LOG(" mag_delay ++ \n");
+  
+	ret = kstrtoll(buf, 10, &delay);
+	if (ret != 0) {
+		mutex_unlock(&mag_context_obj->mag_op_mutex);
+        MAG_ERR("invalid format!!\n");
+        return count;
+    }
+
+	if (false == cxt->mag_ctl.is_report_input_direct) {
+		mdelay = delay;
+		do_div(mdelay, 1000000);
+    	atomic_set(&mag_context_obj->delay, mdelay);
+    }
+	cxt->mag_ctl.m_set_delay(delay);
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_delay %lld ns done\n", delay);
+    return count;
+}
+
+static ssize_t mag_show_grbatch(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_grflush(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    	return count;
+}
+
+
+static ssize_t mag_show_grflush(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_labatch(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_obatch buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(cxt->mag_ctl.is_support_batch){
+	    	if (!strncmp(buf, "1", 1)) 
+		{
+	    		cxt->is_batch_enable = true;
+                if(true == cxt->is_polling_run)
+                {
+                    cxt->is_polling_run = false;
+				smp_mb();  /* for memory barrier */
+				stopTimer(&cxt->hrTimer);
+				smp_mb();  /* for memory barrier */
+                    cancel_work_sync(&cxt->report);
+                    cxt->drv_data[ID_M_V_LINEAR_ACC].mag_data.values[0] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_LINEAR_ACC].mag_data.values[1] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_LINEAR_ACC].mag_data.values[2] = MAG_INVALID_VALUE;
+                }
+	   	 } 
+		else if (!strncmp(buf, "0", 1))
+		{
+			cxt->is_batch_enable = false;
+			if (false == cxt->is_polling_run) {
+				if (false == cxt->mag_ctl.is_report_input_direct) {
+					startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), true);
+                        cxt->is_polling_run = true;
+                    }
+                }
+	    	}
+		else
+		{
+			MAG_ERR(" mag_store_gbatch error !!\n");
+		}
+	}else{
+		MAG_LOG(" mag_store_gbatch not supported\n");		
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_gbatch done: %d\n", cxt->is_batch_enable);
+    	return count;
+
+}
+
+
+static ssize_t mag_show_labatch(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_laflush(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    	return count;
+}
+
+
+static ssize_t mag_show_laflush(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_rvbatch(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+	struct mag_context *cxt = NULL;
+	//int err =0;
+	MAG_LOG("mag_store_obatch buf=%s\n",buf);
+	mutex_lock(&mag_context_obj->mag_op_mutex);
+	cxt = mag_context_obj;
+	if(cxt->mag_ctl.is_support_batch){
+	    	if (!strncmp(buf, "1", 1)) 
+		{
+	    		cxt->is_batch_enable = true;
+                if(true == cxt->is_polling_run)
+                {
+                    cxt->is_polling_run = false;
+                    del_timer_sync(&cxt->timer);
+                    cancel_work_sync(&cxt->report);
+                    cxt->drv_data[ID_M_V_ROTATION_VECTOR].mag_data.values[0] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_ROTATION_VECTOR].mag_data.values[1] = MAG_INVALID_VALUE;
+                    cxt->drv_data[ID_M_V_ROTATION_VECTOR].mag_data.values[2] = MAG_INVALID_VALUE;
+                }
+	   	 } 
+		else if (!strncmp(buf, "0", 1))
+		{
+			cxt->is_batch_enable = false;
+			if (false == cxt->is_polling_run) {
+				if (false == cxt->mag_ctl.is_report_input_direct && 0 !=
+					(cxt->active_data_sensor&ID_M_V_ORIENTATION)) {
+					startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), true);
+                        cxt->is_polling_run = true;
+                    }
+                }
+	    	}
+		else
+		{
+			MAG_ERR(" mag_store_rvbatch error !!\n");
+		}
+	}else{
+		MAG_LOG(" mag_store_rvbatch not supported\n");		
+	}
+	mutex_unlock(&mag_context_obj->mag_op_mutex);
+	MAG_LOG(" mag_store_rvbatch done: %d\n", cxt->is_batch_enable);
+    	return count;
+
+}
+
+
+static ssize_t mag_show_rvbatch(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+
+static ssize_t mag_store_rvflush(struct device* dev, struct device_attribute *attr,
+                                  const char *buf, size_t count)
+{
+    	return count;
+}
+
+
+static ssize_t mag_show_rvflush(struct device* dev, 
+                                 struct device_attribute *attr, char *buf) 
+{
+    	int len = 0;
+	MAG_LOG(" not support now\n");
+	return len;
+}
+#endif
 
 int mag_attach(int sensor,struct mag_drv_obj *obj)
 {
@@ -783,23 +1739,70 @@ static int mag_input_init(struct mag_context *cxt)
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_MAGEL_Z);
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_MAGEL_STATUS);
 	input_set_capability(dev, EV_REL, EVENT_TYPE_MAGEL_UPDATE);
+	input_set_capability(dev, EV_REL, EVENT_TYPE_MAG_TIMESTAMP_HI);
+	input_set_capability(dev, EV_REL, EVENT_TYPE_MAG_TIMESTAMP_LO);
+	input_set_capability(dev, EV_REL, EVENT_TYPE_ORIENT_UPDATE);
+	input_set_capability(dev, EV_REL, EVENT_TYPE_ORIENT_TIMESTAMP_HI);
+	input_set_capability(dev, EV_REL, EVENT_TYPE_ORIENT_TIMESTAMP_LO);
 
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_O_X);
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_O_Y);
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_O_Z);
 	input_set_capability(dev, EV_ABS, EVENT_TYPE_O_STATUS);
 	input_set_capability(dev, EV_REL, EVENT_TYPE_O_UPDATE);
-	
+#ifdef AKM_Pseudogyro
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GYRO_X);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GYRO_Y);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GYRO_Z);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GYRO_STATUS);
+
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GRAVITY_X);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GRAVITY_Y);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GRAVITY_Z);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_GRAVITY_STATUS);
+
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_LACCEL_X);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_LACCEL_Y);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_LACCEL_Z);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_LACCEL_STATUS);
+
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_ROTVEC_X);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_ROTVEC_Y);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_ROTVEC_Z);
+	input_set_capability(dev, EV_ABS, EVENT_TYPE_ROTVEC_STATUS);
+#endif
 	input_set_abs_params(dev, EVENT_TYPE_MAGEL_X, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
 	input_set_abs_params(dev, EVENT_TYPE_MAGEL_Y, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
 	input_set_abs_params(dev, EVENT_TYPE_MAGEL_Z, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
 	input_set_abs_params(dev, EVENT_TYPE_MAGEL_STATUS, MAG_STATUS_MIN, MAG_STATUS_MAX, 0, 0);
 	
-	input_set_abs_params(dev, EVENT_TYPE_O_X, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
-	input_set_abs_params(dev, EVENT_TYPE_O_Y, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
-	input_set_abs_params(dev, EVENT_TYPE_O_Z, MAG_VALUE_MIN, MAG_VALUE_MAX, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_O_X, 0, 23040, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_O_Y, -11520, 11520, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_O_Z, -5760, 5760, 0, 0);
 	input_set_abs_params(dev, EVENT_TYPE_O_STATUS, MAG_STATUS_MIN, MAG_STATUS_MAX, 0, 0);
 	
+#ifdef AKM_Pseudogyro
+	input_set_abs_params(dev, EVENT_TYPE_GYRO_X, -2287638, 2287638, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GYRO_Y, -2287638, 2287638, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GYRO_Z, -2287638, 2287638, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GYRO_STATUS, -2287638, 2287638, 0, 0);
+
+	input_set_abs_params(dev, EVENT_TYPE_GRAVITY_X, -1285377, 1285377, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GRAVITY_Y, -1285377, 1285377, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GRAVITY_Z, -1285377, 1285377, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_GRAVITY_STATUS, MAG_STATUS_MIN, MAG_STATUS_MAX, 0, 0);
+
+	input_set_abs_params(dev, EVENT_TYPE_LACCEL_X, -1028307, 1028307, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_LACCEL_Y, -1028307, 1028307, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_LACCEL_Z, -1028307, 1028307, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_LACCEL_STATUS, -1028307, 1028307, 0, 0);
+
+	input_set_abs_params(dev, EVENT_TYPE_ROTVEC_X, -65536, 65536, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_ROTVEC_Y, -65536, 65536, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_ROTVEC_Z, -65536, 65536, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_ROTVEC_W, -65536, 65536, 0, 0);
+	input_set_abs_params(dev, EVENT_TYPE_ROTVEC_STATUS, -1028307, 1028307, 0, 0);
+#endif
 	input_set_drvdata(dev, cxt);
 
 	err = input_register_device(dev);
@@ -815,13 +1818,34 @@ static int mag_input_init(struct mag_context *cxt)
 DEVICE_ATTR(magdev,        S_IWUSR | S_IRUGO, mag_show_magdev, NULL);
 DEVICE_ATTR(magactive,     S_IWUSR | S_IRUGO, mag_show_active, mag_store_active);
 DEVICE_ATTR(magdelay,      S_IWUSR | S_IRUGO, mag_show_delay,  mag_store_delay);
-DEVICE_ATTR(magoactive,     S_IWUSR | S_IRUGO, mag_show_oactive, mag_store_oactive);
-DEVICE_ATTR(magodelay,      S_IWUSR | S_IRUGO, mag_show_odelay,  mag_store_odelay);
-DEVICE_ATTR(magbatch,      	S_IWUSR | S_IRUGO, mag_show_batch,  mag_store_batch);
-DEVICE_ATTR(magflush,      		S_IWUSR | S_IRUGO, mag_show_flush,  mag_store_flush);
-DEVICE_ATTR(magobatch,      	S_IWUSR | S_IRUGO, mag_show_obatch,  mag_store_obatch);
-DEVICE_ATTR(magoflush,      	S_IWUSR | S_IRUGO, mag_show_oflush,  mag_store_oflush);
-DEVICE_ATTR(magdevnum,      	S_IWUSR | S_IRUGO, mag_show_sensordevnum,  NULL);
+DEVICE_ATTR(magoactive,    S_IWUSR | S_IRUGO, mag_show_oactive, mag_store_oactive);
+DEVICE_ATTR(magodelay,     S_IWUSR | S_IRUGO, mag_show_odelay,  mag_store_odelay);
+DEVICE_ATTR(magbatch,      S_IWUSR | S_IRUGO, mag_show_batch,  mag_store_batch);
+DEVICE_ATTR(magflush,      S_IWUSR | S_IRUGO, mag_show_flush,  mag_store_flush);
+DEVICE_ATTR(magobatch,     S_IWUSR | S_IRUGO, mag_show_obatch,  mag_store_obatch);
+DEVICE_ATTR(magoflush,     S_IWUSR | S_IRUGO, mag_show_oflush,  mag_store_oflush);
+#ifdef AKM_Pseudogyro
+DEVICE_ATTR(maggsactive,   S_IWUSR | S_IRUGO, mag_show_gsactive, mag_store_gsactive);
+DEVICE_ATTR(maggsdelay,    S_IWUSR | S_IRUGO, mag_show_gsdelay,  mag_store_gsdelay);
+DEVICE_ATTR(maggsbatch,    S_IWUSR | S_IRUGO, mag_show_gsbatch,  mag_store_gsbatch);
+DEVICE_ATTR(maggsflush,    S_IWUSR | S_IRUGO, mag_show_gsflush,  mag_store_gsflush);
+
+DEVICE_ATTR(maggractive,   S_IWUSR | S_IRUGO, mag_show_gractive, mag_store_gractive);
+DEVICE_ATTR(maggrdelay,    S_IWUSR | S_IRUGO, mag_show_grdelay,  mag_store_grdelay);
+DEVICE_ATTR(maggrbatch,    S_IWUSR | S_IRUGO, mag_show_grbatch,  mag_store_grbatch);
+DEVICE_ATTR(maggrflush,    S_IWUSR | S_IRUGO, mag_show_grflush,  mag_store_grflush);
+
+DEVICE_ATTR(maglaactive,   S_IWUSR | S_IRUGO, mag_show_laactive, mag_store_laactive);
+DEVICE_ATTR(magladelay,    S_IWUSR | S_IRUGO, mag_show_ladelay,  mag_store_ladelay);
+DEVICE_ATTR(maglabatch,    S_IWUSR | S_IRUGO, mag_show_labatch,  mag_store_labatch);
+DEVICE_ATTR(maglaflush,    S_IWUSR | S_IRUGO, mag_show_laflush,  mag_store_laflush);
+
+DEVICE_ATTR(magrvactive,   S_IWUSR | S_IRUGO, mag_show_rvactive, mag_store_rvactive);
+DEVICE_ATTR(magrvdelay,    S_IWUSR | S_IRUGO, mag_show_rvdelay,  mag_store_rvdelay);
+DEVICE_ATTR(magrvbatch,    S_IWUSR | S_IRUGO, mag_show_rvbatch,  mag_store_rvbatch);
+DEVICE_ATTR(magrvflush,    S_IWUSR | S_IRUGO, mag_show_rvflush,  mag_store_rvflush);
+#endif
+DEVICE_ATTR(magdevnum,     S_IWUSR | S_IRUGO, mag_show_sensordevnum,  NULL);
 
 static struct attribute *mag_attributes[] = {
 	&dev_attr_magdev.attr,
@@ -833,6 +1857,24 @@ static struct attribute *mag_attributes[] = {
 	&dev_attr_magodelay.attr,
 	&dev_attr_magobatch.attr,	
 	&dev_attr_magoflush.attr,
+#ifdef AKM_Pseudogyro
+	&dev_attr_maggsactive.attr,
+	&dev_attr_maggsdelay.attr,
+	&dev_attr_maggsbatch.attr,
+	&dev_attr_maggsflush.attr,
+	&dev_attr_maggractive.attr,
+	&dev_attr_maggrdelay.attr,
+	&dev_attr_maggrbatch.attr,
+	&dev_attr_maggrflush.attr,
+	&dev_attr_maglaactive.attr,
+	&dev_attr_magladelay.attr,
+	&dev_attr_maglabatch.attr,
+	&dev_attr_maglaflush.attr,
+	&dev_attr_magrvactive.attr,
+	&dev_attr_magrvdelay.attr,
+	&dev_attr_magrvbatch.attr,
+	&dev_attr_magrvflush.attr,
+#endif
 	&dev_attr_magdevnum.attr,
 	NULL
 };
@@ -849,6 +1891,16 @@ int mag_register_data_path(struct mag_data_path *data)
 	cxt = mag_context_obj;
 	cxt->mag_dev_data.div_m = data->div_m;
 	cxt->mag_dev_data.div_o = data->div_o;
+#ifdef AKM_Pseudogyro
+	cxt->mag_dev_data.div_gs = data->div_gs;
+	cxt->mag_dev_data.get_data_gs= data->get_data_gs;
+	cxt->mag_dev_data.div_gr = data->div_gr;
+	cxt->mag_dev_data.get_data_gr= data->get_data_gr;
+    cxt->mag_dev_data.div_la = data->div_la;
+	cxt->mag_dev_data.get_data_la= data->get_data_la;
+    cxt->mag_dev_data.div_rv = data->div_rv;
+	cxt->mag_dev_data.get_data_rv= data->get_data_rv;
+#endif
 	cxt->mag_dev_data.get_data_m = data->get_data_m;
 	cxt->mag_dev_data.get_data_o = data->get_data_o;
 	cxt->mag_dev_data.get_raw_data = data->get_raw_data;
@@ -870,12 +1922,30 @@ int mag_register_control_path(struct mag_control_path *ctl)
 	cxt->mag_ctl.o_set_delay = ctl->o_set_delay;
 	cxt->mag_ctl.o_open_report_data= ctl->o_open_report_data;
 	cxt->mag_ctl.o_enable= ctl->o_enable;
+#ifdef AKM_Pseudogyro
+	cxt->mag_ctl.gs_set_delay = ctl->gs_set_delay;
+	cxt->mag_ctl.gs_open_report_data= ctl->gs_open_report_data;
+	cxt->mag_ctl.gs_enable= ctl->gs_enable;
+	cxt->mag_ctl.gr_set_delay = ctl->gr_set_delay;
+	cxt->mag_ctl.gr_open_report_data= ctl->gr_open_report_data;
+	cxt->mag_ctl.gr_enable= ctl->gr_enable;
+	cxt->mag_ctl.la_set_delay = ctl->la_set_delay;
+	cxt->mag_ctl.la_open_report_data= ctl->la_open_report_data;
+	cxt->mag_ctl.la_enable= ctl->la_enable;
+	cxt->mag_ctl.rv_set_delay = ctl->rv_set_delay;
+	cxt->mag_ctl.rv_open_report_data= ctl->rv_open_report_data;
+	cxt->mag_ctl.rv_enable= ctl->rv_enable;
+#endif
 	cxt->mag_ctl.is_report_input_direct = ctl->is_report_input_direct;
 	cxt->mag_ctl.is_support_batch = ctl->is_support_batch;
 	cxt->mag_ctl.is_use_common_factory = ctl->is_use_common_factory;
 	
 	if(NULL==cxt->mag_ctl.m_set_delay || NULL==cxt->mag_ctl.m_enable
 		|| NULL==cxt->mag_ctl.m_open_report_data
+#ifdef AKM_Pseudogyro
+		|| NULL==cxt->mag_ctl.gs_set_delay || NULL==cxt->mag_ctl.gs_open_report_data
+		|| NULL==cxt->mag_ctl.gs_enable
+#endif
 		|| NULL==cxt->mag_ctl.o_set_delay || NULL==cxt->mag_ctl.o_open_report_data
 		|| NULL==cxt->mag_ctl.o_enable)
 	{
@@ -936,7 +2006,7 @@ static int check_abnormal_data(int x, int y, int z, int status)
     }
     return 0;
 }
-int mag_data_report(MAG_TYPE type,int x, int y, int z, int status)
+int mag_data_report(MAG_TYPE type,int x, int y, int z, int status, int64_t nt)
 {
 	//MAG_LOG("update!valus: %d, %d, %d, %d\n" , x, y, z, status);
     struct mag_context *cxt = NULL;
@@ -950,7 +2020,9 @@ int mag_data_report(MAG_TYPE type,int x, int y, int z, int status)
 		input_report_abs(cxt->idev, EVENT_TYPE_MAGEL_X, x);
 	    input_report_abs(cxt->idev, EVENT_TYPE_MAGEL_Y, y);
 	    input_report_abs(cxt->idev, EVENT_TYPE_MAGEL_Z, z);
-	    input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, 1);
+	    input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_MAGEL_STATUS);
+	    input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+	    input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
 		input_sync(cxt->idev);  	
 	}
 	if(ORIENTATION==type)
@@ -959,9 +2031,58 @@ int mag_data_report(MAG_TYPE type,int x, int y, int z, int status)
 		input_report_abs(cxt->idev, EVENT_TYPE_O_X, x);
 	  	input_report_abs(cxt->idev, EVENT_TYPE_O_Y, y);
 	   	input_report_abs(cxt->idev, EVENT_TYPE_O_Z, z);
-	   	input_report_rel(cxt->idev, EVENT_TYPE_O_UPDATE, 1);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_O_STATUS);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
 		input_sync(cxt->idev); 
 	}
+
+#ifdef AKM_Pseudogyro
+	if(SOFT_GYRO==type)
+	{
+   		input_report_abs(cxt->idev, EVENT_TYPE_GYRO_STATUS,status);
+		input_report_abs(cxt->idev, EVENT_TYPE_GYRO_X, x);
+	  	input_report_abs(cxt->idev, EVENT_TYPE_GYRO_Y, y);
+	   	input_report_abs(cxt->idev, EVENT_TYPE_GYRO_Z, z);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_GYRO_STATUS);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
+		input_sync(cxt->idev); 
+	}
+	if(GRAVITY==type)
+	{
+   		input_report_abs(cxt->idev, EVENT_TYPE_GRAVITY_STATUS,status);
+		input_report_abs(cxt->idev, EVENT_TYPE_GRAVITY_X, x);
+	  	input_report_abs(cxt->idev, EVENT_TYPE_GRAVITY_Y, y);
+	   	input_report_abs(cxt->idev, EVENT_TYPE_GRAVITY_Z, z);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_GRAVITY_STATUS);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
+		input_sync(cxt->idev); 
+	}
+	if(LINEAR_ACC==type)
+	{
+   		input_report_abs(cxt->idev, EVENT_TYPE_LACCEL_STATUS,status);
+		input_report_abs(cxt->idev, EVENT_TYPE_LACCEL_X, x);
+	  	input_report_abs(cxt->idev, EVENT_TYPE_LACCEL_Y, y);
+	   	input_report_abs(cxt->idev, EVENT_TYPE_LACCEL_Z, z);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_LACCEL_STATUS);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
+		input_sync(cxt->idev); 
+	}
+	if(ROTATION_VECTOR==type)
+	{
+   		input_report_abs(cxt->idev, EVENT_TYPE_ROTVEC_STATUS,status);
+		input_report_abs(cxt->idev, EVENT_TYPE_ROTVEC_X, x);
+	  	input_report_abs(cxt->idev, EVENT_TYPE_ROTVEC_Y, y);
+	   	input_report_abs(cxt->idev, EVENT_TYPE_ROTVEC_Z, z);
+	   	input_report_rel(cxt->idev, EVENT_TYPE_MAGEL_UPDATE, EVENT_TYPE_ROTVEC_STATUS);
+	       input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_HI, nt >> 32);
+		input_report_rel(cxt->idev, EVENT_TYPE_MAG_TIMESTAMP_LO, nt & 0xFFFFFFFFLL);
+		input_sync(cxt->idev); 
+	}
+#endif
 
 	return 0;
 }
@@ -1051,6 +2172,7 @@ static int mag_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#if defined(CONFIG_EARLYSUSPEND)
 static void mag_early_suspend(struct early_suspend *h) 
 {
    atomic_set(&(mag_context_obj->early_suspend), 1);
@@ -1064,6 +2186,7 @@ static void mag_late_resume(struct early_suspend *h)
    MAG_LOG(" mag_context_obj ok------->hwm_obj->early_suspend=%d \n",atomic_read(&(mag_context_obj->early_suspend)));
    return ;
 }
+#endif
 
 static int mag_suspend(struct platform_device *dev, pm_message_t state) 
 {

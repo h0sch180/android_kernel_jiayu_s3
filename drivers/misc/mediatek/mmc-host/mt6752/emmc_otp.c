@@ -505,7 +505,7 @@ static int mt_otp_access(unsigned int access_type, unsigned int offset, void *bu
     unsigned int l_block_size = 512;
     int Status = 0;
 
-    static char *p_D_Buff = NULL;
+	char *p_D_Buff = NULL;
     /* char S_Buff[64]; */
 
     if (!(p_D_Buff = kmalloc(l_block_size, GFP_KERNEL))){
@@ -594,7 +594,7 @@ exit:
 static long mt_otp_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     int ret = 0;
-    static char *pbuf = NULL;
+	char *pbuf = NULL;
 
     void __user *uarg = (void __user *)arg;
     struct otp_ctl otpctl;

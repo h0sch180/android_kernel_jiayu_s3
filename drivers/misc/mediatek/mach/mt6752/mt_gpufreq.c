@@ -43,7 +43,7 @@
 #include "mach/sync_write.h"
 #include "mach/mt_pmic_wrap.h"
 
-#include "mach/mt_freqhopping.h"
+#include "mt_freqhopping.h"
 // TODO: check this!
 //#include "mach/mt_static_power.h"
 #include "mach/mt_thermal.h"
@@ -111,9 +111,14 @@
 /**************************
  * GPU DVFS OPP table setting
  ***************************/
-
-#ifdef MTK_TABLET_TURBO
-#define GPU_DVFS_FREQT (819000)
+#ifdef CONFIG_MTK_GPU_OC
+  #define GPU_DVFS_FREQT (CONFIG_MTK_GPU_FREQT)	// 81900 by default
+  #define MTK_TABLET_TURBO
+#else
+  #ifdef MTK_TABLET_TURBO
+    #define GPU_DVFS_FREQT (819000)
+    #define GPU_DVFS_FREQT0 (698750)   // KHz
+  #endif
 #endif
 
 #define GPU_DVFS_FREQ0     (728000)   // KHz
@@ -140,6 +145,7 @@
 #define MIN_PMIC_SETTLE_TIME    25
 #define PMIC_VOLT_UP_SETTLE_TIME(old_volt, new_volt)    (((((new_volt) - (old_volt)) + 1250 - 1) / 1250) + PMIC_CMD_DELAY_TIME)
 #define PMIC_VOLT_DOWN_SETTLE_TIME(old_volt, new_volt)    (((((old_volt) - (new_volt)) * 2)  / 625) + PMIC_CMD_DELAY_TIME)
+#define PMIC_VOLT_ON_OFF_DELAY_US       (200)
 //#define GPU_DVFS_PMIC_SETTLE_TIME (40) // us
 
 #define PMIC_ADDR_VGPU_VOSEL_ON       0x0618  /* [6:0]   */
@@ -156,21 +162,21 @@
 #define TAG     "[Power/gpufreq] "
 
 #define gpufreq_err(fmt, args...)       \
-    pr_err(TAG KERN_CONT "[ERROR]"fmt, ##args)
+	pr_err(TAG"[ERROR]"fmt, ##args)
 #define gpufreq_warn(fmt, args...)      \
-    pr_warn(TAG KERN_CONT "[WARNING]"fmt, ##args)
+	pr_warn(TAG"[WARNING]"fmt, ##args)
 #define gpufreq_info(fmt, args...)      \
-    pr_notice(TAG KERN_CONT fmt, ##args)
+	pr_warn(TAG""fmt, ##args)
 #define gpufreq_dbg(fmt, args...)       \
-    do {                                \
-        if (mt_gpufreq_debug)           \
-            pr_notice(TAG KERN_CONT fmt, ##args);     \
-    } while (0)
+	do {                                \
+		if (mt_gpufreq_debug)           \
+			gpufreq_info(fmt, ##args);     \
+	} while (0)
 #define gpufreq_ver(fmt, args...)       \
-    do {                                \
-        if (mt_gpufreq_debug)           \
-            pr_info(TAG KERN_CONT fmt, ##args);    \
-    } while (0)
+	do {                                \
+		if (mt_gpufreq_debug)           \
+			pr_debug(TAG""fmt, ##args);    \
+	} while (0)
 
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -220,6 +226,16 @@ static struct mt_gpufreq_table_info mt_gpufreq_opp_tbl_e1_2[] = {
 };
 
 #ifdef MTK_TABLET_TURBO
+#ifndef CONFIG_MTK_GPU_OC
+static struct mt_gpufreq_table_info mt_gpufreq_opp_tbl_e1_t0[] = {
+    GPUOP(GPU_DVFS_FREQT0, GPU_DVFS_VOLT0, 0),
+    GPUOP(GPU_DVFS_FREQ1, GPU_DVFS_VOLT0, 1),
+    GPUOP(GPU_DVFS_FREQ2, GPU_DVFS_VOLT0, 2),
+    GPUOP(GPU_DVFS_FREQ3, GPU_DVFS_VOLT1, 3),
+    GPUOP(GPU_DVFS_FREQ5, GPU_DVFS_VOLT1, 4),
+    GPUOP(GPU_DVFS_FREQ6, GPU_DVFS_VOLT2, 5),
+};
+#endif
 // 800M Turbo
 static struct mt_gpufreq_table_info mt_gpufreq_opp_tbl_e1_t[] = {
     GPUOP(GPU_DVFS_FREQT, GPU_DVFS_VOLT0, 0),
@@ -388,6 +404,9 @@ EXPORT_SYMBOL(mt_gpufreq_start_low_batt_volume_timer);
  **************************************************************************************/
 static unsigned int mt_gpufreq_get_dvfs_table_type(void)
 {
+#ifdef CONFIG_MTK_GPU_OC
+    return 3;
+#endif
     unsigned int gpu_speed_bounding = 0;
     unsigned int type = 0;
 #ifdef MTK_TABLET_TURBO
@@ -466,6 +485,10 @@ static unsigned int mt_gpufreq_get_dvfs_table_type(void)
             break;
     }
 
+#ifdef MTK_TABLET_TURBO
+    if(gpu_speed_bounding == 2)
+        type = 10;
+#endif
     return type;
 }
 
@@ -731,7 +754,11 @@ unsigned int mt_gpufreq_voltage_enable_set(unsigned int enable)
 
     mt_gpufreq_volt_enable_state = enable;
 
-    delay = mt_gpufreq_calc_pmic_settle_time(0, g_cur_gpu_volt);//(g_cur_gpu_volt / 1250) + 26;
+#if 1
+	delay = PMIC_VOLT_ON_OFF_DELAY_US;
+#else
+	delay = mt_gpufreq_calc_pmic_settle_time(0, g_cur_gpu_volt);
+#endif
 
     gpufreq_dbg("@%s: enable = %x, delay = %d\n", __func__, enable, delay);
 
@@ -1066,21 +1093,20 @@ EXPORT_SYMBOL(mt_gpufreq_state_set);
 
 static unsigned int mt_gpufreq_dds_calc(unsigned int khz)
 {
-    unsigned int dds;
-#ifdef MTK_TABLET_TURBO
-    dds = ((khz * 4/1000) * 8192)/13;
-    return dds;
-#endif
-    if ((khz >= 250250) && (khz <= 747500))
-        dds = 0x0209A000 + ((khz - 250250) * 4 / 13000) * 0x2000;
-    else if ((khz > 747500) && (khz <= 793000))
-        dds = 0x010E6000 + ((khz - 747500) * 2 / 13000) * 0x2000;
-    else {
-        gpufreq_err("@%s: target khz(%d) out of range!\n", __func__, khz);
-        BUG();
-    }
+	unsigned int dds = 0;
 
-    return dds;
+#ifdef MTK_TABLET_TURBO
+	dds = ((khz * 4 / 1000) * 8192) / 13;
+#else
+	if ((khz >= 250250) && (khz <= 747500))
+		dds = ((khz * 4 / 1000) * 8192) / 13;
+	else {
+		gpufreq_err("@%s: target khz(%d) out of range!\n", __func__, khz);
+		BUG();
+	}
+#endif
+
+	return dds;
 }
 
 static void mt_gpufreq_clock_switch(unsigned int freq_new)
@@ -1920,6 +1946,10 @@ static int mt_gpufreq_pdrv_probe(struct platform_device *pdev)
 #ifdef MTK_TABLET_TURBO
     else if (mt_gpufreq_dvfs_table_type == 3)   // 800
         mt_setup_gpufreqs_table(OPPS_ARRAY_AND_SIZE(mt_gpufreq_opp_tbl_e1_t));
+#ifndef CONFIG_MTK_GPU_OC
+    else if (mt_gpufreq_dvfs_table_type == 10)   // 700
+        mt_setup_gpufreqs_table(OPPS_ARRAY_AND_SIZE(mt_gpufreq_opp_tbl_e1_t0));
+#endif
 #endif
     else
         mt_setup_gpufreqs_table(OPPS_ARRAY_AND_SIZE(mt_gpufreq_opp_tbl_e1_0));

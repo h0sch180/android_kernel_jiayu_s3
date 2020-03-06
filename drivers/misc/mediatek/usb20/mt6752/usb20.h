@@ -89,11 +89,7 @@ usb_acm_temp_device,
 extern void fan5405_set_opa_mode(kal_uint32 val);
 extern void fan5405_set_otg_pl(kal_uint32 val);
 extern void fan5405_set_otg_en(kal_uint32 val);
-/* Vanzo:songlixin on: Tue, 02 Jun 2015 16:51:39 +0800
 extern kal_uint32 fan5405_config_interface_liao (kal_uint8 RegNum, kal_uint8 val);
- */
-extern kal_uint32 fan5405_config_interface(kal_uint8 RegNum, kal_uint8 val);
-// End of Vanzo: songlixin
 #elif defined(CONFIG_MTK_NCP1851_SUPPORT)
 extern void tbl_charger_otg_vbus(kal_uint32 mode);
 #elif defined(CONFIG_MTK_BQ24261_SUPPORT)
@@ -101,12 +97,17 @@ extern void bq24261_set_en_boost(kal_uint32 val);
 #elif defined(CONFIG_MTK_BQ24196_SUPPORT)
 extern void bq24196_set_otg_config(kal_uint32 val);
 extern void bq24196_set_boost_lim(kal_uint32 val);
-#elif defined(MTK_BQ24158_SUPPORT)
-extern void bq24158_set_opa_mode(kal_uint32 val);
-extern void bq24158_set_otg_pl(kal_uint32 val);
-extern void bq24158_set_otg_en(kal_uint32 val);
-extern kal_uint32 bq24158_config_interface_liao (kal_uint8 RegNum, kal_uint8 val);
+/* lenovo-sw zhangrc2 support interface for otg 2014-01-14 begin*/
+#elif defined(CONFIG_MTK_BQ24296_SUPPORT)
+extern void bq24296_set_otg_config(kal_uint32 val);
+extern void bq24296_set_boost_lim(kal_uint32 val);
+/* lenovo-sw zhangrc2 support interface for otg 2014-01-14 end*/
 #endif
+//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+extern void lenovo_ncp1854_for_overload_init(void); 
+#endif
+//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
 
 #ifdef FPGA_PLATFORM
 extern void USB_PHY_Write_Register8(UINT8 var,  UINT8 addr);

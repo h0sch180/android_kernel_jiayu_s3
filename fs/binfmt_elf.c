@@ -38,6 +38,10 @@
 #include <asm/param.h>
 #include <asm/page.h>
 
+#ifdef CONFIG_MTK_EXTMEM
+#include <linux/exm_driver.h>
+#endif
+
 #ifndef user_long_t
 #define user_long_t long
 #endif
@@ -141,16 +145,11 @@ static int padzero(unsigned long elf_bss)
 #endif
 
 /*
-
-+ * Use get_random_int() to implement AT_RANDOM while avoiding depletion
-
-+ * of the entropy pool.
-
-+ */
-
+ * Use get_random_int() to implement AT_RANDOM while avoiding depletion
+ * of the entropy pool.
+ */
 static void get_atrandom_bytes(unsigned char *buf, size_t nbytes)
 {
-
 	unsigned char *p = buf;
 
 	while (nbytes) {
@@ -591,6 +590,98 @@ static unsigned long randomize_stack_top(unsigned long stack_top)
 #endif
 }
 
+#ifdef CONFIG_KUSER_HELPERS_SELECTIVE_DISABLE
+#define ANDROID_NOTE_OWNER"Android"
+#define ANDROID_KUSER_HELPER_TYPE 0x3L
+#define ANDROID_KUSER_HELPER_ON 0x1L
+
+static int should_call_arch_setup_additional_pages(struct linux_binprm *bprm,
+						   struct elfhdr *elf_ex,
+						   struct elf_phdr *elf_ppnt)
+{
+	Elf64_Half i;
+
+	/* We want to allow vdso, but not kuser_helpers */
+	if (elf_ex->e_ident[EI_CLASS] == ELFCLASS64)
+		return true;
+
+	for (i = 0; i < elf_ex->e_phnum; i++, elf_ppnt++) {
+		int retval;
+		void *elf_pnotes;
+		struct elf32_note *next_elf_notep;
+		Elf64_Xword left_to_read;
+
+		if (elf_ppnt->p_type != PT_NOTE)
+			continue;
+
+		/*
+		 * This code is seeing if we have a special note.
+		 * The note tells us that this binary still needs
+		 * arch_setup_additional_pages to be called.
+		 */
+		if (elf_ppnt->p_filesz < sizeof(struct elf32_note))
+			break;
+
+		elf_pnotes = kmalloc(elf_ppnt->p_filesz, GFP_KERNEL);
+		if (!elf_pnotes)
+			return -ENOMEM;
+
+		retval = kernel_read(bprm->file, elf_ppnt->p_offset,
+				     (char *)elf_pnotes, elf_ppnt->p_filesz);
+		if (retval < 0) {
+			kfree(elf_pnotes);
+			return retval;
+		}
+
+		if((Elf64_Xword) retval != elf_ppnt->p_filesz) {
+			kfree(elf_pnotes);
+			return -EIO;
+		}
+
+		/*
+		 * Now that we have read in all the notes and find ours
+		 */
+		next_elf_notep = (struct elf32_note *)elf_pnotes;
+		left_to_read = elf_ppnt->p_filesz;
+		while (left_to_read >= sizeof(struct elf32_note)) {
+			char *note_namep;
+
+			left_to_read -= sizeof(struct elf32_note);
+
+			/* Sanity check on the name and desc length*/
+			if (((Elf64_Xword) next_elf_notep->n_namesz +
+			     (Elf64_Xword) next_elf_notep->n_descsz) >
+			     left_to_read)
+				break;
+
+			note_namep = (char *)next_elf_notep +
+				     sizeof(struct elf32_note);
+			left_to_read -= next_elf_notep->n_namesz;
+			left_to_read -= next_elf_notep->n_descsz;
+
+			if ((sizeof(ANDROID_NOTE_OWNER) ==
+			     next_elf_notep->n_namesz) &&
+			    (next_elf_notep->n_type ==
+			     ANDROID_KUSER_HELPER_TYPE) &&
+			    strncmp(note_namep, ANDROID_NOTE_OWNER,
+				    next_elf_notep->n_namesz) == 0) {
+				kfree(elf_pnotes);
+				return true;
+			}
+
+			next_elf_notep = (struct elf32_note *)
+					 (note_namep +
+					  next_elf_notep->n_namesz +
+					  next_elf_notep->n_descsz);
+		}
+
+		kfree(elf_pnotes);
+	}
+
+	return false;
+}
+#endif
+
 static int load_elf_binary(struct linux_binprm *bprm)
 {
 	struct file *interpreter = NULL; /* to shut gcc up */
@@ -964,17 +1055,28 @@ static int load_elf_binary(struct linux_binprm *bprm)
 		}
 	}
 
-	kfree(elf_phdata);
-
 	set_binfmt(&elf_format);
 
 #ifdef ARCH_HAS_SETUP_ADDITIONAL_PAGES
-	retval = arch_setup_additional_pages(bprm, !!elf_interpreter);
-	if (retval < 0) {
-		send_sig(SIGKILL, current, 0);
+#ifdef CONFIG_KUSER_HELPERS_SELECTIVE_DISABLE
+	retval = should_call_arch_setup_additional_pages(bprm, &loc->elf_ex,
+							 elf_phdata);
+	if (retval < 0)
 		goto out;
+
+	if (retval) {
+#endif
+		retval = arch_setup_additional_pages(bprm, !!elf_interpreter);
+		if (retval < 0) {
+			send_sig(SIGKILL, current, 0);
+			goto out;
+		}
+#ifdef CONFIG_KUSER_HELPERS_SELECTIVE_DISABLE
 	}
+#endif
 #endif /* ARCH_HAS_SETUP_ADDITIONAL_PAGES */
+
+	kfree(elf_phdata);
 
 	install_exec_creds(bprm);
 	retval = create_elf_tables(bprm, &loc->elf_ex,
@@ -1129,11 +1231,6 @@ out:
  * Jeremy Fitzhardinge <jeremy@sw.oz.au>
  */
 
-#ifdef CONFIG_MTK_EXTMEM
-extern bool extmem_in_mspace(struct vm_area_struct *vma);
-extern unsigned long get_virt_from_mspace(unsigned long pa);
-#endif
-
 /*
  * The purpose of always_dump_vma() is to make sure that special kernel mappings
  * that are useful for post-mortem analysis are included in every core dump.
@@ -1155,10 +1252,10 @@ static bool always_dump_vma(struct vm_area_struct *vma)
 		return true;
 
 #ifdef CONFIG_MTK_EXTMEM
-	if (extmem_in_mspace(vma)) {
+	if (extmem_in_mspace(vma))
 		return true;
-	}	
 #endif
+
 	return false;
 }
 
@@ -2245,10 +2342,11 @@ static int elf_core_dump(struct coredump_params *cprm)
 			for (addr = vma->vm_start; addr < end; addr += PAGE_SIZE, extmem_va += PAGE_SIZE) {
 				int stop;
 				int dump_write_ret = dump_write(cprm->file, extmem_va, PAGE_SIZE);
+
 				stop = ((size += PAGE_SIZE) > cprm->limit) || (!dump_write_ret);
 				if (stop) {
-					printk(KERN_WARNING "[EXT_MEM]stop addr:0x%lx, size:%zx, limit:0x%lx, dump_write_ret:%d\n", 
-							addr, size, cprm->limit, dump_write_ret);
+					pr_err("[EXT_MEM]stop addr:0x%lx, size:%zx, limit:0x%lx, dump_write_ret:%d\n", 
+						addr, size, cprm->limit, dump_write_ret);
 					goto end_coredump;
 				}
 			}

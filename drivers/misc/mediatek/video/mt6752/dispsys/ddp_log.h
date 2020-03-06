@@ -12,6 +12,7 @@
 #endif
 
 extern unsigned int gCMDQDump;
+
 #if 0
 #define DISP_LOG_D(fmt, args...)   pr_debug("[DDP/"LOG_TAG"]"fmt, ##args)
 #define DISP_LOG_I(fmt, args...)   pr_debug("[DDP/"LOG_TAG"]"fmt, ##args)

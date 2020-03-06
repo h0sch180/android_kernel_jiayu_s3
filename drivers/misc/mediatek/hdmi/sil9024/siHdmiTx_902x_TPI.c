@@ -2574,6 +2574,9 @@ extern void SetAudioMute(byte audioMute);
 void siHdmiTx_Init(void)
 {
 	TPI_TRACE_PRINT((">>siHdmiTx_Init()\n"));
+	if ((g_hdcp.HDCP_TxSupports == TRUE) && (Sii9024A_HDCP_supported) && (g_hdcp.HDCP_AksvValid == TRUE)) {
+		HDCP_Off();
+	}
 
 	/* workaround for Bug#18128 */
 	if (siHdmiTx.ColorDepth == VMD_COLOR_DEPTH_8BIT) {
@@ -3289,10 +3292,9 @@ void siHdmiTx_TPI_Poll(void)
 		InterruptStatus = ReadByteTPI(0x3D);
 
 /*
-                printk("[hdmi]hdmiCableConnected=%x,%x,%x,%x\n",
+                pr_err("[hdmi]hdmiCableConnected=%x,%x,%x,%x\n",
 g_sys.hdmiCableConnected,InterruptStatus,g_sys.dsRxPoweredUp,hdmi_9024_hpd_bak);
 */
-                            
 		if ((InterruptStatus & HOT_PLUG_EVENT) ||((InterruptStatus & HOT_PLUG_STATE) != (hdmi_9024_hpd_bak & HOT_PLUG_STATE)))	/* judge if HPD is connected */
 		{
 		              hdmi_9024_hpd_bak = InterruptStatus;
@@ -3310,6 +3312,7 @@ g_sys.hdmiCableConnected,InterruptStatus,g_sys.dsRxPoweredUp,hdmi_9024_hpd_bak);
 				if (g_sys.hdmiCableConnected == TRUE) {
 					OnHdmiCableDisconnected();
 					hdmi_util.state_callback(0);
+					hdmi_invoke_cable_callbacks(0);
 				} else {
 					OnHdmiCableConnected();
 					ReadModifyWriteIndexedRegister(INDEXED_PAGE_0, 0x0A, 0x08,
@@ -3342,9 +3345,11 @@ g_sys.hdmiCableConnected,InterruptStatus,g_sys.dsRxPoweredUp,hdmi_9024_hpd_bak);
 				if (g_sys.dsRxPoweredUp == TRUE) {
 					OnDownstreamRxPoweredDown();
 					hdmi_util.state_callback(0);
+					hdmi_invoke_cable_callbacks(0);
 				} else {
 					OnDownstreamRxPoweredUp();
 					hdmi_util.state_callback(1);
+					hdmi_invoke_cable_callbacks(1);
 				}
 			}
 			DelayMS(100); // Delay for metastability protection and to help filter out connection bouncing

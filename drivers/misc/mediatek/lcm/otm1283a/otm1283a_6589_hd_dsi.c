@@ -45,17 +45,17 @@ static LCM_UTIL_FUNCS lcm_util = {0};
 //#define _SYNA_DEBUG_
 
 #ifdef _LCM_DEBUG_
-#define lcm_debug(fmt, args...) printk(fmt, ##args)
+#define lcm_debug(fmt, args...) pr_debug(fmt, ##args)
 #else
 #define lcm_debug(fmt, args...) do { } while (0)
 #endif
 
 #ifdef _LCM_INFO_
-#define lcm_info(fmt, args...) printk(fmt, ##args)
+#define lcm_info(fmt, args...) pr_debug(fmt, ##args)
 #else
 #define lcm_info(fmt, args...) do { } while (0)
 #endif
-#define lcm_err(fmt, args...) printk(fmt, ##args)
+#define lcm_err(fmt, args...) pr_debug(fmt, ##args)
 
 // ---------------------------------------------------------------------------
 //  Local Functions

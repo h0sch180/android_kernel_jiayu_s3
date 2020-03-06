@@ -6,7 +6,6 @@
 #include <linux/thermal.h>
 #include <linux/platform_device.h>
 #include <linux/aee.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
@@ -55,7 +54,7 @@ static char g_bind9[20]={0};
 #define tsallts_dprintk(fmt, args...)   \
 do {                                    \
     if (tsallts_debug_log) {                \
-        xlog_printk(ANDROID_LOG_INFO, "Power/ALLTS_Thermal", fmt, ##args); \
+        pr_notice("Power/ALLTS_Thermal" fmt, ##args); \
     }                                   \
 } while(0)
 
@@ -63,7 +62,7 @@ do {                                    \
 
 #define tsallts_printk(fmt, args...)   \
 do {                                    \
-	xlog_printk(ANDROID_LOG_INFO, "Power/ALLTS_Thermal", fmt, ##args); \
+	pr_notice("Power/ALLTS_Thermal" fmt, ##args); \
 } while(0)
 
 

@@ -1704,10 +1704,12 @@ static int _color_config(DISP_MODULE_ENUM module, disp_ddp_path_config *pConfig,
 		g_color1_dst_w = pConfig->dst_w;
 		g_color1_dst_h = pConfig->dst_h;
 #if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
+#ifndef CONFIG_FOR_SOURCE_PQ
 		offset = C1_OFFSET;
 		_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH + offset, pConfig->dst_w);	/* wrapper width */
 		_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_HEIGHT + offset, pConfig->dst_h);	/* wrapper height */
 		return 0;
+#endif
 #endif
 	}
 	_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH + offset, pConfig->dst_w);	/* wrapper width */
@@ -1938,50 +1940,6 @@ static int _color_io(DISP_MODULE_ENUM module, int msg, unsigned long arg, void *
 				return -EFAULT;
 			}
 			break;
-		}
-
-	case DISP_IOCTL_WRITE_REG:
-		{
-			DISP_WRITE_REG wParams;
-			unsigned int ret;
-			unsigned long va;
-			unsigned int pa;
-
-			if (copy_from_user(&wParams, (void *)arg, sizeof(DISP_WRITE_REG))) {
-				COLOR_ERR("DISP_IOCTL_WRITE_REG, copy_from_user failed\n");
-				return -EFAULT;
-			}
-
-			pa = (unsigned int)wParams.reg;
-			va = color_pa2va(pa);
-
-			ret = color_is_reg_addr_valid(va);
-			if (ret == 0) {
-				COLOR_ERR("reg write, addr invalid, pa:0x%x(va:0x%lx)\n", pa, va);
-				return -EFAULT;
-			}
-
-			/* if TDSHP, write PA directly */
-			if (ret == 2) {
-				if (cmdq == NULL) {
-					mt_reg_sync_writel((unsigned int)(INREG32(va) &
-									  ~(wParams.
-									    mask)) | (wParams.val),
-							   (unsigned long *)(va));
-				} else {
-					/* cmdqRecWrite(cmdq, TDSHP_PA_BASE + (wParams.reg - g_tdshp_va),
-					wParams.val, wParams.mask); */
-					cmdqRecWrite(cmdq, pa, wParams.val, wParams.mask);
-				}
-			} else {
-				_color_reg_mask(cmdq, va, wParams.val, wParams.mask);
-			}
-
-			COLOR_NLOG("write pa:0x%x(va:0x%lx) = 0x%x (0x%x)\n", pa, va, wParams.val,
-				   wParams.mask);
-
-			break;
-
 		}
 
 	case DISP_IOCTL_READ_SW_REG:

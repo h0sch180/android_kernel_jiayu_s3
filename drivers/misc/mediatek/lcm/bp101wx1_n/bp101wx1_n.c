@@ -472,7 +472,7 @@ static void lcm_init(void)
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_init() enter\n");
+    pr_debug("[LCM] lcm_init() enter\n");
 
 #endif
 }
@@ -494,7 +494,7 @@ static void lcm_suspend(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-    printk("[LCM] lcm_suspend() enter\n");
+    pr_debug("[LCM] lcm_suspend() enter\n");
 
 	lcm_set_gpio_output(GPIO_DISP_VLED_EN, 0);
 	MDELAY(1);
@@ -524,7 +524,7 @@ static void lcm_resume(void)
 #elif (defined BUILD_UBOOT)
 		// do nothing in uboot
 #else
-	printk("[LCM] lcm_resume() enter\n");
+	pr_debug("[LCM] lcm_resume() enter\n");
 
 	lcm_set_gpio_output(GPIO_DISP_LEVEL_SHIFT_EN, 1);
 	MDELAY(1);

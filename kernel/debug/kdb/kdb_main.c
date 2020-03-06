@@ -42,6 +42,10 @@
 #include <linux/slab.h>
 #include "kdb_private.h"
 
+#ifdef CONFIG_MTK_EXTMEM
+#include <linux/exm_driver.h>
+#endif
+
 #define GREP_LEN 256
 char kdb_grep_string[GREP_LEN];
 int kdb_grepping_flag;
@@ -2866,10 +2870,6 @@ static void __init kdb_cmd_init(void)
 		kdb_parse("endefcmd");
 	}
 }
-
-#ifdef CONFIG_MTK_EXTMEM
-extern void init_debug_alloc_pool_aligned(void);
-#endif
 
 /* Initialize kdb_printf, breakpoint tables and kdb state */
 void __init kdb_init(int lvl)

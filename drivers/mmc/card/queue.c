@@ -50,15 +50,17 @@ static int mmc_queue_thread(void *d)
 {
 	struct mmc_queue *mq = d;
 	struct request_queue *q = mq->queue;
+	struct sched_param scheduler_params = {0};
+
+	scheduler_params.sched_priority = 1;
+
+	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
+
 #ifdef MMC_ENABLED_EMPTY_QUEUE_FLUSH
 #define UN_FLUSHED 0 
 #define FLUSHING 1
 	int stop_status = UN_FLUSHED;
 #endif
-	struct sched_param scheduler_params = {0};
-	scheduler_params.sched_priority = 1;
-
-	sched_setscheduler(current, SCHED_FIFO, &scheduler_params);
 	current->flags |= PF_MEMALLOC;
 
 	down(&mq->thread_sem);

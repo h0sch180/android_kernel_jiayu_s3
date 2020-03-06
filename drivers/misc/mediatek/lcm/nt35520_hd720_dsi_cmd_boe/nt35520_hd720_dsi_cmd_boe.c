@@ -17,7 +17,7 @@
 #ifdef BUILD_LK
 #define LCD_DEBUG(fmt)  dprintf(CRITICAL,fmt)
 #else
-#define LCD_DEBUG(fmt)  printk(fmt)
+#define LCD_DEBUG(fmt)  pr_debug(fmt)
 #endif
 static unsigned char lcd_id_pins_value = 0xFF;
 const static unsigned char LCD_MODULE_ID = 0x01; //  haobing modified 2013.07.11

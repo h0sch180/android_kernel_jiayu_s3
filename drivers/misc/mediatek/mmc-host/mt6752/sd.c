@@ -243,6 +243,8 @@ static unsigned int msdc_online_tuning(struct msdc_host   *host, unsigned fn, un
 #define MSDC_MAX_R_TIMEOUT_TUNE          (3)
 #define MSDC_MAX_POWER_CYCLE             (3)
 
+#define MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT (50)
+
 #ifdef CONFIG_OF
 struct device_node *msdc_gpio_node = NULL;
 struct device_node *msdc_io_cfg_left_node = NULL;
@@ -293,7 +295,7 @@ bool hwPowerOn_fpga(void){
     sdr_write16(PWR_GPIO, (l_val | PWR_MASK_VOL_33 | PWR_MASK_EN)); // | PWR_GPIO_L4_DIR));
 
     l_val = sdr_read16(PWR_GPIO);
-    printk("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
+	pr_err("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
     return true;
 }
 EXPORT_SYMBOL(hwPowerOn_fpga);
@@ -307,7 +309,7 @@ bool hwPowerSwitch_fpga(void){
     sdr_write16(PWR_GPIO, (l_val | PWR_MASK_VOL_18));
 
     l_val = sdr_read16(PWR_GPIO);
-    printk("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
+	pr_err("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
     return true;
 }
 EXPORT_SYMBOL(hwPowerSwitch_fpga);
@@ -319,7 +321,7 @@ bool hwPowerDown_fpga(void){
     sdr_write8(PWR_GPIO, (l_val & PWR_MASK_VOL_33_MASK & PWR_MASK_EN_MASK));
 
     l_val = sdr_read16(PWR_GPIO);
-    printk("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
+	pr_err("[%s]: pwr gpio = 0x%x\n", __func__, l_val);
     return true;
 }
 EXPORT_SYMBOL(hwPowerDown_fpga);
@@ -583,20 +585,20 @@ static void msdc_dump_ldo_sts(struct msdc_host *host)
 
 void msdc_dump_gpio(struct msdc_host *host){
     if ( host->id==0 ) {
-        printk(KERN_ERR "MSDC0 shall set pin mode to 1\n");
-        printk(KERN_ERR "GPIO_MODE0=%x\n", sdr_read32(msdc_gpio_base+0x300));
-        printk(KERN_ERR "GPIO_MODE1=%x\n", sdr_read32(msdc_gpio_base+0x310)&0xffff);
+		pr_err("MSDC0 shall set pin mode to 1\n");
+		pr_err("GPIO_MODE0=%x\n", sdr_read32(msdc_gpio_base+0x300));
+		pr_err("GPIO_MODE1=%x\n", sdr_read32(msdc_gpio_base+0x310)&0xffff);
     } else if ( host->id==1 ) {
-        printk(KERN_ERR "MSDC1 shall set pin mode to 1\n");
-        printk(KERN_ERR "GPIO_MODE1=%x\n", sdr_read32(msdc_gpio_base+0x310)&0xffff0000);
-        printk(KERN_ERR "GPIO_MODE2=%x\n", sdr_read32(msdc_gpio_base+0x320)&0xff);
+		pr_err("MSDC1 shall set pin mode to 1\n");
+		pr_err("GPIO_MODE1=%x\n", sdr_read32(msdc_gpio_base+0x310)&0xffff0000);
+		pr_err("GPIO_MODE2=%x\n", sdr_read32(msdc_gpio_base+0x320)&0xff);
     } else if ( host->id==2 ) {
-        printk(KERN_ERR "MSDC2 shall set pin mode to 2\n");
-        printk(KERN_ERR "GPIO_MODE8=%x\n", sdr_read32(msdc_gpio_base+0x380)&0xffff0000);
-        printk(KERN_ERR "GPIO_MODE9=%x\n", sdr_read32(msdc_gpio_base+0x300)&0xff);
+		pr_err("MSDC2 shall set pin mode to 2\n");
+		pr_err("GPIO_MODE8=%x\n", sdr_read32(msdc_gpio_base+0x380)&0xffff0000);
+		pr_err("GPIO_MODE9=%x\n", sdr_read32(msdc_gpio_base+0x300)&0xff);
     } else if ( host->id==3 ) {
-        printk(KERN_ERR "MSDC3 shall set pin mode to 2\n");
-        printk(KERN_ERR "GPIO_MODE12=%x\n", sdr_read32(msdc_gpio_base+0x3C0)&0xffffff00);
+		pr_err("MSDC3 shall set pin mode to 2\n");
+		pr_err("GPIO_MODE12=%x\n", sdr_read32(msdc_gpio_base+0x3C0)&0xffffff00);
     }
 }
 
@@ -654,11 +656,13 @@ void msdc_dump_ioconfig_padctl(struct msdc_host *host)
 
     for(i=0; i<MSDC_IOCONFIG_ITEMS; i++) {
         sdr_get_field(base+msdc_ioconfg_reg_offsets[host->id][i], msdc_ioconfg_reg_masks[host->id][i], val);
-        printk(KERN_ERR "%s=%x\n", msdc_ioconfig_names[i], val);
+		pr_err("%s=%x\n", msdc_ioconfig_names[i], val);
     }
 }
-
-unsigned int msdc_dump_reg_level=2;
+/*lenovo-sw liuyc7 modified when bad sdcard not dum log begin*/
+//unsigned int msdc_dump_reg_level=2;
+unsigned int msdc_dump_reg_level=0;
+/*lenovo-sw liuyc7 modified end*/
 void msdc_dump_info(u32 id)
 {
     struct msdc_host *host = mtk_msdc_host[id];
@@ -667,7 +671,7 @@ void msdc_dump_info(u32 id)
     if ( msdc_dump_reg_level==0 ) return;
 
     if(host == NULL) {
-        printk("msdc host<%d> null\r\n", id);
+		pr_err("msdc host<%d> null\r\n", id);
         return;
     }
     base = host->base;
@@ -702,7 +706,7 @@ int msdc_get_dma_status(int host_id)
 
     if(host_id < 0 || host_id >= HOST_MAX_NUM)
     {
-        printk("[%s] failed to get dma status, bad host_id %d\n", __func__, host_id);
+		pr_err("[%s] failed to get dma status, bad host_id %d\n", __func__, host_id);
         return result;
     }
 
@@ -736,13 +740,13 @@ struct dma_addr* msdc_get_dma_address(int host_id)
     void __iomem *base;
     if(host_id < 0 || host_id >= HOST_MAX_NUM)
     {
-        printk("[%s] failed to get dma status, bad host_id %d\n", __func__, host_id);
+		pr_err("[%s] failed to get dma status, bad host_id %d\n", __func__, host_id);
         return NULL;
     }
 
     if(!mtk_msdc_host[host_id])
     {
-        printk("[%s] failed to get dma status, msdc%d is not exist\n", __func__, host_id);
+		pr_err("[%s] failed to get dma status, msdc%d is not exist\n", __func__, host_id);
         return NULL;
     }
 
@@ -751,7 +755,7 @@ struct dma_addr* msdc_get_dma_address(int host_id)
     //spin_lock(&host->lock);
     sdr_get_field(MSDC_DMA_CTRL, MSDC_DMA_CTRL_MODE, mode);
     if(mode == 1){
-        printk(KERN_CRIT "Desc.DMA\n");
+		pr_err("Desc.DMA\n");
         bd = host->dma.bd;
         i = 0;
         while(i < MAX_BD_PER_GPD){
@@ -768,7 +772,7 @@ struct dma_addr* msdc_get_dma_address(int host_id)
         }
     }
     else if(mode == 0){
-        printk(KERN_CRIT "Basic DMA\n");
+		pr_err("Basic DMA\n");
         msdc_latest_dma_address[i].start_address = sdr_read32(MSDC_DMA_SA);
     msdc_latest_dma_address[i].size = sdr_read32(MSDC_DMA_LEN);
         msdc_latest_dma_address[i].end = 1;
@@ -885,7 +889,6 @@ static void msdc_top_reset(struct msdc_host *host){
     if(host->id != 0)
         return;
 
-    //printk("[%s]: back up\n",__func__);
     sdr_get_field((MSDC0_BASE + OFFSET_SDC_DCRC_STS), (SDC_DCRC_STS_NEG | SDC_DCRC_STS_POS), emmc_sdc_data_crc_value);
     for(i = 0; i < TOP_RESET_BACKUP_REG_NUM; i++)
     {
@@ -899,7 +902,7 @@ static void msdc_top_reset(struct msdc_host *host){
         }
     }
 
-    printk(KERN_ERR "[%s]: msdc%d, top reset\n", __func__, host->id);
+	pr_err("[%s]: msdc%d, top reset\n", __func__, host->id);
     sdr_set_field(0xf0003000, (0x1 << 19), 0x1);
     mdelay(1);
     sdr_set_field(0xf0003000, (0x1 << 19), 0x0);
@@ -907,7 +910,6 @@ static void msdc_top_reset(struct msdc_host *host){
     emmc_top_reset = 1;
 #endif
 
-    //printk("[%s]: restore\n",__func__);
     for(i = 0; i < TOP_RESET_BACKUP_REG_NUM; i++)
     {
         sdr_set_field(top_reset_backup_reg_list[i].addr, top_reset_backup_reg_list[i].mask,  top_reset_backup_reg_list[i].value);
@@ -935,8 +937,8 @@ static int msdc_clk_stable(struct msdc_host *host,u32 mode, u32 div, u32 hs400_s
         //sdr_set_field(MSDC_CFG, MSDC_CFG_CKMOD, mode);
         msdc_retry(!(sdr_read32(MSDC_CFG) & MSDC_CFG_CKSTB), retry, cnt,host->id);
         if(retry == 0){
-            printk(KERN_ERR "msdc%d host->onclock(%d)\n",host->id,host->core_clkon);
-            printk(KERN_ERR "msdc%d on clock failed ===> retry twice\n",host->id);
+			pr_err("msdc%d host->onclock(%d)\n", host->id, host->core_clkon);
+			pr_err("msdc%d on clock failed ===> retry twice\n", host->id);
 #ifndef FPGA_PLATFORM
             disable_clock(msdc_cg_clk_id[host->id], "SD");
             enable_clock(msdc_cg_clk_id[host->id], "SD");
@@ -1104,24 +1106,24 @@ static u32 msdc_ldo_power(u32 on, MT_POWER powerId, MT_POWER_VOLTAGE powerVolt, 
 {
     if (on) { // want to power on
         if (*status == 0) {  // can power on
-            printk(KERN_WARNING "msdc LDO<%d> power on<%d>\n", powerId, powerVolt);
+			pr_warn("msdc LDO<%d> power on<%d>\n", powerId, powerVolt);
             hwPowerOn(powerId, powerVolt, "msdc");
             *status = powerVolt;
         } else if (*status == powerVolt) {
-            printk(KERN_ERR "msdc LDO<%d><%d> power on again!\n", powerId, powerVolt);
+			pr_err("msdc LDO<%d><%d> power on again!\n", powerId, powerVolt);
         } else { // for sd3.0 later
-            printk(KERN_WARNING "msdc LDO<%d> change<%d> to <%d>\n", powerId, *status, powerVolt);
+			pr_warn("msdc LDO<%d> change<%d> to <%d>\n", powerId, *status, powerVolt);
             hwPowerDown(powerId, "msdc");
             hwPowerOn(powerId, powerVolt, "msdc");
             *status = powerVolt;
         }
     } else {  // want to power off
         if (*status != 0) {  // has been powerred on
-            printk(KERN_WARNING "msdc LDO<%d> power off\n", powerId);
+			pr_warn("msdc LDO<%d> power off\n", powerId);
             hwPowerDown(powerId, "msdc");
             *status = 0;
         } else {
-            printk(KERN_ERR "LDO<%d> not power on\n", powerId);
+			pr_err("LDO<%d> not power on\n", powerId);
         }
     }
 
@@ -1546,7 +1548,7 @@ void msdc_set_smt(struct msdc_host *host,int set_smt)
 #endif
 
         default:
-            printk("error...msdc_set_smt out of range!!\n");
+			pr_err("error...msdc_set_smt out of range!!\n");
             break;
     }
 }
@@ -1620,7 +1622,7 @@ void msdc_set_driving(struct msdc_host *host, struct msdc_hw *hw, bool sd_18)
             break;
 #endif
         default:
-            printk("error...msdc_set_driving out of range!!\n");
+			pr_err("error...msdc_set_driving out of range!!\n");
             break;
     }
 }
@@ -1661,7 +1663,7 @@ void msdc_get_driving(struct msdc_host *host,struct msdc_ioctl* msdc_ctl)
 #endif
 
         default:
-            printk("error...msdc_set_driving out of range!!\n");
+			pr_err("error...msdc_set_driving out of range!!\n");
             break;
     }
 }
@@ -1840,7 +1842,7 @@ void msdc_set_pad_init(struct msdc_host *host)
 #endif
 
         default:
-            printk("error...msdc_set_pad_init out of range!!\n");
+			pr_err("error...msdc_set_pad_init out of range!!\n");
             break;
     }
 }
@@ -2014,7 +2016,6 @@ static void msdc_reset_pwr_cycle_counter(struct msdc_host *host)
 {
     host->power_cycle = 0;
     host->power_cycle_enable = 1;
-    host->error_tune_enable = 1;
 }
 
 static void msdc_reset_tmo_tune_counter(struct msdc_host *host,TUNE_COUNTER index)
@@ -2104,7 +2105,6 @@ static void msdc_reset_crc_tune_counter(struct msdc_host *host,TUNE_COUNTER inde
 
 extern void mmc_remove_card(struct mmc_card *card);
 
-#if 0
 static void msdc_set_bad_card_and_remove(struct msdc_host *host)
 {
     int got_polarity = 0;
@@ -2134,7 +2134,6 @@ static void msdc_set_bad_card_and_remove(struct msdc_host *host)
         ERR_MSG("Do remove the bad card, block_bad_card=%d, card_inserted=%d", host->block_bad_card, host->card_inserted);
     }
 }
-#endif
 
 unsigned int msdc_do_command(struct msdc_host   *host,
                                       struct mmc_command *cmd,
@@ -2391,8 +2390,6 @@ static void msdc_tasklet_card(unsigned long arg)
         host->mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
     }
 #endif
-    if(hw->flags & MSDC_DDR)
-        host->mmc->caps |= MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR;
     msdc_host_mode[host->id] = host->mmc->caps;
     msdc_host_mode2[host->id] = host->mmc->caps2;
     if((hw->flags & MSDC_CD_PIN_EN) && inserted){
@@ -2428,7 +2425,7 @@ static int ot_thread_func(void *data)
 
     if(atomic_read(&host->ot_work.ot_disable))
 	{
-		printk("[SDIO_OnlineTuning][%s] online tuning is disabled\n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] online tuning is disabled\n", __func__);
 		if(chg_volt)
 		{
 			host->ot_work.chg_volt = 0;
@@ -2442,7 +2439,7 @@ static int ot_thread_func(void *data)
 
 	if(atomic_read(&host->ot_work.autok_done) == 0)
 	{
-		printk("[SDIO_OnlineTuning][%s] auto-K haven't done\n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] auto-K haven't done\n", __func__);
 		if(chg_volt)
 		{
 			host->ot_work.chg_volt = 0;
@@ -2456,7 +2453,7 @@ static int ot_thread_func(void *data)
 
     if(host->mmc->card == NULL)
     {
-        printk("[SDIO_OnlineTuning][%s] sdio card is not ready\n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] sdio card is not ready\n", __func__);
 		if(chg_volt)
 		{
 		    host->ot_work.chg_volt = 0;
@@ -2469,7 +2466,7 @@ static int ot_thread_func(void *data)
 
     if(host->hw->host_function != MSDC_SDIO)
     {
-        printk("[SDIO_OnlineTuning][%s] Non SDIO device enter msdc_online_tuning!!!! \n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] Non SDIO device enter msdc_online_tuning!!!!\n", __func__);
 		if(chg_volt)
 		{
 		    host->ot_work.chg_volt = 0;
@@ -2482,7 +2479,7 @@ static int ot_thread_func(void *data)
 
     if(host->suspend)
     {
-        printk("[SDIO_OnlineTuning][%s] MSDC%d Suspended!!!! \n", __func__, host->id);
+		pr_err("[SDIO_OnlineTuning][%s] MSDC%d Suspended!!!!\n", __func__, host->id);
 		if(chg_volt)
 		{
 			host->ot_work.chg_volt = 0;
@@ -2502,11 +2499,11 @@ static int ot_thread_func(void *data)
 
         cur_temperature = mtk_thermal_get_temp(MTK_THERMAL_SENSOR_CPU);
 
-        printk("[SDIO_OnlineTuning][%s] cur_temperature = %d, host->pre_temper = %d\n", __func__, cur_temperature, host->pre_temper);
+		pr_err("[SDIO_OnlineTuning][%s] cur_temperature = %d, host->pre_temper = %d\n",
+			__func__, cur_temperature, host->pre_temper);
 
         if((cur_temperature != -127000) && (host->pre_temper != -127000) && (abs(cur_temperature-host->pre_temper) > OT_TEMPDIFF_BOUNDRY)) {
             if((err = msdc_online_tuning(host, 1, 0x00B0)) != 0) {
-                //printk("[SDIO_OnlineTuning][%s] msdc_online_tuning fail, err = %d\n", __func__, err);
             }
             host->pre_temper = cur_temperature;
         }
@@ -2514,11 +2511,8 @@ static int ot_thread_func(void *data)
     else
 #endif // MTK_SDIO30_DETECT_THERMAL
     {
-        printk("[SDIO_OnlineTuning][%s] change volt\n", __func__);
-        if((err = msdc_online_tuning(host, 1, 0x00B0)) != 0) {
-            //printk("[SDIO_OnlineTuning][%s] msdc_online_tuning fail, err = %d\n", __func__, err);
-        }
-        printk("[SDIO_OnlineTuning][%s] onine tuning done (change volt)\n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] change volt\n", __func__);
+		pr_err("[SDIO_OnlineTuning][%s] onine tuning done (change volt)\n", __func__);
         return 0;
     }
 
@@ -2537,7 +2531,7 @@ static void start_online_tuning(unsigned long data)
 
     task = kthread_run(&ot_thread_func,(void *)(&host->ot_work),"online tuning");
     if (IS_ERR(task)) {
-        printk("[%s][SDIO_TEST_MODE] create thread fail, do online tuning directly\n", __func__);
+		pr_err("[%s][SDIO_TEST_MODE] create thread fail, do online tuning directly\n", __func__);
         ot_thread_func((void *)(&host->ot_work));
     }
 }
@@ -2558,7 +2552,9 @@ static void msdc_select_clksrc(struct msdc_host* host, int clksrc)
     }
 #endif
 
-    printk(KERN_ERR "[%s]: msdc%d change clk_src from %dKHz to %d:%dKHz\n", __func__, host->id, (host->hclk/1000), clksrc, (hclks[clksrc]/1000));
+	pr_err("[%s]: msdc%d change clk_src from %dKHz to %d:%dKHz\n",
+		__func__, host->id, (host->hclk/1000), clksrc,
+		(hclks[clksrc]/1000));
 
 #ifndef FPGA_PLATFORM
     sprintf(name, "MSDC%d", host->id);
@@ -2610,7 +2606,7 @@ static void msdc_set_mclk(struct msdc_host *host, unsigned int state, u32 hz)
     //u8  clksrc = hw->clk_src;
 
     if (!hz) { // set mmc system clock to 0
-        printk(KERN_ERR "msdc%d -> set mclk to 0",host->id);
+		pr_err("msdc%d -> set mclk to 0", host->id);
         if (is_card_sdio(host) || (host->hw->flags & MSDC_SDIO_IRQ)) {
             host->saved_para.hz = hz;
 #ifdef SDIO_ERROR_BYPASS
@@ -2626,7 +2622,7 @@ static void msdc_set_mclk(struct msdc_host *host, unsigned int state, u32 hz)
         hz = 50*1000*1000;
         msdc_sdio_set_long_timing_delay_by_freq(host, hz);
     }
-    printk("[%s] hz = %d\n", __func__, hz);
+	pr_err("[%s] hz = %d\n", __func__, hz);
 
     msdc_irq_save(flags);
 
@@ -2700,7 +2696,7 @@ static void msdc_set_mclk(struct msdc_host *host, unsigned int state, u32 hz)
 
     }
 
-    printk(KERN_ERR "msdc%d -> !!! Set<%dKHz> Source<%dKHz> -> sclk<%dKHz> state<%d> mode<%d> div<%d> hs400_src<%d>" ,
+	pr_err("msdc%d -> !!! Set<%dKHz> Source<%dKHz> -> sclk<%dKHz> state<%d> mode<%d> div<%d> hs400_src<%d>" ,
            host->id, hz/1000, hclk/1000, sclk/1000, state, mode, div, hs400_src);
 
     msdc_irq_restore(flags);
@@ -2738,10 +2734,6 @@ static u32 msdc_power_tuning(struct msdc_host *host)
     }
 #endif
 
-    if ( !host->error_tune_enable ) {
-        return 1;
-    }
-
     if((host->sd_30_busy > 0) && (host->sd_30_busy <= MSDC_MAX_POWER_CYCLE)){
         host->power_cycle_enable = 1;
     }
@@ -2757,7 +2749,8 @@ static u32 msdc_power_tuning(struct msdc_host *host)
             if(host->power_control)
                 host->power_control(host,0);
             else
-                ERR_MSG("No power control callback. Please check host_function<0x%lx>",host->hw->host_function);
+				ERR_MSG("No power control callback. Please check host_function<0x%lx>",
+					host->hw->host_function);
 #endif
             mdelay(10);
 #ifdef FPGA_PLATFORM
@@ -2834,18 +2827,17 @@ static u32 msdc_power_tuning(struct msdc_host *host)
                 host->power_cycle_enable = 0;
             ERR_MSG("the %d time, Power cycle Done, host->error(0x%x), ret(%d)", host->power_cycle,host->error, ret);
             (host->power_cycle)++;
-        }else if (host->power_cycle == MSDC_MAX_POWER_CYCLE){
-            spin_unlock(&host->lock);
-#if 0
-            ERR_MSG("the %d time, exceed the max power cycle time %d, go to remove the bad card, power_cycle_enable=%d", host->power_cycle, MSDC_MAX_POWER_CYCLE, host->power_cycle_enable);
-            msdc_set_bad_card_and_remove(host);
-#else
-            if ( host->error_tune_enable ) {
-                ERR_MSG("disable error tune flow for bad SD card");
-                host->error_tune_enable = 0;
-            }
-#endif
-            spin_lock(&host->lock);
+		} else if (host->continuous_fail_request_count < MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT) {
+				host->continuous_fail_request_count++;
+				host->power_cycle = 0;
+		} else {
+				ERR_MSG(
+			"the %d time, exceed the max continuous fail request count %d, go to remove the bad card",
+					host->continuous_fail_request_count, MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT);
+				host->continuous_fail_request_count = 0;
+				spin_unlock(&host->lock);/*release the lock in request*/
+				msdc_set_bad_card_and_remove(host);/*card removing will define a new lock inside*/
+				spin_lock(&host->lock);/*restore the lock in request entry*/
         }
     }
 
@@ -3229,13 +3221,9 @@ static int msdc_ett_offline_to_driver(struct msdc_host *host)
     sdr_get_field(MSDC_CFG,MSDC_CFG_CKMOD,clkmode);
     hs400 = (clkmode == 3) ? 1 : 0;
 
-    //printk(KERN_ERR "msdc_ett_offline_to_driver size<%d> \n", size);
-
     for (i = 0; i < size; i++) {
-        //printk(KERN_ERR"msdc <%d> <%s> <%s>\n", i, g_mmcTable[i].pro_name, pro_name);
-
         if ((g_mmcTable[i].m_id == m_id) && (!strncmp(g_mmcTable[i].pro_name, pro_name, 6))) {
-            printk(KERN_ERR "msdc ett index<%d>: <%d> <%d> <0x%x> <0x%x> <0x%x>\n", i,
+			pr_err("msdc ett index<%d>: <%d> <%d> <0x%x> <0x%x> <0x%x>\n", i,
                 g_mmcTable[i].r_smpl, g_mmcTable[i].d_smpl,
                 g_mmcTable[i].cmd_rxdly, g_mmcTable[i].rd_rxdly, g_mmcTable[i].wr_rxdly);
 
@@ -3257,7 +3245,6 @@ static int msdc_ett_offline_to_driver(struct msdc_host *host)
         }
     }
 
-    //if (ret) printk(KERN_ERR "msdc failed to find\n");
     return ret;
 }
 #endif
@@ -3378,7 +3365,7 @@ static void msdc_sleep_enter(struct msdc_host *host)
 
     /* check card type */
     if (MMC_TYPE_MMC != card->type) {
-        printk(KERN_WARNING"[EMMC] not a mmc card, pls check it before sleep\n");
+		pr_warn("[EMMC] not a mmc card, pls check it before sleep\n");
         return ;
     }
 
@@ -3431,7 +3418,7 @@ static void msdc_sleep_out(struct msdc_host *host)
 
     /* check card type */
     if (MMC_TYPE_MMC != card->type) {
-        printk(KERN_WARNING"[EMMC] not a mmc card, pls check it before sleep\n");
+		pr_warn("[EMMC] not a mmc card, pls check it before sleep\n");
         return ;
     }
 
@@ -3468,7 +3455,7 @@ static void msdc_clksrc_onoff(struct msdc_host *host, u32 on)
         if (0 == host->core_clkon) {
 #ifndef FPGA_PLATFORM
             if(enable_clock(msdc_cg_clk_id[host->id], "SD")){
-                printk(KERN_ERR "msdc%d on clock failed ===> retry once\n",host->id);
+				pr_err("msdc%d on clock failed ===> retry once\n", host->id);
                 disable_clock(msdc_cg_clk_id[host->id], "SD");
                 enable_clock(msdc_cg_clk_id[host->id], "SD");
             }
@@ -3598,7 +3585,7 @@ static void msdc_pm(pm_message_t state, void *data)
         atomic_set(&host->ot_work.autok_done, 0);
 #endif
 
-        printk(KERN_ERR "msdc%d -> %s Suspend",host->id, evt == PM_EVENT_SUSPEND ? "PM" : "USR");
+		/* pr_err("msdc%d -> %s Suspend", host->id, evt == PM_EVENT_SUSPEND ? "PM" : "USR"); */
         if(host->hw->flags & MSDC_SYS_SUSPEND){
 #ifdef CONFIG_MTK_EMMC_SUPPORT
             if(host->hw->host_function == MSDC_EMMC && host->mmc->card && mmc_card_mmc(host->mmc->card)){
@@ -3647,7 +3634,7 @@ static void msdc_pm(pm_message_t state, void *data)
         host->suspend = 0;
         host->pm_state = state;
 
-        printk(KERN_ERR "msdc%d -> %s Resume",host->id,evt == PM_EVENT_RESUME ? "PM" : "USR");
+		pr_err("msdc%d -> %s Resume", host->id, evt == PM_EVENT_RESUME ? "PM" : "USR");
 
         if(host->hw->flags & MSDC_SYS_SUSPEND) {
 #ifdef CONFIG_MTK_EMMC_SUPPORT
@@ -3684,7 +3671,7 @@ end:
 #endif
     if ((evt == PM_EVENT_SUSPEND) || (evt == PM_EVENT_USER_SUSPEND)) {
         if((host->hw->host_function == MSDC_SDIO) && (evt == PM_EVENT_USER_SUSPEND)){
-            printk(KERN_ERR "msdc%d -> MSDC Device Request Suspend",host->id);
+			pr_err("msdc%d -> MSDC Device Request Suspend", host->id);
         }
         msdc_gate_clock(host, 0);
     }else {
@@ -3736,7 +3723,8 @@ struct msdc_host *msdc_get_host(int host_function,bool boot,bool secondary)
     if(secondary && (host_function == MSDC_SD))
         host = mtk_msdc_host[2];
     if(host == NULL){
-        printk(KERN_ERR "[MSDC] This host(<host_function:%d> <boot:%d><secondary:%d>) isn't in MSDC host config list",host_function,boot,secondary);
+		pr_err("[MSDC] This host(<host_function:%d> <boot:%d><secondary:%d>) isn't in MSDC host config list",
+			host_function, boot, secondary);
         //BUG();
     }
 
@@ -3814,7 +3802,7 @@ void msdc_get_cache_region_func(struct msdc_host   *host)
 	} else {
 		g_cache_part_start = (sector_t)(-1);
 		g_cache_part_end = (sector_t)(-1);
-		printk(KERN_ERR "There is no cache info\n");
+		pr_err("There is no cache info\n");
 	}
 
 	lp_hd_struct = NULL;
@@ -3826,10 +3814,11 @@ void msdc_get_cache_region_func(struct msdc_host   *host)
 	} else {
 		g_usrdata_part_start = (sector_t)(-1);
 		g_usrdata_part_end = (sector_t)(-1);
-		printk(KERN_ERR "There is no userdata info\n");
+		pr_err("There is no userdata info\n");
 	}
 
-    printk(KERN_ERR "cache(0x%llX~0x%llX, usrdata(0x%llX~0x%llX)\n", g_cache_part_start, g_cache_part_end, g_usrdata_part_start, g_usrdata_part_end);
+	pr_err("cache(0x%llX~0x%llX, usrdata(0x%llX~0x%llX)\n",
+		g_cache_part_start, g_cache_part_end, g_usrdata_part_start, g_usrdata_part_end);
 #endif
     return;
 }
@@ -3866,7 +3855,7 @@ static int msdc_cache_ctrl(struct msdc_host *host, unsigned int enable, u32 *sta
     mrq.cmd = &cmd; cmd.mrq = &mrq;
     cmd.data = NULL;
 
-    ERR_MSG("do disable Cache, cmd=0x%x, arg=0x%x \n", cmd.opcode, cmd.arg);
+	ERR_MSG("do disable Cache, cmd=0x%x, arg=0x%x\n", cmd.opcode, cmd.arg);
     err = msdc_do_command(host, &cmd, 0, CMD_TIMEOUT);  // tune until CMD13 pass.
 
     if (status) {
@@ -3895,7 +3884,9 @@ int msdc_get_cache_region(void)
 
         mmc_claim_host(host->mmc);
         if (!mmc_cache_ctrl(host->mmc, 1))
-            printk("[%s]: cache_size=%dKB, cache_ctrl=%d\n", __func__, (host->mmc->card->ext_csd.cache_size/8), host->mmc->card->ext_csd.cache_ctrl);
+			pr_err("[%s]: cache_size=%dKB, cache_ctrl=%d\n",
+				__func__, (host->mmc->card->ext_csd.cache_size/8),
+				host->mmc->card->ext_csd.cache_ctrl);
         mmc_release_host(host->mmc);
     }
     msdc_get_cache_region_func(host);
@@ -3914,9 +3905,9 @@ static struct excel_info* msdc_reserve_part_info(unsigned char* name)
 
     /* find reserve partition */
     for (i = 0; i < PART_NUM; i++) {
-        printk("name = %s\n", PartInfo[i].name);  //====================debug
+		pr_err("name = %s\n", PartInfo[i].name);
         if (0 == strcmp(name, PartInfo[i].name)){
-            printk("size = %llu\n", PartInfo[i].size);//=======================debug
+			pr_err("size = %llu\n", PartInfo[i].size);
             return &PartInfo[i];
         }
     }
@@ -3971,27 +3962,27 @@ int msdc_get_reserve(void)
 #ifndef CONFIG_MTK_GPT_SCHEME_SUPPORT
     lp_excel_info = msdc_reserve_part_info("bmtpool");
     if (NULL == lp_excel_info) {
-        printk("can't get otp info from part_info struct\n");
+		pr_err("can't get otp info from part_info struct\n");
         return -1;
     }
 
     l_mtk_reserve = (unsigned int)(lp_excel_info->start_address & 0xFFFFUL) << 8; /* unit is 512B */
 
-    printk("mtk reserve: start address = %llu\n", lp_excel_info->start_address); //============================debug
+	pr_err("mtk reserve: start address = %llu\n", lp_excel_info->start_address);
 
 #ifdef CONFIG_MTK_EMMC_SUPPORT_OTP
     lp_excel_info = msdc_reserve_part_info("otp");
     if (NULL == lp_excel_info) {
-        printk("can't get otp info from part_info struct\n");
+		pr_err("can't get otp info from part_info struct\n");
         return -1;
     }
 
     l_otp_reserve = (unsigned int)(lp_excel_info->start_address & 0xFFFFUL) << 8; /* unit is 512B */
 
-    printk("otp reserve: start address = %llu\n", lp_excel_info->start_address);//========================debug
+	pr_err("otp reserve: start address = %llu\n", lp_excel_info->start_address);
     l_otp_reserve -= l_mtk_reserve;  /* the size info stored with total reserved size */
 #endif
-    printk("total reserve: l_otp_reserve = 0x%x blocks, l_mtk_reserve = 0x%x blocks, l_offset = 0x%x blocks\n",
+	pr_err("total reserve: l_otp_reserve = 0x%x blocks, l_mtk_reserve = 0x%x blocks, l_offset = 0x%x blocks\n",
              l_otp_reserve, l_mtk_reserve, l_offset);
 #endif
 
@@ -4066,13 +4057,10 @@ static unsigned int msdc_command_start(struct msdc_host   *host,
     u32 rawarg;
     u32 resp;
     unsigned long tmo;
-#ifdef MTK_MSDC_USE_CACHE
-    struct mmc_command *sbc =  NULL;
-    if ((host->mmc->caps2 & MMC_CAP2_CACHE_CTRL) && (host->autocmd & MSDC_AUTOCMD23)){
-        if (host->data && host->data->mrq && host->data->mrq->sbc)
-            sbc =  host->data->mrq->sbc;
-    }
-#endif
+	struct mmc_command *sbc = NULL;
+
+	if (host->data && host->data->mrq && host->data->mrq->sbc && (host->autocmd & MSDC_AUTOCMD23))
+		sbc = host->data->mrq->sbc;
 
     /* Protocol layer does not provide response type, but our hardware needs
      * to know exact type, not just size!
@@ -4088,7 +4076,7 @@ static unsigned int msdc_command_start(struct msdc_host   *host,
     else if (opcode == MMC_SELECT_CARD) {
         resp = (cmd->arg != 0) ? RESP_R1B : RESP_NONE;
         host->app_cmd_arg = cmd->arg;
-        printk(KERN_WARNING "msdc%d select card<0x%.8x>", host->id,cmd->arg);  // select and de-select
+		/* pr_warn("msdc%d select card<0x%.8x>", host->id, cmd->arg); */
     } else if (opcode == SD_IO_RW_DIRECT || opcode == SD_IO_RW_EXTENDED)
         resp = RESP_R1; /* SDIO workaround. */
     else if (opcode == SD_SEND_IF_COND && (mmc_cmd_type(cmd) == MMC_CMD_BCR))
@@ -4141,7 +4129,9 @@ static unsigned int msdc_command_start(struct msdc_host   *host,
 #ifdef MTK_MSDC_USE_CACHE
             if(sbc && host->mmc->card && mmc_card_mmc(host->mmc->card) && (host->mmc->card->ext_csd.cache_ctrl & 0x1)){
                 if(sdr_read32(SDC_BLK_NUM) != (sbc->arg & 0xFFFF))//if the block number is bigger than 0xFFFF, then CMD23 arg will be failed to set it.
-                    printk("msdc%d: acmd23 arg(0x%x) failed to match the block num(0x%x), SDC_BLK_NUM(0x%x)\n", host->id, sbc->arg, host->mrq->cmd->data->blocks, sdr_read32(SDC_BLK_NUM));
+					pr_err("msdc%d: acmd23 arg(0x%x) failed to match the block num(0x%x), SDC_BLK_NUM(0x%x)\n",
+						host->id, sbc->arg, host->mrq->cmd->data->blocks,
+						sdr_read32(SDC_BLK_NUM));
                 else
                     sdr_write32(SDC_BLK_NUM, sbc->arg);
                 N_MSG(CMD, "SBC addr<0x%x>, arg<0x%x> ", cmd->arg, sbc->arg);
@@ -4310,7 +4300,8 @@ static unsigned int msdc_command_resp_polling(struct msdc_host   *host,
         }
 
         if (time_after(jiffies, tmo)) {
-            printk(KERN_ERR "[%s]: msdc%d XXX CMD<%d> polling_for_completion timeout ARG<0x%.8x>", __func__, host->id, cmd->opcode, cmd->arg);
+			pr_err("[%s]: msdc%d XXX CMD<%d> polling_for_completion timeout ARG<0x%.8x>",
+				__func__, host->id, cmd->opcode, cmd->arg);
             cmd->error = (unsigned int)-ETIMEDOUT;
             host->sw_timeout++;
             msdc_dump_info(host->id);
@@ -4330,7 +4321,9 @@ static unsigned int msdc_command_resp_polling(struct msdc_host   *host,
                     intsts = MSDC_INT_RSPCRCERR;
                     g_err_tune_dbg_count--;
                 }
-                printk("[%s]: got the error cmd:%d, arg=%d, dbg error=%d, cmd->error=%d, count=%d\n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_arg, g_err_tune_dbg_error, cmd->error, g_err_tune_dbg_count);
+				pr_err("[%s]: got the error cmd:%d, arg=%d, dbg error=%d, cmd->error=%d, count=%d\n",
+					__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_arg, g_err_tune_dbg_error,
+					cmd->error, g_err_tune_dbg_count);
             }
         }
 
@@ -4339,11 +4332,15 @@ static unsigned int msdc_command_resp_polling(struct msdc_host   *host,
             if(g_err_tune_dbg_error & MTK_MSDC_ERROR_ACMD_TMO){
                 intsts = MSDC_INT_ACMDTMO;
                 g_err_tune_dbg_count--;
-                printk("[%s]: got the error cmd:%d, dbg error=%d, sbc->error=%d, count=%d\n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error, sbc->error, g_err_tune_dbg_count);
+				pr_err("[%s]: got the error cmd:%d, dbg error=%d, sbc->error=%d, count=%d\n",
+					__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error,
+					sbc->error, g_err_tune_dbg_count);
             }else if(g_err_tune_dbg_error & MTK_MSDC_ERROR_ACMD_CRC){
                 intsts = MSDC_INT_ACMDCRCERR;
                 g_err_tune_dbg_count--;
-                printk("[%s]: got the error cmd:%d, dbg error=%d, sbc->error=%d, count=%d\n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error, sbc->error, g_err_tune_dbg_count);
+				pr_err("[%s]: got the error cmd:%d, dbg error=%d, sbc->error=%d, count=%d\n",
+					__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error,
+					sbc->error, g_err_tune_dbg_count);
             }
         }
 #endif
@@ -4367,7 +4364,13 @@ static unsigned int msdc_command_resp_polling(struct msdc_host   *host,
                     *rsp++ = sdr_read32(SDC_RESP1); *rsp++ = sdr_read32(SDC_RESP0);
                     break;
                 default: /* Response types 1, 3, 4, 5, 6, 7(1b) */
-                    *rsp = sdr_read32(SDC_RESP0);
+			*rsp = sdr_read32(SDC_RESP0);
+			/* workaround for latch error */
+			if (((cmd->opcode == 13) || (cmd->opcode == 25)) && (*rsp & R1_OUT_OF_RANGE)) {
+				pr_err("[%s]: msdc%d XXX CMD<%d> resp<0x%.8x>,bit31=1,force make crc error\n",
+					__func__, host->id, cmd->opcode, *rsp);
+				cmd->error = (unsigned int)-EIO;
+			}
                     break;
             }
         } else if (intsts & MSDC_INT_RSPCRCERR) {
@@ -4389,13 +4392,13 @@ static unsigned int msdc_command_resp_polling(struct msdc_host   *host,
                   u32 *arsp = &sbc->resp[0];
                   *arsp = sdr_read32(SDC_ACMD_RESP);
              } else if (intsts & MSDC_INT_ACMDCRCERR) {
-                  printk(KERN_ERR "[%s]: msdc%d, autocmd23 crc error\n", __func__, host->id);
+					pr_err("[%s]: msdc%d, autocmd23 crc error\n", __func__, host->id);
                   sbc->error = (unsigned int)-EIO;
                   cmd->error = (unsigned int)-EIO; // record the error info in current cmd struct
                   //host->error |= REQ_CMD23_EIO;
                   msdc_reset_hw(host->id);
              } else if (intsts & MSDC_INT_ACMDTMO) {
-                  printk(KERN_ERR "[%s]: msdc%d, autocmd23 tmo error\n", __func__, host->id);
+					pr_err("[%s]: msdc%d, autocmd23 tmo error\n", __func__, host->id);
                   sbc->error =(unsigned int)-ETIMEDOUT;
                   cmd->error = (unsigned int)-ETIMEDOUT;  // record the error info in current cmd struct
                   msdc_dump_info(host->id);
@@ -4568,7 +4571,6 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                 {
                     if((kaddr[i]-kaddr[i-1])!=PAGE_SIZE)
                     {
-                        //printk(KERN_ERR "msdc0: kmap not continous %x %x %x \n",left,kaddr[i],kaddr[i-1]);
                         flag =1;
                     }
                 }
@@ -4607,7 +4609,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                             count = MSDC_FIFO_THD >> 2;
                             do {
 #ifdef MTK_MSDC_DUMP_FIFO
-                                printk("0x%x ", msdc_fifo_read32());
+								pr_err("0x%x ", msdc_fifo_read32());
 #else
                                 *ptr++ = msdc_fifo_read32();
 #endif
@@ -4616,7 +4618,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                         } else if ((left < MSDC_FIFO_THD) && msdc_rxfifocnt() >= left) {
                             while (left > 3) {
 #ifdef MTK_MSDC_DUMP_FIFO
-                                printk("0x%x ", msdc_fifo_read32());
+								pr_err("0x%x ", msdc_fifo_read32());
 #else
                                 *ptr++ = msdc_fifo_read32();
 #endif
@@ -4626,7 +4628,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                             u8ptr = (u8 *)ptr;
                             while(left) {
 #ifdef MTK_MSDC_DUMP_FIFO
-                                printk("0x%x ", msdc_fifo_read8());
+								pr_err("0x%x ", msdc_fifo_read8());
 #else
                                 * u8ptr++ = msdc_fifo_read8();
 #endif
@@ -4672,7 +4674,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                 count = MSDC_FIFO_THD >> 2;
                 do {
 #ifdef MTK_MSDC_DUMP_FIFO
-                     printk("0x%x ", msdc_fifo_read32());
+					pr_err("0x%x ", msdc_fifo_read32());
 #else
                     *ptr++ = msdc_fifo_read32();
 #endif
@@ -4681,7 +4683,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
             } else if ((left < MSDC_FIFO_THD) && msdc_rxfifocnt() >= left) {
                 while (left > 3) {
 #ifdef MTK_MSDC_DUMP_FIFO
-                     printk("0x%x ", msdc_fifo_read32());
+					pr_err("0x%x ", msdc_fifo_read32());
 #else
                     *ptr++ = msdc_fifo_read32();
 #endif
@@ -4691,7 +4693,7 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
                 u8ptr = (u8 *)ptr;
                 while(left) {
 #ifdef MTK_MSDC_DUMP_FIFO
-                    printk("0x%x ", msdc_fifo_read8());
+					pr_err("0x%x ", msdc_fifo_read8());
 #else
                     * u8ptr++ = msdc_fifo_read8();
 #endif
@@ -4731,7 +4733,6 @@ int msdc_pio_read(struct msdc_host *host, struct mmc_data *data)
         }
         if(hmpage !=NULL)
         {
-            //printk(KERN_ERR "read msdc0:unmap %x\n", hmpage);
             for(i=0;i< totalpages;i++)
             kunmap(hmpage+i);
 
@@ -4746,7 +4747,6 @@ end:
     {
         for(i=0;i< totalpages;i++)
         kunmap(hmpage + i);
-        //printk(KERN_ERR "msdc0 read unmap:\n");
     }
     data->bytes_xfered += size;
     N_MSG(FIO, "        PIO Read<%d>bytes", size);
@@ -4837,7 +4837,6 @@ int msdc_pio_write(struct msdc_host* host, struct mmc_data *data)
                 {
                     if(kaddr[i]-kaddr[i-1]!=PAGE_SIZE)
                     {
-                    //printk(KERN_ERR "msdc0:w kmap not continous %x ,%x, %x\n",left,kaddr[i],kaddr[i-1]);
                     flag =1;
                     }
                 }
@@ -4989,7 +4988,7 @@ end:
     {
         for(i=0;i< totalpages;i++)
         kunmap(hmpage + i);
-        printk(KERN_ERR "msdc0 write unmap 0x%x:\n",left);
+		pr_err("msdc0 write unmap 0x%x:\n", left);
     }
     data->bytes_xfered += size;
     N_MSG(FIO, "        PIO Write<%d>bytes", size);
@@ -5133,7 +5132,7 @@ static int msdc_dma_config(struct msdc_host *host, struct msdc_dma *dma)
             for (j = 0; j < bdlen; j++) {
 #ifdef MSDC_DMA_VIOLATION_DEBUG
                 if (g_dma_debug[host->id] && (msdc_latest_operation_type[host->id] == OPER_TYPE_READ)){
-                    printk("[%s] msdc%d do write 0x10000\n", __func__, host->id);
+					pr_err("[%s] msdc%d do write 0x10000\n", __func__, host->id);
                     dma_address = 0x10000;
                 } else{
                     dma_address = sg_dma_address(sg);
@@ -5331,7 +5330,8 @@ static unsigned int ot_find_next_gear(u32 CRCResult, const u32 tune_wind_size, c
     else
         *fTestedGear |= (test_gear_range >> (tune_wind_size - new_gear));
 
-	printk("[SDIO_OnlineTuning][%s], cur_gear = 0x%x, new_gear = 0x%x, tune_wind_size = 0x%x, CRCResult = 0x%x\n", __func__, cur_gear, new_gear, tune_wind_size, CRCResult);
+	pr_err("[SDIO_OnlineTuning][%s], cur_gear = 0x%x, new_gear = 0x%x, tune_wind_size = 0x%x, CRCResult = 0x%x\n",
+		__func__, cur_gear, new_gear, tune_wind_size, CRCResult);
 
     return new_gear;
 }
@@ -5344,7 +5344,7 @@ static int ot_recover_device(struct msdc_host *host, unsigned fn, unsigned addr)
 #if 0
     void __iomem *base = host->base;
 
-    printk("[SDIO_OnlineTuning]Enter [%s]\n", __func__);
+	pr_err("[SDIO_OnlineTuning]Enter [%s]\n", __func__);
 
     sdr_set_field(MSDC_CFG, MSDC_CFG_CKPDN, 1); // Clock is free running
 
@@ -5385,7 +5385,7 @@ static int ot_command_resp_polling(struct msdc_host *host, struct mmc_command *c
         if (time_after(jiffies, tmo)) {
             cmd->error = (unsigned int)-ETIMEDOUT;
             host->sw_timeout++;
-            printk("[SDIO_OnlineTuning][%s] SW timeout, intsts = 0x%x\n", __func__, intsts);
+			pr_err("[SDIO_OnlineTuning][%s] SW timeout, intsts = 0x%x\n", __func__, intsts);
             msdc_dump_info(host->id);
             msdc_reset_hw(host->id);
             goto out;
@@ -5404,7 +5404,7 @@ static int ot_command_resp_polling(struct msdc_host *host, struct mmc_command *c
     /* timeout */
     if (intsts & flagTmo)
     {
-        printk("[SDIO_OnlineTuning]Device CMD/DAT timeout, MSDC_INT = 0x%x\n", intsts);
+		pr_err("[SDIO_OnlineTuning]Device CMD/DAT timeout, MSDC_INT = 0x%x\n", intsts);
         cmd->error = (unsigned int)-ETIMEDOUT;
         msdc_reset_hw(host->id);
     }
@@ -5434,9 +5434,9 @@ static int ot_do_command(struct msdc_host *host, u32 rawcmd, u32 rawarg, u32 *pi
     {
         if (time_after(jiffies, tmo)) {
             if(sdc_is_cmd_busy())
-                printk("[SDIO_OnlineTuning]XXX sdc_cmd_busy timeout\n");
+				pr_err("[SDIO_OnlineTuning]XXX sdc_cmd_busy timeout\n");
             else if(sdc_is_busy())
-                printk("[SDIO_OnlineTuning]XXX sdc_busy timeout\n");
+				pr_err("[SDIO_OnlineTuning]XXX sdc_busy timeout\n");
             cmd->error = (unsigned int)-ETIMEDOUT;
             msdc_reset_hw(host->id);
             return cmd->error;  /* Fix me: error handling */
@@ -5449,7 +5449,8 @@ static int ot_do_command(struct msdc_host *host, u32 rawcmd, u32 rawarg, u32 *pi
     sdc_send_cmd(rawcmd, rawarg);
     if (ot_command_resp_polling(host, cmd, 0, CMD_TIMEOUT, pintsts))
     {
-        printk("[SDIO_OnlineTuning]ot_command_resp_polling fail, err = %d, resp = 0x%.8x\n", cmd->error, cmd->resp[0]);
+		pr_err("[SDIO_OnlineTuning]ot_command_resp_polling fail, err = %d, resp = 0x%.8x\n",
+			cmd->error, cmd->resp[0]);
         return cmd->error;
     }
 
@@ -5523,15 +5524,15 @@ static unsigned int ot_init(struct msdc_host *host, struct ot_data *potData)
 
     /* Set gear window size */
     sdr_write32(SDIO_TUNE_WIND, potData->tune_wind_size);
-    printk("[SDIO_OnlineTuning]gear window size = %d\n", potData->tune_wind_size);
+	pr_err("[SDIO_OnlineTuning]gear window size = %d\n", potData->tune_wind_size);
 
     /* Get current delay settings */
     sdr_get_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_CMDRDLY, potData->orig_cmdrdly);    // Get cmd delay
     potData->cmdrdly = potData->orig_cmdrdly;
-    printk("[SDIO_OnlineTuning]cmd delay = 0x%x\n", potData->orig_cmdrdly);
+	pr_err("[SDIO_OnlineTuning]cmd delay = 0x%x\n", potData->orig_cmdrdly);
 
     rxdly0 = sdr_read32(MSDC_DAT_RDDLY0);
-    printk("[SDIO_OnlineTuning]DAT read delay line 0 = 0x%x\n", rxdly0);
+	pr_err("[SDIO_OnlineTuning]DAT read delay line 0 = 0x%x\n", rxdly0);
     if (potData->eco_ver >= 4) {
         potData->orig_dat0rddly = (rxdly0 >> 24) & 0x1F;
         potData->orig_dat1rddly = (rxdly0 >> 16) & 0x1F;
@@ -5547,7 +5548,7 @@ static unsigned int ot_init(struct msdc_host *host, struct ot_data *potData)
     if(potData->orig_ddlsel == 0)
     {
         sdr_get_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_DATRRDLY, potData->orig_paddatrddly);    // Get read delay
-        printk("[SDIO_OnlineTuning]PAD DAT RD RXDLY = 0x%x\n", potData->orig_paddatrddly);
+		pr_err("[SDIO_OnlineTuning]PAD DAT RD RXDLY = 0x%x\n", potData->orig_paddatrddly);
         potData->dat0rddly = potData->orig_paddatrddly;
         potData->dat1rddly = potData->orig_paddatrddly;
         potData->dat2rddly = potData->orig_paddatrddly;
@@ -5617,14 +5618,13 @@ static int ot_adjust_tunewnd(struct msdc_host *host, u32 *fTestedGear, u32 *tune
 
         /* Set gear window size */
         sdr_write32(SDIO_TUNE_WIND, *tuneWnd);
-        printk("[SDIO_OnlineTuning][%s] gear window size = %d\n", __func__, *tuneWnd);
+		pr_err("[SDIO_OnlineTuning][%s] gear window size = %d\n", __func__, *tuneWnd);
 
         if(*tuneWnd == 0)
             return -1;
 
 
         *CRCPass = 0xFFFFFFFF >> (32 - (2 * (*tuneWnd) + 1));
-        //printk("[SDIO_OnlineTuning]CRCPass = %d\n", *CRCPass);
 #endif
     }
 
@@ -5653,9 +5653,9 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
         rawarg |= 1 << 31;
     }
 
-    printk("[SDIO_OnlineTuning]enter command start, rw = %d, rawcmd = 0x%x, rawarg = 0x%x\n", rw, rawcmd, rawarg);
+	pr_err("[SDIO_OnlineTuning]enter command start, rw = %d, rawcmd = 0x%x, rawarg = 0x%x\n", rw, rawcmd, rawarg);
     if (ot_do_command(host, rawcmd, rawarg, &intsts) != 0) {
-        printk("[SDIO_OnlineTuning]command start fail, err = %d\n", host->cmd->error);
+		pr_err("[SDIO_OnlineTuning]command start fail, err = %d\n", host->cmd->error);
         ret = host->cmd->error;
 #if 0
         if(ret == (unsigned int)-ETIMEDOUT)
@@ -5672,7 +5672,8 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     /* Reset delay gear */
                     potData->cmdrdly = ot_find_next_gear(CRCStatus_CMD, potData->tune_wind_size, potData->cmdrdly, &potData->fCmdTestedGear);
                     sdr_set_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_CMDRDLY, potData->cmdrdly);    // Set cmd delay
-                    printk("[SDIO_OnlineTuning](TMO) CRCStatus_CMD = 0x%x, next cmd delay = %d \n", CRCStatus_CMD, potData->cmdrdly);
+					pr_err("[SDIO_OnlineTuning](TMO) CRCStatus_CMD = 0x%x, next cmd delay = %d\n",
+						CRCStatus_CMD, potData->cmdrdly);
                 }
 
                 reset = 0;
@@ -5683,7 +5684,8 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     if(potData->orig_ddlsel == 1)
                         potData->dat0rddly = ot_find_next_gear(host->cmd->resp[0], potData->tune_wind_size, potData->dat0rddly, &potData->fDat0TestedGear);
                     reset++;
-                    printk("[SDIO_OnlineTuning](TMO) host->cmd->resp[0] = 0x%x, next dat0 delay = %d \n", host->cmd->resp[0], potData->dat0rddly);
+					pr_err("[SDIO_OnlineTuning](TMO) host->cmd->resp[0] = 0x%x, next dat0 delay = %d\n",
+						host->cmd->resp[0], potData->dat0rddly);
                 }
 
                 if((host->cmd->resp[1] != CRCPass) && (potData->dat1rddlypass == 0))
@@ -5692,7 +5694,8 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     if(potData->orig_ddlsel == 1)
                         potData->dat1rddly = ot_find_next_gear(host->cmd->resp[1], potData->tune_wind_size, potData->dat1rddly, &potData->fDat1TestedGear);
                     reset++;
-                    printk("[SDIO_OnlineTuning](TMO) host->cmd->resp[1] = 0x%x, next dat1 delay = %d \n", host->cmd->resp[1], potData->dat1rddly);
+					pr_err("[SDIO_OnlineTuning](TMO) host->cmd->resp[1] = 0x%x, next dat1 delay = %d\n",
+						host->cmd->resp[1], potData->dat1rddly);
                 }
 
                 if((host->cmd->resp[2] != CRCPass) && (potData->dat2rddlypass == 0))
@@ -5701,7 +5704,8 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     if(potData->orig_ddlsel == 1)
                         potData->dat2rddly = ot_find_next_gear(host->cmd->resp[2], potData->tune_wind_size, potData->dat2rddly, &potData->fDat2TestedGear);
                     reset++;
-                    printk("[SDIO_OnlineTuning](TMO) host->cmd->resp[2] = 0x%x, next dat2 delay = %d \n", host->cmd->resp[2], potData->dat2rddly);
+					pr_err("[SDIO_OnlineTuning](TMO) host->cmd->resp[2] = 0x%x, next dat2 delay = %d\n",
+						host->cmd->resp[2], potData->dat2rddly);
                 }
 
                 if((host->cmd->resp[3] != CRCPass) && (potData->dat3rddlypass == 0))
@@ -5710,7 +5714,8 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     if(potData->orig_ddlsel == 1)
                         potData->dat3rddly = ot_find_next_gear(host->cmd->resp[3], potData->tune_wind_size, potData->dat3rddly, &potData->fDat3TestedGear);
                     reset++;
-                    printk("[SDIO_OnlineTuning](TMO) host->cmd->resp[3] = 0x%x, next dat3 delay = %d \n", host->cmd->resp[3], potData->dat3rddly);
+					pr_err("[SDIO_OnlineTuning](TMO) host->cmd->resp[3] = 0x%x, next dat3 delay = %d\n",
+						host->cmd->resp[3], potData->dat3rddly);
                 }
 
                 if(reset) {
@@ -5732,7 +5737,7 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
                     sdr_write32(MSDC_DAT_RDDLY0, rxdly0);
                 }
 
-                printk("[SDIO_OnlineTuning]goto _retry (TMO) \n");
+				pr_err("[SDIO_OnlineTuning]goto _retry (TMO)\n");
                 potData->retry = 1;
                 return 0;
             }
@@ -5743,7 +5748,7 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
 
     if((intsts & MSDC_INT_ACMD53_FAIL) == 0)    // All CRC Pass
     {
-        printk("[SDIO_OnlineTuning]CRC Pass, intsts = 0x%x\n", intsts);
+		pr_err("[SDIO_OnlineTuning]CRC Pass, intsts = 0x%x\n", intsts);
         return 0;
     }
 
@@ -5753,13 +5758,10 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
     /* Check cmd gear */
     if(CRCStatus_CMD != CRCPass)
     {
-        /* Reset delay gear */
-        //printk("[SDIO_OnlineTuning]cmdrdly = %d, CRCStatus_CMD = 0x%x, CRC Pass = 0x%x\n", cmdrdly, CRCStatus_CMD, CRCPass);
-
         potData->cmdrdly = ot_find_next_gear(CRCStatus_CMD, potData->tune_wind_size, potData->cmdrdly, &potData->fCmdTestedGear);
         sdr_set_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_CMDRDLY, potData->cmdrdly);    // Set cmd delay
 
-        printk("[SDIO_OnlineTuning]goto _retry (Cmd), cmd delay = %d \n", potData->cmdrdly);
+		pr_err("[SDIO_OnlineTuning]goto _retry (Cmd), cmd delay = %d\n", potData->cmdrdly);
         potData->retry = 1;
         return 0;
     }
@@ -5790,7 +5792,6 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
     {
         if(host->cmd->resp[0] != CRCPass)
         {
-            //printk("[SDIO_OnlineTuning]dat0 delay = %d, host->cmd->resp[0] = 0x%x, CRC Pass = 0x%x\n", dat0rddly, host->cmd->resp[0], CRCPass);
             potData->dat0rddly = ot_find_next_gear(host->cmd->resp[0], potData->tune_wind_size, potData->dat0rddly, &potData->fDat0TestedGear);
             reset++;
         }
@@ -5801,7 +5802,6 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
 
         if(host->cmd->resp[1] != CRCPass)
         {
-            //printk("[SDIO_OnlineTuning]dat1 delay = %d, host->cmd->resp[1] = 0x%x, CRC Pass = 0x%x\n", dat1rddly, host->cmd->resp[1], CRCPass);
             potData->dat1rddly = ot_find_next_gear(host->cmd->resp[1], potData->tune_wind_size, potData->dat1rddly, &potData->fDat1TestedGear);
             reset++;
         }
@@ -5812,7 +5812,6 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
 
         if(host->cmd->resp[2] != CRCPass)
         {
-            //printk("[SDIO_OnlineTuning]dat2 delay = %d, host->cmd->resp[2] = 0x%x, CRC Pass = 0x%x\n", dat2rddly, host->cmd->resp[2], CRCPass);
             potData->dat2rddly = ot_find_next_gear(host->cmd->resp[2], potData->tune_wind_size, potData->dat2rddly, &potData->fDat2TestedGear);
             reset++;
         }
@@ -5823,7 +5822,6 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
 
         if(host->cmd->resp[3] != CRCPass)
         {
-            //printk("[SDIO_OnlineTuning]dat3 delay = %d, host->cmd->resp[3] = 0x%x, CRC Pass = 0x%x\n", dat3rddly, host->cmd->resp[3], CRCPass);
             potData->dat3rddly = ot_find_next_gear(host->cmd->resp[3], potData->tune_wind_size, potData->dat3rddly, &potData->fDat3TestedGear);
             reset++;
         }
@@ -5842,7 +5840,7 @@ static int ot_process(struct msdc_host *host, struct ot_data *potData, u32 rawcm
         }
         sdr_write32(MSDC_DAT_RDDLY0, rxdly0);
 
-        printk("[SDIO_OnlineTuning]goto _retry (Read) \n");
+		pr_err("[SDIO_OnlineTuning]goto _retry (Read)\n");
         potData->retry = 1;
         return 0;
     }
@@ -5883,7 +5881,7 @@ static unsigned int msdc_online_tuning(struct msdc_host *host, unsigned fn, unsi
     struct mmc_command *orig_cmd = host->cmd;
     struct mmc_command cmd;
 
-    printk("[SDIO_OnlineTuning]Enter %s \n", __func__);
+	pr_err("[SDIO_OnlineTuning]Enter %s\n", __func__);
 
     /* ungate clock */
     msdc_ungate_clock(host);  // set sw flag
@@ -5924,7 +5922,7 @@ _retry:
 
     if (time_after(jiffies, tmo))
     {
-        printk("[SDIO_OnlineTuning]online tuning timeout\n");
+		pr_err("[SDIO_OnlineTuning]online tuning timeout\n");
 
         ret = -1;
 
@@ -5933,7 +5931,7 @@ _retry:
 
     if(otData.cmddlypass == 0)
     {
-        printk("[SDIO_OnlineTuning][%s]fCmdTestedGear = 0x%x\n", __func__, otData.fCmdTestedGear);
+		pr_err("[SDIO_OnlineTuning][%s]fCmdTestedGear = 0x%x\n", __func__, otData.fCmdTestedGear);
         ret = ot_adjust_tunewnd(host, &otData.fCmdTestedGear, &tune_wind_size_cmd, &CRCPass);
         otData.tune_wind_size = tune_wind_size_cmd;
         if(ret == -1)
@@ -5943,7 +5941,7 @@ _retry:
     {
         if(otData.datrddlypass == 0)
         {
-            printk("[SDIO_OnlineTuning][%s]fDatTestedGear = 0x%x\n", __func__, otData.fDatTestedGear);
+			pr_err("[SDIO_OnlineTuning][%s]fDatTestedGear = 0x%x\n", __func__, otData.fDatTestedGear);
             ret = ot_adjust_tunewnd(host, &otData.fDatTestedGear, &tune_wind_size_dat, &CRCPass);
             otData.tune_wind_size = tune_wind_size_dat;
             if(ret == -1)
@@ -5954,7 +5952,7 @@ _retry:
     {
         if(otData.dat0rddlypass == 0)
         {
-            printk("[SDIO_OnlineTuning][%s]fDat0TestedGear = 0x%x\n", __func__, otData.fDat0TestedGear);
+			pr_err("[SDIO_OnlineTuning][%s]fDat0TestedGear = 0x%x\n", __func__, otData.fDat0TestedGear);
             ret = ot_adjust_tunewnd(host, &otData.fDat0TestedGear, &tune_wind_size_dat0, &CRCPass);
             otData.tune_wind_size = tune_wind_size_dat0;
             if(ret == -1)
@@ -5962,7 +5960,7 @@ _retry:
         }
         else if(otData.dat1rddlypass == 0)
         {
-            printk("[SDIO_OnlineTuning][%s]fDat1TestedGear = 0x%x\n", __func__, otData.fDat1TestedGear);
+			pr_err("[SDIO_OnlineTuning][%s]fDat1TestedGear = 0x%x\n", __func__, otData.fDat1TestedGear);
             ret = ot_adjust_tunewnd(host, &otData.fDat1TestedGear, &tune_wind_size_dat1, &CRCPass);
             otData.tune_wind_size = tune_wind_size_dat1;
             if(ret == -1)
@@ -5970,7 +5968,7 @@ _retry:
         }
         else if(otData.dat2rddlypass == 0)
         {
-            printk("[SDIO_OnlineTuning][%s]fDat2TestedGear = 0x%x\n", __func__, otData.fDat2TestedGear);
+			pr_err("[SDIO_OnlineTuning][%s]fDat2TestedGear = 0x%x\n", __func__, otData.fDat2TestedGear);
             ret = ot_adjust_tunewnd(host, &otData.fDat2TestedGear, &tune_wind_size_dat2, &CRCPass);
             otData.tune_wind_size = tune_wind_size_dat2;
             if(ret == -1)
@@ -5978,7 +5976,7 @@ _retry:
         }
         else if(otData.dat3rddlypass == 0)
         {
-            printk("[SDIO_OnlineTuning][%s]fDat3TestedGear = 0x%x\n", __func__, otData.fDat3TestedGear);
+			pr_err("[SDIO_OnlineTuning][%s]fDat3TestedGear = 0x%x\n", __func__, otData.fDat3TestedGear);
             ret = ot_adjust_tunewnd(host, &otData.fDat3TestedGear, &tune_wind_size_dat3, &CRCPass);
             otData.tune_wind_size = tune_wind_size_dat3;
             if(ret == -1)
@@ -6024,12 +6022,13 @@ out:
         }
         sdr_write32(MSDC_DAT_RDDLY0, rxdly0);
 
-        printk("[SDIO_OnlineTuning]ret = %d, vcore_uv_off = 0x%x, cmd delay = 0x%x\n", ret, vcore_uv_off, otData.orig_cmdrdly);
+		pr_err("[SDIO_OnlineTuning]ret = %d, vcore_uv_off = 0x%x, cmd delay = 0x%x\n",
+			ret, vcore_uv_off, otData.orig_cmdrdly);
     }
     else if(otData.orig_ddlsel == 0)
     {
         sdr_set_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_DATRRDLY, otData.dat0rddly);    // Set read delay
-        printk("[SDIO_OnlineTuning]ret = %d, dat delay = 0x%x \n", ret, otData.dat0rddly);
+		pr_err("[SDIO_OnlineTuning]ret = %d, dat delay = 0x%x\n", ret, otData.dat0rddly);
     }
 
     ot_deinit(host, otData);
@@ -6126,7 +6125,7 @@ static int msdc_do_request(struct mmc_host*mmc, struct mmc_request*mrq)
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        printk("[SD%d] register abnormal,please check!\n",host->id);
+		pr_err("[SD%d] register abnormal,please check!\n", host->id);
         msdc_reset_hw(host->id);
     }
 
@@ -6376,7 +6375,7 @@ static int msdc_do_request(struct mmc_host*mmc, struct mmc_request*mrq)
             /* Secondly: pio data phase */
             if (read) {
 #ifdef MTK_MSDC_DUMP_FIFO
-                printk("[%s]: start pio read\n", __func__);
+				pr_err("[%s]: start pio read\n", __func__);
 #endif
                 if (msdc_pio_read(host, data)){
                     msdc_gate_clock(host,0);
@@ -6385,7 +6384,7 @@ static int msdc_do_request(struct mmc_host*mmc, struct mmc_request*mrq)
                 }
             } else {
 #ifdef MTK_MSDC_DUMP_FIFO
-                printk("[%s]: start pio write\n", __func__);
+				pr_err("[%s]: start pio write\n", __func__);
 #endif
                 if (msdc_pio_write(host, data)) {
                     msdc_gate_clock(host,0);
@@ -6479,13 +6478,14 @@ done:
             char *ptr = sg_virt(data->sg);
             int i;
             if (cmd->arg == 0x0 && (cmd->opcode == MMC_READ_SINGLE_BLOCK || cmd->opcode == MMC_READ_MULTIPLE_BLOCK)){
-                printk("XXXX CMD<%d> ARG<%X> offset = <%d> data<%s %s> sg <%p> ptr <%p> blksz<%d> block<%d> error<%d>\n",cmd->opcode, cmd->arg, offset, (dma? "dma":"pio"),
+				pr_err("XXXX CMD<%d> ARG<%X> offset = <%d> data<%s %s> sg <%p> ptr <%p> blksz<%d> block<%d> error<%d>\n",
+					cmd->opcode, cmd->arg, offset, (dma ? "dma" : "pio"),
                        (read ? "read ":"write"), data->sg, ptr, data->blksz, data->blocks, data->error);
 
                 for(i = 0; i < 512; i ++){
                     if (i%32 == 0)
-                        printk("\n");
-                    printk(" %2x ", ptr[i]);
+						pr_err("\n");
+					pr_err(" %2x ", ptr[i]);
                 }
             }
         }
@@ -6656,7 +6656,7 @@ static int msdc_tune_rw_request(struct mmc_host*mmc, struct mmc_request*mrq)
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        printk("[SD%d] register abnormal,please check!\n",host->id);
+		pr_err("[SD%d] register abnormal,please check!\n", host->id);
         msdc_reset_hw(host->id);
     }
 
@@ -6958,7 +6958,7 @@ static int msdc_do_request_async(struct mmc_host*mmc, struct mmc_request*mrq)
      * if find abnormal, try to reset msdc first
      */
     if (msdc_txfifocnt() || msdc_rxfifocnt()) {
-        printk("[SD%d] register abnormal,please check!\n",host->id);
+		pr_err("[SD%d] register abnormal,please check!\n", host->id);
         msdc_reset_hw(host->id);
     }
 
@@ -7314,10 +7314,6 @@ static int msdc_tune_cmdrsp(struct msdc_host *host)
     u32 clkmode;
     int hs400 = 0;
 
-    if ( !host->error_tune_enable ) {
-        return 1;
-    }
-
     sdr_get_field(MSDC_IOCON, MSDC_IOCON_RSPL, orig_rsmpl);
     sdr_get_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_CMDRDLY, orig_rrdly);
     sdr_get_field(MSDC_PATCH_BIT1, MSDC_PB1_CMD_RSP_TA_CNTR, orig_cmdrtc);
@@ -7568,7 +7564,7 @@ static void emmc_hs400_backup(void)
         if(hs400_backup_reg_list[i].restore_func){
             err = hs400_backup_reg_list[i].restore_func(0);
             if(err) {
-                printk(KERN_ERR "[%s]: failed to restore reg[%p][0x%x], expected value[0x%x], actual value[0x%x] err=0x%x",
+				pr_err("[%s]: failed to restore reg[%p][0x%x], expected value[0x%x], actual value[0x%x] err=0x%x",
                         __func__, (hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base), hs400_backup_reg_list[i].mask, hs400_backup_reg_list[i].default_value, sdr_read32((const volatile void *)(hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base)), err);
             }
         }
@@ -7591,11 +7587,15 @@ static void emmc_hs400_restore(void)
         if(hs400_backup_reg_list[i].restore_func){
             err = hs400_backup_reg_list[i].restore_func(1);
             if(err) {
-                printk(KERN_ERR "[%s]:failed to restore reg[%p][0x%x], expected value[0x%x], actual value[0x%x] err=0x%x",
-                        __func__, (hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base), hs400_backup_reg_list[i].mask, hs400_backup_reg_list[i].value, sdr_read32(hs400_backup_reg_list[i].addr), err);
+				pr_err("[%s]:failed to restore reg[%p][0x%x], expected value[0x%x], actual value[0x%x] err=0x%x",
+					__func__, (hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base),
+					hs400_backup_reg_list[i].mask, hs400_backup_reg_list[i].value,
+					sdr_read32(hs400_backup_reg_list[i].addr), err);
             }
         }
-        printk("[%s]:i:%d, reg=%p, value=0x%x\n", __func__, i, (hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base), sdr_read32((const volatile void *)(hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base)));
+		pr_err("[%s]:i:%d, reg=%p, value=0x%x\n", __func__, i,
+			(hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base),
+			sdr_read32((const volatile void *)(hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base)));
     }
 
     return;
@@ -7615,7 +7615,7 @@ static void emmc_clear_timing(void)
 		return;
 	}
 
-    pr_err("emmc_clear_timing msdc0\n");
+	pr_err("emmc_clear_timing msdc0\n");
     for(i = 0; i < HS400_BACKUP_REG_NUM; i++)
     {
         sdr_set_field((hs400_backup_reg_list[i].addr+mtk_msdc_host[0]->base), hs400_backup_reg_list[i].mask,  hs400_backup_reg_list[i].default_value);
@@ -7689,10 +7689,6 @@ static int msdc_tune_read(struct msdc_host *host)
     cur_dat4 = 0, cur_dat5 = 0, cur_dat6 = 0, cur_dat7 = 0;
     u32 orig_dat0, orig_dat1, orig_dat2, orig_dat3, orig_dat4, orig_dat5, orig_dat6, orig_dat7;
     int result = 0;
-
-    if ( !host->error_tune_enable ) {
-        return 1;
-    }
 
 #if 1
     if (host->mclk >= 100000000){
@@ -7910,10 +7906,6 @@ static int msdc_tune_write(struct msdc_host *host)
     int sel = 0;
     int clkmode = 0;
     int hs400 = 0;
-
-    if ( !host->error_tune_enable ) {
-        return 1;
-    }
 
 #if 1
     if (host->mclk >= 100000000)
@@ -8234,7 +8226,7 @@ static void msdc_ops_request_legacy(struct mmc_host *mmc, struct mmc_request *mr
         if ((sbc != NULL) && (sbc->error == (unsigned int)-ETIMEDOUT)) {
             if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK || cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ){
                 /* not tuning, go out directly */
-                printk("===[%s:%d]==cmd23 timeout==\n", __func__, __LINE__);
+				pr_err("===[%s:%d]==cmd23 timeout==\n", __func__, __LINE__);
                 goto out;
             }
         }
@@ -8293,19 +8285,6 @@ static void msdc_ops_request_legacy(struct mmc_host *mmc, struct mmc_request *mr
                 ERR_MSG("abort failed");
                 data_abort = 1;
                 if(host->hw->host_function == MSDC_SD){
-                    if(host->card_inserted){
-                        spin_unlock(&host->lock);
-#if 0
-                        ERR_MSG("go to remove the bad card");
-                        msdc_set_bad_card_and_remove(host);
-#else
-                        if ( host->error_tune_enable ) {
-                            ERR_MSG("disable error tune flow for bad SD card");
-                            host->error_tune_enable=0;
-                        }
-#endif
-                        spin_lock(&host->lock);
-                    }
                     goto out;
                 }
             }
@@ -8420,6 +8399,10 @@ static void msdc_ops_request_legacy(struct mmc_host *mmc, struct mmc_request *mr
         msdc_dump_trans_error(host, cmd, data, stop, sbc);
     }
     host->sw_timeout = 0;
+
+	if (host->hw->host_function == MSDC_SD)
+		host->continuous_fail_request_count = 0;
+
 out:
     msdc_reset_crc_tune_counter(host,all_counter);
 #ifdef MTK_MSDC_USE_CACHE
@@ -8555,22 +8538,12 @@ static void msdc_tune_async_request(struct mmc_host *mmc, struct mmc_request *mr
     host->mrq = mrq;
     do{
         msdc_dump_trans_error(host, cmd, data, stop, sbc);         // becasue ISR executing time will be monitor, try to dump the info here.
-        /*if((host->t_counter.time_cmd % 16 == 15)
-        || (host->t_counter.time_read % 16 == 15)
-            || (host->t_counter.time_write % 16 == 15))
-        {
-            spin_unlock(&host->lock);
-            msleep(150);
-            ERR_MSG("sleep 150ms here!");   //sleep in tuning flow, to avoid printk watchdong timeout
-            spin_lock(&host->lock);
-            goto out;
-        }*/
 
 #ifdef MTK_MSDC_USE_CMD23
         if ((sbc != NULL) && (sbc->error == (unsigned int)-ETIMEDOUT)) {
             if (cmd->opcode == MMC_READ_MULTIPLE_BLOCK || cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK ){
                 /* not tuning, go out directly */
-                printk("===[%s:%d]==cmd23 timeout==\n", __func__, __LINE__);
+				pr_err("===[%s:%d]==cmd23 timeout==\n", __func__, __LINE__);
                 goto out;
             }
         }
@@ -8627,19 +8600,6 @@ static void msdc_tune_async_request(struct mmc_host *mmc, struct mmc_request *mr
             if (msdc_abort_data(host)) {
                 ERR_MSG("abort failed");
                 if(host->hw->host_function == MSDC_SD){
-                    if(host->card_inserted){
-                        spin_unlock(&host->lock);
-#if 0
-                        ERR_MSG("go to remove the bad card");
-                        msdc_set_bad_card_and_remove(host);
-#else
-                        if ( host->error_tune_enable ) {
-                            ERR_MSG("disable error tune flow for bad SD card");
-                            host->error_tune_enable=0;
-                        }
-#endif
-                        spin_lock(&host->lock);
-                    }
                     goto out;
                 }
             }
@@ -8749,6 +8709,9 @@ static void msdc_tune_async_request(struct mmc_host *mmc, struct mmc_request *mr
     host->power_cycle_enable = 1;
     host->sw_timeout = 0;
 
+	if (host->hw->host_function == MSDC_SD)
+		host->continuous_fail_request_count = 0;
+
 out:
     if(host->sclk <= 50000000 && (host->state != MSDC_STATE_DDR))
         host->sd_30_busy = 0;
@@ -8832,7 +8795,6 @@ static void msdc_apply_ett_settings (struct msdc_host *host, int mode) {
         ett = host->hw->ett_settings + i;
         if(mode == ett->speed_mode){
             sdr_set_field((volatile u32*)(base + ett->reg_addr), ett->reg_offset, ett->value);
-            //printk(KERN_ERR "[%s]: msdc%d, reg[0x%x], offset[0x%x], value[0x%x], readback[0x%x]\n", __func__, host->id, ett->reg_addr, ett->reg_offset, ett->value, sdr_read32((volatile u32*)(base + ett->reg_addr)));
         }
     }
 
@@ -8903,7 +8865,7 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
             msdc_clock_src[host->id] = MSDC50_CLKSRC_200MHZ;
         }
     }
-    
+
     #ifdef CONFIG_MMC_FFU
     if ( (state != MSDC_STATE_HS400) && (host->hw->host_function == MSDC_EMMC)) {
         msdc_clock_src[host->id]= MSDC50_CLKSRC_200MHZ;
@@ -8954,7 +8916,8 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
                     mmc->card->ext_csd.card_type &= ~EXT_CSD_CARD_TYPE_DDR_1_8V;
                 }
             }
-            printk(KERN_ERR "[%s]: msdc%d, ext_csd.card_type=0x%x\n", __func__, host->id, mmc->card->ext_csd.card_type);
+			pr_err("[%s]: msdc%d, ext_csd.card_type=0x%x\n",
+				__func__, host->id, mmc->card->ext_csd.card_type);
         }
 #endif
 
@@ -9099,7 +9062,6 @@ static void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
                 sdr_set_field(MSDC_PATCH_BIT1, MSDC_PB1_GET_CRC_MA, 1);
             }
         }
-        //printk("[%s]: id:%d, host->state=0x%x, state=0x%x, MSDC_STATE_HS400=0x%x, MSDC_STATE_HS200=0x%x\n", __func__, host->id, host->state, state, MSDC_STATE_HS400, MSDC_STATE_HS200);
         if((host->id == 0) && (host->state != state)) {
             #ifdef CONFIG_EMMC_50_FEATURE
             if (state == MSDC_STATE_HS400){//switch from eMMC 4.5 backward speed mode to HS400
@@ -9230,7 +9192,7 @@ static void msdc_ops_enable_sdio_irq(struct mmc_host *mmc, int enable)
            int_sdio_irq_enable = enable;
            if (!u_sdio_irq_counter)
            {
-               printk("msdc2 u_sdio_irq_counter=1 \n");
+				pr_err("msdc2 u_sdio_irq_counter=1\n");
            }
 
            if (u_sdio_irq_counter < 0xFFFF)
@@ -9239,9 +9201,7 @@ static void msdc_ops_enable_sdio_irq(struct mmc_host *mmc, int enable)
                u_sdio_irq_counter = 1;
 
            if (u_sdio_irq_counter <7)
-               printk("msdc2 sdio_irq enable: %d \n",int_sdio_irq_enable);
-
-           //ERR_MSG("Ahsin int_sdio_irq_enable=%d  u_sdio_irq_counter=%d",int_sdio_irq_enable,u_sdio_irq_counter);
+				pr_err("msdc2 sdio_irq enable: %d\n", int_sdio_irq_enable);
        }
 #endif
        tmp = sdr_read32(SDC_CFG);
@@ -9511,7 +9471,9 @@ static irqreturn_t msdc1_eint_handler(void)
 
     if (got_bad_card == 0)
         tasklet_hi_schedule(&host->card_tasklet);
-    printk("SD card %s(%x:%x)",(host->hw->cd_level ^ host->sd_cd_polarity) ? "insert":"remove", host->hw->cd_level, host->sd_cd_polarity);
+	pr_err("SD card %s(%x:%x)",
+		(host->hw->cd_level ^ host->sd_cd_polarity) ? "insert":"remove",
+		host->hw->cd_level, host->sd_cd_polarity);
 
     return IRQ_HANDLED;
 }
@@ -9590,16 +9552,12 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
         {
             if (!u_msdc_irq_counter)
             {
-                printk("msdc2 u_msdc_irq_counter=1 \n");
+				pr_err("msdc2 u_msdc_irq_counter=1\n");
             }
             if (u_msdc_irq_counter <0xFFFF)
                 u_msdc_irq_counter = u_msdc_irq_counter + 1;
             else
                 u_msdc_irq_counter = 1;
-
-            //if (u_msdc_irq_counter < 3)
-                //printk("msdc2 u_msdc_irq_counter=%d SDC_CFG=%x MSDC_INTEN=%x MSDC_INT=%x \n",u_msdc_irq_counter,sdr_read32(SDC_CFG),sdr_read32(MSDC_INTEN),sdr_read32(MSDC_INT));
-            //ERR_MSG("Ahsin u_msdc_irq_counter=%d SDC_CFG=%x MSDC_INTEN=%x MSDC_INT=%x MSDC_PATCH_BIT0=%x",u_msdc_irq_counter,sdr_read32(SDC_CFG),sdr_read32(MSDC_INTEN),sdr_read32(MSDC_INT),sdr_read32(MSDC_PATCH_BIT0));
 
             mmc_signal_sdio_irq(host->mmc);
         }
@@ -9618,7 +9576,9 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
                     intsts = MSDC_INT_DATCRCERR;
                     g_err_tune_dbg_count--;
                 }
-                printk("[%s]: got the error cmd:%d, dbg error 0x%x, data->error=%d, count=%d \n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error,data->error, g_err_tune_dbg_count);
+				pr_err("[%s]: got the error cmd:%d, dbg error 0x%x, data->error=%d, count=%d\n",
+					__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error, data->error,
+					g_err_tune_dbg_count);
             }
 
             if((g_err_tune_dbg_cmd == MMC_STOP_TRANSMISSION) && stop && (host->autocmd & MSDC_AUTOCMD12)){
@@ -9629,7 +9589,9 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
                     intsts =MSDC_INT_ACMDCRCERR;
                     g_err_tune_dbg_count--;
                 }
-                printk("[%s]: got the error cmd:%d, dbg error 0x%x, stop->error=%d, host->error=%d, count=%d\n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error, stop->error, host->error, g_err_tune_dbg_count);
+				pr_err("[%s]: got the error cmd:%d, dbg error 0x%x, stop->error=%d, host->error=%d, count=%d\n",
+					__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_error,
+					stop->error, host->error, g_err_tune_dbg_count);
             }
         }
 #endif
@@ -9679,6 +9641,8 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
                     met_mmc_dma_stop(host->mmc, data->mrq->cmd->arg, data->blocks, data->mrq->cmd->opcode, met_mmc_bdnum);
                 }
 #endif
+				if (host->hw->host_function == MSDC_SD)
+					host->continuous_fail_request_count = 0;
             }
         }
 
@@ -9807,7 +9771,9 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
                         intsts = MSDC_INT_RSPCRCERR;
                         g_err_tune_dbg_count--;
                     }
-                    printk("[%s]: got the error cmd:%d, arg=%d, dbg error=%d, cmd->error=%d, count=%d\n", __func__, g_err_tune_dbg_cmd, g_err_tune_dbg_arg, g_err_tune_dbg_error, cmd->error, g_err_tune_dbg_count);
+					pr_err("[%s]: got the error cmd:%d, arg=%d, dbg error=%d, cmd->error=%d, count=%d\n",
+						__func__, g_err_tune_dbg_cmd, g_err_tune_dbg_arg, g_err_tune_dbg_error,
+						cmd->error, g_err_tune_dbg_count);
                 }
             }
         }
@@ -9827,6 +9793,8 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
                     *rsp = sdr_read32(SDC_RESP0);
                     break;
             }
+			if (host->hw->host_function == MSDC_SD)
+				host->continuous_fail_request_count = 0;
         } else if (intsts & MSDC_INT_RSPCRCERR) {
             cmd->error = (unsigned int)-EIO;
             ERR_MSG("XXX CMD<%d> MSDC_INT_RSPCRCERR Arg<0x%.8x>",cmd->opcode, cmd->arg);
@@ -9839,10 +9807,7 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
         if(intsts & (MSDC_INT_CMDRDY | MSDC_INT_RSPCRCERR | MSDC_INT_CMDTMO))
             complete(&host->cmd_done);
     }
-    /* mmc irq interrupts */
-    if (intsts & MSDC_INT_MMCIRQ) {
-        //printk(KERN_INFO "msdc[%d] MMCIRQ: SDC_CSTS=0x%.8x\r\n", host->id, sdr_read32(SDC_CSTS));
-    }
+
     latest_int_status[host->id] = 0;
     return IRQ_HANDLED;
 }
@@ -9887,13 +9852,13 @@ static void msdc_enable_cd_irq(struct msdc_host *host, int enable)
             host->sd_cd_polarity = 1;
             /* request irq for eint (either way) */
             if (request_irq(cd_irq, msdc1_eint_handler, IRQF_TRIGGER_HIGH, "MSDC1_INS-eint", NULL)) {
-                printk(KERN_ERR "MSDC1 IRQ LINE NOT AVAILABLE!!\n");
+				pr_err("MSDC1 IRQ LINE NOT AVAILABLE!!\n");
             }
         } else {
             host->sd_cd_polarity = 0;
             /* request irq for eint (either way) */
             if (request_irq(cd_irq, msdc1_eint_handler, IRQF_TRIGGER_LOW, "MSDC1_INS-eint", NULL)) {
-                printk(KERN_ERR "MSDC1 IRQ LINE NOT AVAILABLE!!\n");
+				pr_err("MSDC1 IRQ LINE NOT AVAILABLE!!\n");
             }
         }
     } else {
@@ -10329,7 +10294,7 @@ void SRC_trigger_signal(int i_on)
 {
     if ((ghost!= NULL) && (ghost->hw->flags & MSDC_SDIO_IRQ))
     {
-        printk("msdc2 SRC_trigger_signal %d \n",i_on);
+		pr_err("msdc2 SRC_trigger_signal %d\n", i_on);
         src_clk_control = i_on;
         if (src_clk_control)
         {
@@ -10339,9 +10304,8 @@ void SRC_trigger_signal(int i_on)
             {
                 mmc_signal_sdio_irq(ghost->mmc);
                 if (u_msdc_irq_counter<3)
-                    printk("msdc2 SRC_trigger_signal mmc_signal_sdio_irq \n");
+					pr_err("msdc2 SRC_trigger_signal mmc_signal_sdio_irq\n");
             }
-            //printk("msdc2 SRC_trigger_signal ghost->id=%d\n",ghost->id);
         }
     }
 
@@ -10370,14 +10334,12 @@ int sdio_stop_transfer(void)
 {
     int hostidx = 0;
     int host_claimed = 0;
-//    unsigned long flags;
-    //printk("[%s] Enter\n", __func__);
 
     for(hostidx = 0; hostidx < HOST_MAX_NUM; hostidx++)
     {
         if(mtk_msdc_host[hostidx]==NULL)
         {
-            printk("[%s] mtk_msdc_host[%d] = NULL\n", __func__, hostidx);
+			pr_err("[%s] mtk_msdc_host[%d] = NULL\n", __func__, hostidx);
             continue;
         }
         if(is_card_sdio(mtk_msdc_host[hostidx]))
@@ -10387,7 +10349,8 @@ int sdio_stop_transfer(void)
             while(1)
             {
                 if (atomic_read(&host->ot_done)) {
-                    printk("[%s] msdc%d prev. online tuning done, host->ot_work.chg_volt = %d\n", __func__, host->id, host->ot_work.chg_volt);
+					pr_err("[%s] msdc%d prev. online tuning done, host->ot_work.chg_volt = %d\n",
+						__func__, host->id, host->ot_work.chg_volt);
                     break;
                 }
 
@@ -10396,14 +10359,14 @@ int sdio_stop_transfer(void)
 #endif  // MTK_SDIO30_ONLINE_TUNING_SUPPORT
             if(atomic_read(&host->sdio_stopping))
             {
-                printk("[%s] msdc%d sdio stopping\n", __func__, host->id);
+				pr_err("[%s] msdc%d sdio stopping\n", __func__, host->id);
                 wait_for_completion_interruptible(&host->ot_work.ot_complete);
                 //return -1;
             }
 #ifdef MTK_SDIO30_ONLINE_TUNING_SUPPORT
 			else if(atomic_read(&host->ot_done) == 0)
 			{
-				printk("[%s] msdc%d online tuning is working\n", __func__, host->id);
+				pr_err("[%s] msdc%d online tuning is working\n", __func__, host->id);
 				wait_for_completion_interruptible(&host->ot_work.ot_complete);
 				//return -1;
 			}
@@ -10417,7 +10380,6 @@ int sdio_stop_transfer(void)
         }
     }
 
-    //printk("[%s] Exit\n", __func__);
     if(host_claimed)
     {
         count++;
@@ -10452,13 +10414,13 @@ int sdio_start_ot_transfer(void)
 
 	count--;
 	if(count != 0)
-		printk("[%s] sdio stop and start are not pairwise, count = %d\n", __func__, count);
+		pr_err("[%s] sdio stop and start are not pairwise, count = %d\n", __func__, count);
 
     for(hostidx = 0; hostidx < HOST_MAX_NUM; hostidx++)
     {
         if(mtk_msdc_host[hostidx]==NULL)
         {
-            printk("[%s] mtk_msdc_host[%d] = NULL\n", __func__, hostidx);
+			pr_err("[%s] mtk_msdc_host[%d] = NULL\n", __func__, hostidx);
             continue;
         }
         if(is_card_sdio(mtk_msdc_host[hostidx]))
@@ -10468,13 +10430,13 @@ int sdio_start_ot_transfer(void)
             u32 vcore_uv_off, vcore_sel, vcore_uv, fIdent = 0;
             static u32 prev_vcore_sel = 0;
 
-            printk("[%s] msdc%d Check vcore\n", __func__, host->id);
+			pr_err("[%s] msdc%d Check vcore\n", __func__, host->id);
 
             vcore_uv_off = autok_get_current_vcore_offset();
             vcore_uv = mt65x2_vcore_tbl[vcore_uv_off];
             vcore_sel = msdc_autok_get_vcore(vcore_uv, &fIdent);
             if(vcore_sel == prev_vcore_sel) {
-                printk("[%s] voltage doesn't change\n", __func__);
+				pr_err("[%s] voltage doesn't change\n", __func__);
                 atomic_set(&host->sdio_stopping, 0);
                 complete(&host->ot_work.ot_complete);
                 autok_release_host(host);
@@ -10559,84 +10521,84 @@ static int msdc_drv_probe(struct platform_device *pdev)
     volatile u16 l_val;
 #endif
 
-    printk("of msdc DT probe %s! \n", pdev->dev.of_node->name);
+	pr_err("of msdc DT probe %s!\n", pdev->dev.of_node->name);
 
     /* iomap register */
     base = of_iomap(pdev->dev.of_node, 0);
     if (!base) {
-        printk("can't of_iomap for msdc!!\n");
+		pr_err("can't of_iomap for msdc!!\n");
         return -ENOMEM;
     }
     else {
-        printk("of_iomap for msdc @ 0x%p\n", base);
+		pr_err("of_iomap for msdc @ 0x%p\n", base);
     }
 
     /* get irq #  */
     irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
-    printk("msdc get irq # %d\n", irq);
+	pr_err("msdc get irq # %d\n", irq);
     BUG_ON(irq < 0);
     l_irq_data.irq = irq;
 
     if (msdc_gpio_node == NULL) {
  	    msdc_gpio_node = of_find_compatible_node(NULL, NULL, "mediatek,GPIO");
         msdc_gpio_base = of_iomap(msdc_gpio_node, 0);
-        printk("of_iomap for gpio base @ 0x%p\n", msdc_gpio_base);
+		pr_err("of_iomap for gpio base @ 0x%p\n", msdc_gpio_base);
     }
 
     if (msdc_io_cfg_left_node == NULL) {
  	    msdc_io_cfg_left_node = of_find_compatible_node(NULL, NULL, "mediatek,IOCFG_L");
         msdc_io_cfg_left_base = of_iomap(msdc_io_cfg_left_node, 0);
-        printk("of_iomap for IOCFG_L base @ 0x%p\n", msdc_io_cfg_left_base);
+		pr_err("of_iomap for IOCFG_L base @ 0x%p\n", msdc_io_cfg_left_base);
     }
 
     if (msdc_io_cfg_top_node == NULL) {
  	    msdc_io_cfg_top_node = of_find_compatible_node(NULL, NULL, "mediatek,IOCFG_T");
         msdc_io_cfg_top_base = of_iomap(msdc_io_cfg_top_node, 0);
-        printk("of_iomap for IOCFG_T base @ 0x%p\n", msdc_io_cfg_top_base);
+		pr_err("of_iomap for IOCFG_T base @ 0x%p\n", msdc_io_cfg_top_base);
     }
 
     if (msdc_io_cfg_bottom_node == NULL) {
  	    msdc_io_cfg_bottom_node = of_find_compatible_node(NULL, NULL, "mediatek,IOCFG_B");
         msdc_io_cfg_bottom_base = of_iomap(msdc_io_cfg_bottom_node, 0);
-        printk("of_iomap for IOCFG_B base @ 0x%p\n", msdc_io_cfg_bottom_base);
+		pr_err("of_iomap for IOCFG_B base @ 0x%p\n", msdc_io_cfg_bottom_base);
     }
 
     if (msdc_io_cfg_right_node == NULL) {
  	    msdc_io_cfg_right_node = of_find_compatible_node(NULL, NULL, "mediatek,IOCFG_R");
         msdc_io_cfg_right_base = of_iomap(msdc_io_cfg_right_node, 0);
-        printk("of_iomap for IOCFG_R base @ 0x%p\n", msdc_io_cfg_right_base);
+		pr_err("of_iomap for IOCFG_R base @ 0x%p\n", msdc_io_cfg_right_base);
     }
 
     if (msdc_apmixed_node == NULL) {
  	    msdc_apmixed_node = of_find_compatible_node(NULL, NULL, "mediatek,APMIXED");
         msdc_apmixed_base = of_iomap(msdc_apmixed_node, 0);
-        printk("of_iomap for APMIXED base @ 0x%p\n", msdc_apmixed_base);
+		pr_err("of_iomap for APMIXED base @ 0x%p\n", msdc_apmixed_base);
     }
 
     if (msdc_topckgen_node == NULL) {
  	    msdc_topckgen_node = of_find_compatible_node(NULL, NULL, "mediatek,TOPCKGEN");
         msdc_topckgen_base = of_iomap(msdc_topckgen_node, 0);
-        printk("of_iomap for TOPCKGEN base @ 0x%p\n", msdc_topckgen_base);
+		pr_err("of_iomap for TOPCKGEN base @ 0x%p\n", msdc_topckgen_base);
     }
 
     if (msdc_infracfg_node == NULL) {
         msdc_infracfg_node = of_find_compatible_node(NULL, NULL, "mediatek,INFRACFG");
         msdc_infracfg_base = of_iomap(msdc_infracfg_node, 0);
-        printk("of_iomap for infracfg base @ 0x%p\n", msdc_infracfg_base);
+		pr_err("of_iomap for infracfg base @ 0x%p\n", msdc_infracfg_base);
     }
 
 #ifdef FPGA_PLATFORM
     if (fpga_pwr_gpio == NULL) {
         fpga_pwr_gpio = of_iomap(pdev->dev.of_node, 1);
         fpga_pwr_gpio_eo = fpga_pwr_gpio + 0x4;
-        printk("FPAG PWR_GPIO, PWR_GPIO_EO address 0x%p, 0x%p\n", fpga_pwr_gpio, fpga_pwr_gpio_eo);
+		pr_err("FPAG PWR_GPIO, PWR_GPIO_EO address 0x%p, 0x%p\n", fpga_pwr_gpio, fpga_pwr_gpio_eo);
     }
 
     l_val = sdr_read16(PWR_GPIO_EO);
     sdr_write16(PWR_GPIO_EO, (l_val |/* PWR_GPIO_L4_DIR |*/ PWR_MASK_EN | PWR_MASK_VOL_33 | PWR_MASK_VOL_18));
 
     l_val = sdr_read16(PWR_GPIO_EO);
-    printk("[%s]: pwr gpio dir = 0x%x\n", __func__, l_val);
+	pr_err("[%s]: pwr gpio dir = 0x%x\n", __func__, l_val);
 #endif
 
     if (first_probe == 0) {
@@ -10647,28 +10609,28 @@ static int msdc_drv_probe(struct platform_device *pdev)
     if (strcmp(pdev->dev.of_node->name, "MSDC0") == 0) {
         hw = &msdc0_hw;
         pdev->id = 0;
-        printk("platform_data hw:0x%p, is msdc0_hw \n", hw);
+		pr_err("platform_data hw:0x%p, is msdc0_hw\n", hw);
     }
 #endif
 #if defined(CFG_DEV_MSDC1)
     if (strcmp(pdev->dev.of_node->name, "MSDC1") == 0) {
         hw = &msdc1_hw;
         pdev->id = 1;
-        printk("platform_data hw:0x%p, is msdc1_hw \n", hw);
+		pr_err("platform_data hw:0x%p, is msdc1_hw\n", hw);
     }
 #endif
 #if defined(CFG_DEV_MSDC2)
     if (strcmp(pdev->dev.of_node->name, "MSDC2") == 0) {
         hw = &msdc2_hw;
         pdev->id = 2;
-        printk("platform_data hw:0x%p, is msdc2_hw \n", hw);
+		pr_err("platform_data hw:0x%p, is msdc2_hw\n", hw);
     }
 #endif
 #if defined(CFG_DEV_MSDC3)
     if (strcmp(pdev->dev.of_node->name, "MSDC3") == 0) {
         hw = &msdc3_hw;
         pdev->id = 3;
-        printk("platform_data hw:0x%p, is msdc3_hw \n", hw);
+		pr_err("platform_data hw:0x%p, is msdc3_hw\n", hw);
     }
 #endif
 
@@ -10678,7 +10640,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
     if ((pdev->id == 1) && (hw->host_function == MSDC_SD) && (msdc_eint_node == NULL)) {
         msdc_eint_node = of_find_compatible_node(NULL, NULL, "mediatek, MSDC1_INS-eint");
         if (msdc_eint_node) {
-            printk("find MSDC1_INS-eint node!!\n");
+			pr_err("find MSDC1_INS-eint node!!\n");
             hw->flags |= (MSDC_CD_PIN_EN | MSDC_REMOVABLE);
 
             /* get irq #  */
@@ -10686,12 +10648,12 @@ static int msdc_drv_probe(struct platform_device *pdev)
                 cd_irq = irq_of_parse_and_map(msdc_eint_node, 0);
             }
             if (!cd_irq) {
-                printk("can't irq_of_parse_and_map for card detect eint!!\n");
+				pr_err("can't irq_of_parse_and_map for card detect eint!!\n");
             } else {
-                printk("msdc1 EINT get irq # %d\n", cd_irq);
+				pr_err("msdc1 EINT get irq # %d\n", cd_irq);
             }
         } else {
-            printk("can't find MSDC1_INS-eint compatible node\n");
+			pr_err("can't find MSDC1_INS-eint compatible node\n");
         }
     }
 
@@ -10722,13 +10684,11 @@ static int msdc_drv_probe(struct platform_device *pdev)
         mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
     }
 #ifdef CONFIG_EMMC_50_FEATURE
-    printk("[%s]: hw->flags=0x%lx, MSDC_HS400=0x%x\n", __func__, hw->flags, MSDC_HS400);
+	pr_err("[%s]: hw->flags=0x%lx, MSDC_HS400=0x%x\n", __func__, hw->flags, MSDC_HS400);
     if(hw->flags & MSDC_HS400){
         mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
     }
 #endif
-    if(hw->flags & MSDC_DDR)
-        mmc->caps |= MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR;
     if(!(hw->flags & MSDC_REMOVABLE))
         mmc->caps |= MMC_CAP_NONREMOVABLE;
     //else
@@ -10752,7 +10712,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
         ((boot_mode == NORMAL_BOOT) || (boot_mode == ALARM_BOOT) || (boot_mode == SW_REBOOT)))
         mmc->caps2 |= MMC_CAP2_CACHE_CTRL;
 
-    printk("[%s]: boot_mode = %d, caps2 = %x \n", __func__, boot_mode, mmc->caps2);
+	pr_err("[%s]: boot_mode = %d, caps2 = %x\n", __func__, boot_mode, mmc->caps2);
 #endif
 
     /* MMC core transfer sizes tunable parameters */
@@ -10799,12 +10759,9 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #ifndef FPGA_PLATFORM
     msdc_set_host_power_control(host);
     if ((host->hw->host_function == MSDC_SD) && (host->hw->flags & MSDC_CD_PIN_EN)) {
-		if (host->hw->flags & MSDC_SD_NEED_POWER)
-			host->sd_keep_pwr = false;
-        msdc_sd_power(host, 0); //work around : hot-plug project SD card LDO alway on if no SD card insert
-        msdc_sd_power(host, 1);
-		if (host->hw->flags & MSDC_SD_NEED_POWER)
-			host->sd_keep_pwr = true;
+		/* work around : hot-plug project SD card LDO alway on if no SD card insert */
+		msdc_sd_power(host, 1);
+		msdc_sd_power(host, 0);
     }
 #endif
     if(host->hw->host_function == MSDC_EMMC && !(host->hw->flags & MSDC_UHS1))
@@ -10975,18 +10932,18 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #endif
 
 #ifdef MTK_MSDC_BRINGUP_DEBUG
-    printk("[%s]: msdc%d, mmc->caps=0x%x, mmc->caps2=0x%x\n", __func__, host->id, mmc->caps, mmc->caps2);
-    printk(KERN_ERR "[%s]: msdc%d, msdcpll en[0xF000C250][bit0 should be 0x1]=0x%x, msdcpll on[0xF000C25C][bit0~1 should be 0x1]=0x%x, mux[0xF0000070][bit23, 16~19 for msdc0, bit31, 24~26 for msdc1]=0x%x\n",
+	pr_err("[%s]: msdc%d, mmc->caps=0x%x, mmc->caps2=0x%x\n", __func__, host->id, mmc->caps, mmc->caps2);
+	pr_err("[%s]: msdc%d, msdcpll en[0xF000C250][bit0 should be 0x1]=0x%x, msdcpll on[0xF000C25C][bit0~1 should be 0x1]=0x%x, mux[0xF0000070][bit23, 16~19 for msdc0, bit31, 24~26 for msdc1]=0x%x\n",
                      __func__, host->id, sdr_read32(msdc_apmixed_base+0x250), sdr_read32(msdc_apmixed_base+0x25C),  sdr_read32(msdc_topckgen_base+0x070));
 #endif
 
 #ifdef FPGA_PLATFORM
   #ifdef CONFIG_MTK_EMMC_SUPPORT
-    printk("[%s]: waiting emmc init complete\n", __func__);
+	pr_err("[%s]: waiting emmc init complete\n", __func__);
     host->mmc->card_init_wait(host->mmc);
-    printk("[%s]: start read write compare test\n", __func__);
+	pr_err("[%s]: start read write compare test\n", __func__);
     emmc_multi_rw_compare(0, 0x200, 0xf);
-    printk("[%s]: finish read write compare test\n", __func__);
+	pr_err("[%s]: finish read write compare test\n", __func__);
   #endif
 #endif
 
@@ -10994,11 +10951,11 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 free_irq:
     free_irq(irq, host);
-    printk("[%s]: msdc%d init fail free irq!\n", __func__, host->id);
+	pr_err("[%s]: msdc%d init fail free irq!\n", __func__, host->id);
 release:
     platform_set_drvdata(pdev, NULL);
     msdc_deinit_hw(host);
-    printk("[%s]: msdc%d init fail release!\n", __func__, host->id);
+	pr_err("[%s]: msdc%d init fail release!\n", __func__, host->id);
 
     tasklet_kill(&host->card_tasklet);
 #ifdef MTK_MSDC_FLUSH_BY_CLK_GATE
@@ -11036,7 +10993,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
     sdr_write16(PWR_GPIO_EO, (l_val |/* PWR_GPIO_L4_DIR |*/ PWR_MASK_EN | PWR_MASK_VOL_33 | PWR_MASK_VOL_18));
 
     l_val = sdr_read16(PWR_GPIO_EO);
-    printk("[%s]: pwr gpio dir = 0x%x\n", __func__, l_val);
+	pr_err("[%s]: pwr gpio dir = 0x%x\n", __func__, l_val);
 #endif
     if (first_probe == 0) {
         first_probe ++;
@@ -11104,13 +11061,11 @@ static int msdc_drv_probe(struct platform_device *pdev)
         mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR;
     }
 #ifdef CONFIG_EMMC_50_FEATURE
-    printk("[%s]: hw->flags=0x%lx, MSDC_HS400=0x%x\n", __func__, hw->flags, MSDC_HS400);
+	pr_err("[%s]: hw->flags=0x%lx, MSDC_HS400=0x%x\n", __func__, hw->flags, MSDC_HS400);
     if(hw->flags & MSDC_HS400){
         mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
     }
 #endif
-    if(hw->flags & MSDC_DDR)
-        mmc->caps |= MMC_CAP_UHS_DDR50|MMC_CAP_1_8V_DDR;
     if(!(hw->flags & MSDC_REMOVABLE))
         mmc->caps |= MMC_CAP_NONREMOVABLE;
     //else
@@ -11166,6 +11121,8 @@ static int msdc_drv_probe(struct platform_device *pdev)
     host->power_mode     = MMC_POWER_OFF;
     host->power_control  = NULL;
     host->power_switch   = NULL;
+	host->dma_mask = DMA_BIT_MASK(33);
+	mmc_dev(mmc)->dma_mask = &host->dma_mask;
 #ifdef SDIO_ERROR_BYPASS
     host->sdio_error = 0;
 #endif
@@ -11342,18 +11299,18 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #endif
 
 #ifdef MTK_MSDC_BRINGUP_DEBUG
-    printk("[%s]: msdc%d, mmc->caps=0x%x, mmc->caps2=0x%x\n", __func__, host->id, mmc->caps, mmc->caps2);
-    printk(KERN_ERR "[%s]: msdc%d, msdcpll en[0xF000C250][bit0 should be 0x1]=0x%x, msdcpll on[0xF000C25C][bit0~1 should be 0x1]=0x%x, mux[0xF0000070][bit23, 16~19 for msdc0, bit31, 24~26 for msdc1]=0x%x\n",
+	pr_err("[%s]: msdc%d, mmc->caps=0x%x, mmc->caps2=0x%x\n", __func__, host->id, mmc->caps, mmc->caps2);
+	pr_err("[%s]: msdc%d, msdcpll en[0xF000C250][bit0 should be 0x1]=0x%x, msdcpll on[0xF000C25C][bit0~1 should be 0x1]=0x%x, mux[0xF0000070][bit23, 16~19 for msdc0, bit31, 24~26 for msdc1]=0x%x\n",
                      __func__, host->id, sdr_read32(msdc_apmixed_base+0x250), sdr_read32(msdc_apmixed_base+0x25C),  sdr_read32(msdc_topckgen_base+0x070));
 #endif
 
 #ifdef FPGA_PLATFORM
 #if 0 //def CONFIG_MTK_EMMC_SUPPORT
-    printk("[%s]: waiting emmc init complete\n", __func__);
+	pr_err("[%s]: waiting emmc init complete\n", __func__);
     host->mmc->card_init_wait(host->mmc);
-    printk("[%s]: start read write compare test\n", __func__);
+	pr_err("[%s]: start read write compare test\n", __func__);
     emmc_multi_rw_compare(0, 0x200, 0xf);
-    printk("[%s]: finish read write compare test\n", __func__);
+	pr_err("[%s]: finish read write compare test\n", __func__);
 #endif
 #endif
 
@@ -11500,7 +11457,7 @@ static int msdc_drv_resume(struct platform_device *pdev)
 
     if(host->hw->flags & MSDC_SDIO_IRQ)
     {
-        printk("msdc msdc_drv_resume \n");
+		pr_err("msdc msdc_drv_resume\n");
     }
     state.event = PM_EVENT_RESUME;
     if (mmc && (host->hw->flags & MSDC_SYS_SUSPEND)) {/* will set for card */
@@ -11551,7 +11508,7 @@ static int __init mt_msdc_init(void)
 
     ret = platform_driver_register(&mt_msdc_driver);
     if (ret) {
-        printk(KERN_ERR DRV_NAME ": Can't register driver");
+		pr_err(DRV_NAME ": Can't register driver");
         return ret;
     }
 
@@ -11559,9 +11516,9 @@ static int __init mt_msdc_init(void)
     if ((proc_emmc = proc_create( "emmc", 0, NULL, &proc_emmc_fops)));
 #endif /* CONFIG_MTK_EMMC_SUPPORT && CONFIG_PROC_FS */
 
-    printk(KERN_INFO DRV_NAME ": MediaTek MSDC Driver\n");
+	pr_info(DRV_NAME ": MediaTek MSDC Driver\n");
 
-    msdc_debug_proc_init();
+    //msdc_debug_proc_init();
     msdc_init_dma_latest_address();
     return 0;
 }

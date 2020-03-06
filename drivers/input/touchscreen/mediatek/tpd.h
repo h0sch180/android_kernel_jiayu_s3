@@ -10,9 +10,10 @@
 #include <linux/proc_fs.h>
 
 #include <linux/slab.h>
-
+#if defined(CONFIG_MTK_LEGACY)
 #include <mach/mt_gpio.h>
-#ifndef CONFIG_ARM64 //MT6795
+#endif
+#ifndef CONFIG_ARM64
 #include <mach/mt_reg_base.h>
 #include <mach/irqs.h>
 #endif
@@ -31,13 +32,13 @@
 #include <vibrator_hal.h>
 
 /* debug macros */
-/* //#define TPD_DEBUG */
+/* #define TPD_DEBUG */
 #define TPD_DEBUG_CODE
 /* #define TPD_DEBUG_TRACK */
-#define TPD_DMESG(a, arg...) printk(TPD_DEVICE ": " a, ##arg)
+#define TPD_DMESG(a, arg...) pr_debug(TPD_DEVICE ": " a, ##arg)
 #if defined(TPD_DEBUG)
 #undef TPD_DEBUG
-#define TPD_DEBUG(a, arg...) printk(TPD_DEVICE ": " a, ##arg)
+#define TPD_DEBUG(a, arg...) pr_debug(TPD_DEVICE ": " a, ##arg)
 #else
 #define TPD_DEBUG(arg...)
 #endif
@@ -93,7 +94,22 @@ struct tpd_device {
 	struct tasklet_struct tasklet;
 	int btn_state;
 };
-
+#if !defined(CONFIG_MTK_LEGACY)
+struct tpd_key_dim_local{
+	int key_x;
+	int key_y;
+	int key_width;
+	int key_height;
+};
+struct tpd_dts_info{
+	int tpd_resolution[2];
+	int use_tpd_button;
+	int tpd_key_num;
+	int tpd_key_local[4];
+	struct tpd_key_dim_local tpd_key_dim_local[4];
+};
+extern struct tpd_dts_info tpd_dts_data;
+#endif
 struct tpd_attrs {
 	struct device_attribute **attr;
 	int num;
@@ -105,12 +121,6 @@ struct tpd_driver_t {
 	void (*resume) (struct early_suspend *h);
 	int tpd_have_button;
 	struct tpd_attrs attrs;
-/* Vanzo:songlixin on: Tue, 13 Jan 2015 17:46:42 +0800
- */
-#ifdef TOUCH_PS
-		void (*tpd_ps)(bool on);//1-> on, 0->off
-#endif
-// End of Vanzo:songlixin
 };
 
 struct tpd_filter_t
@@ -120,7 +130,18 @@ struct tpd_filter_t
 	int W_W[3][4];//filter custom setting prameters
 	unsigned int VECLOCITY_THRESHOLD[3];//filter speed custom settings
 };
-
+#if !defined(CONFIG_LENOVO_CTP_FEATURE)
+/*Begin Lenovo-sw wengjun1 add for mediainfo display 2014.01.15 */
+struct tpd_version_info
+{
+    char *name;
+    unsigned int types;
+    unsigned int fw_num;
+};
+extern struct tpd_version_info *tpd_info_t;
+extern unsigned int have_correct_setting;
+/*End Lenovo-sw wengjun1 add for mediainfo display 2014.01.15 */
+#endif
 #if 1				/* #ifdef TPD_HAVE_BUTTON */
 void tpd_button(unsigned int x, unsigned int y, unsigned int down);
 void tpd_button_init(void);
@@ -138,13 +159,44 @@ u16 tpd_read(int position);
 u16 tpd_read_adc(u16 pos);
 u16 tpd_read_status(void);
 #endif
+#ifdef CONFIG_LENOVO_CTP_FEATURE
+struct tpd_version_info
+{
+    char *name;
+    unsigned int types;
+    unsigned int fw_num;
+};
 
+struct  fwu_userspace_t {
+	int (*lastest_fwid)(void);
+	int (*upgrade_progress)(void);
+};
+
+struct  tpd_glove_t {
+	int (*set_mode)(bool);
+	int (*get_mode)(void);
+	int pre_status;
+	int status;
+	int usb_st;
+};
+
+struct  tpd_gesture_t {
+	int letter ;
+	int wakeup_enable ;
+};
+#endif
 extern int tpd_driver_add(struct tpd_driver_t *tpd_drv);
 extern int tpd_driver_remove(struct tpd_driver_t *tpd_drv);
 void tpd_button_setting(int keycnt, void *keys, void *keys_dim);
 extern int tpd_em_spl_num;
 extern int tpd_em_pressure_threshold;
-
+#if !defined(CONFIG_MTK_LEGACY)
+#define GTP_RST_PORT    0
+#define GTP_INT_PORT    1
+extern void tpd_get_dts_info(void);
+extern void tpd_gpio_as_int(int pin);
+extern void tpd_gpio_output(int pin, int level);
+#endif
 #ifdef TPD_DEBUG_CODE
 #include "tpd_debug.h"
 #endif
@@ -160,3 +212,13 @@ void _tpd_switch_single_mode(void);
 void _tpd_switch_multiple_mode(void);
 void _tpd_switch_sleep_mode(void);
 void _tpd_switch_normal_mode(void);
+#ifdef CONFIG_LENOVO_CTP_FEATURE
+int le_add_feature_attrs(struct kobject *kobj);
+void le_tpd_reg_feature_tpd_info(struct tpd_version_info *info);
+void le_tpd_reg_feature_fwu_userspace_cb(int (*d)(void), int (*p)(void));
+void le_tpd_reg_feature_gesture_func(struct  tpd_gesture_t  *ge);
+void le_tpd_reg_feature_glove_func(struct tpd_glove_t *gf);
+int tpd_ic_ready_get(void);
+void tpd_ic_ready_set(int rd);
+
+#endif

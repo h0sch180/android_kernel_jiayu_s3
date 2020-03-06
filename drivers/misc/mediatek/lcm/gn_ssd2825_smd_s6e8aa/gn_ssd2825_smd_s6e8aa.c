@@ -19,7 +19,7 @@
 	#include <mach/mt_gpio.h>
 	#include <mach/mt_pwm.h>
 	#ifdef LCD_DEBUG
-		#define LCM_DEBUG(format, ...)   printk("kernel ssd2825" format "\n", ## __VA_ARGS__)
+		#define LCM_DEBUG(format, ...)   pr_debug("kernel ssd2825" format "\n", ## __VA_ARGS__)
 	#else
 		#define LCM_DEBUG(format, ...)
 	#endif

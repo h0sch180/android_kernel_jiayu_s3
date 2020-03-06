@@ -115,8 +115,8 @@ static struct i2c_driver tps65132_iic_driver = {
  *****************************************************************************/ 
 static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {  
-	printk( "*********hx8394d tps65132_iic_probe\n");
-	printk("*********hx8394d TPS: info==>name=%s addr=0x%x\n",client->name,client->addr);
+	pr_debug( "*********hx8394d tps65132_iic_probe\n");
+	pr_debug("*********hx8394d TPS: info==>name=%s addr=0x%x\n",client->name,client->addr);
 	tps65132_i2c_client  = client;		
 	return 0;      
 }
@@ -124,7 +124,7 @@ static int tps65132_probe(struct i2c_client *client, const struct i2c_device_id 
 
 static int tps65132_remove(struct i2c_client *client)
 {  	
-  printk( "*********hx8394d tps65132_remove\n");
+  pr_debug( "*********hx8394d tps65132_remove\n");
   tps65132_i2c_client = NULL;
    i2c_unregister_device(client);
   return 0;
@@ -140,7 +140,7 @@ static int tps65132_remove(struct i2c_client *client)
 	write_data[1] = value;
     ret=i2c_master_send(client, write_data, 2);
 	if(ret<0)
-	printk("*********hx8394d tps65132 write data fail !!\n");	
+	pr_debug("*********hx8394d tps65132 write data fail !!\n");	
 	return ret ;
 }
 
@@ -153,17 +153,17 @@ static int tps65132_remove(struct i2c_client *client)
 static int __init tps65132_iic_init(void)
 {
 
-   printk( "*********hx8394d tps65132_iic_init\n");
+   pr_debug( "*********hx8394d tps65132_iic_init\n");
    i2c_register_board_info(TPS_I2C_BUSNUM, &tps65132_board_info, 1);
-   printk( "*********hx8394d tps65132_iic_init2\n");
+   pr_debug( "*********hx8394d tps65132_iic_init2\n");
    i2c_add_driver(&tps65132_iic_driver);
-   printk( "*********hx8394d tps65132_iic_init success\n");	
+   pr_debug( "*********hx8394d tps65132_iic_init success\n");	
    return 0;
 }
 
 static void __exit tps65132_iic_exit(void)
 {
-  printk( "*********hx8394d tps65132_iic_exit\n");
+  pr_debug( "*********hx8394d tps65132_iic_exit\n");
   i2c_del_driver(&tps65132_iic_driver);  
 }
 
@@ -220,21 +220,21 @@ static unsigned int lcm_esd_test = FALSE;      ///only for ESD test
 #define _LCM_DEBUG_
 
 #ifdef BUILD_LK
-#define printk printf
+#define pr_debug printf
 #endif
 
 #ifdef _LCM_DEBUG_
-#define lcm_debug(fmt, args...) printk(fmt, ##args)
+#define lcm_debug(fmt, args...) pr_debug(fmt, ##args)
 #else
 #define lcm_debug(fmt, args...) do { } while (0)
 #endif
 
 #ifdef _LCM_INFO_
-#define lcm_info(fmt, args...) printk(fmt, ##args)
+#define lcm_info(fmt, args...) pr_debug(fmt, ##args)
 #else
 #define lcm_info(fmt, args...) do { } while (0)
 #endif
-#define lcm_err(fmt, args...) printk(fmt, ##args)
+#define lcm_err(fmt, args...) pr_debug(fmt, ##args)
 
 // ---------------------------------------------------------------------------
 //  Local Functions
@@ -750,9 +750,9 @@ static void lcm_init_power(void)
 #ifdef BUILD_LK
 	pmic_set_register_value(PMIC_RG_VGP1_EN,1);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6328_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -763,9 +763,9 @@ static void lcm_suspend_power(void)
 #ifdef BUILD_LK
 	pmic_set_register_value(PMIC_RG_VGP1_EN,0);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerDown(MT6328_POWER_LDO_VGP1, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -776,9 +776,9 @@ static void lcm_resume_power(void)
 #ifdef BUILD_LK
 	pmic_set_register_value(PMIC_RG_VGP1_EN,1);
 #else
-	printk("%s, begin\n", __func__);
+	pr_debug("%s, begin\n", __func__);
 	hwPowerOn(MT6328_POWER_LDO_VGP1, VOL_DEFAULT, "LCM_DRV");	
-	printk("%s, end\n", __func__);
+	pr_debug("%s, end\n", __func__);
 #endif
 #endif
 }
@@ -808,9 +808,9 @@ static void lcm_init(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 	
 	cmd=0x01;
@@ -825,9 +825,9 @@ static void lcm_init(void)
 #else
 	ret=tps65132_write_bytes(cmd,data);
 	if(ret<0)
-	printk("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
+	pr_debug("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write error-----\n",cmd);
 	else
-	printk("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
+	pr_debug("[KERNEL]TM050-----tps6132---cmd=%0x-- i2c write success-----\n",cmd);
 #endif
 #endif
 
@@ -917,7 +917,7 @@ static unsigned int lcm_compare_id(void)
 	#ifdef BUILD_LK
 		printf("%s, LK debug: hx8394d id = 0x%08x\n", __func__, buffer);
     #else
-		printk("%s, kernel debug: hx8394d id = 0x%08x\n", __func__, buffer);
+		pr_debug("%s, kernel debug: hx8394d id = 0x%08x\n", __func__, buffer);
     #endif
 
 	return (buffer == HX8394D_HD720_ID ? 1 : 0);
@@ -937,7 +937,7 @@ static unsigned int lcm_esd_check(void)
 
 	char  buffer;
 	read_reg_v2(0x0a, &buffer, 1);
-	printk("%s, kernel debug: reg = 0x%08x\n", __func__, buffer);
+	pr_debug("%s, kernel debug: reg = 0x%08x\n", __func__, buffer);
 
 	return FALSE;
 	

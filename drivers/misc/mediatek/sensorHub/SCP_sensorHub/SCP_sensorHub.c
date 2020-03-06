@@ -303,12 +303,27 @@ static SCP_SENSOR_HUB_DATA_P userData = NULL;
 static uint *userDataLen = NULL;
 /*----------------------------------------------------------------------------*/
 #define SCP_TAG                  "[sensorHub] "
-#define SCP_FUN(f)               printk(KERN_ERR SCP_TAG"%s\n", __FUNCTION__)
-#define SCP_ERR(fmt, args...)    printk(KERN_ERR SCP_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define SCP_FUN(f)               printk(KERN_ERR SCP_TAG"%s\n", __func__)
+#define SCP_ERR(fmt, args...)    printk(KERN_ERR SCP_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define SCP_LOG(fmt, args...)    printk(KERN_ERR SCP_TAG fmt, ##args)
 /*--------------------SCP_sensorHub power control function----------------------------------*/
 static void SCP_sensorHub_power(struct sensorHub_hw *hw, unsigned int on) 
 {
+}
+/*----------------------------------------------------------------------------*/
+static unsigned long long SCP_sensorHub_GetCurNS(void)
+{
+/*
+    int64_t  nt;
+    struct timespec time;
+
+    time.tv_sec = 0;
+    time.tv_nsec = 0;
+    get_monotonic_boottime(&time);
+    nt = time.tv_sec*1000000000LL+time.tv_nsec;
+*/
+
+	return sched_clock();
 }
 /*----------------------------------------------------------------------------*/
 //md32 may lock hw semaphore about 6.x ms to push data to dram.
@@ -741,6 +756,7 @@ static void SCP_sensorHub_late_resume(struct early_suspend *h)
 /*----------------------------------------------------------------------------*/
 #endif //#if !defined(CONFIG_HAS_EARLYSUSPEND) || !defined(USE_EARLY_SUSPEND)
 /*----------------------------------------------------------------------------*/
+static unsigned long long t1, t2, t3, t4, t5, t6;
 int SCP_sensorHub_req_send(SCP_SENSOR_HUB_DATA_P data, uint *len, unsigned int wait)
 {
     ipi_status status;
@@ -757,7 +773,7 @@ int SCP_sensorHub_req_send(SCP_SENSOR_HUB_DATA_P data, uint *len, unsigned int w
 
     if (in_interrupt())
     {
-        SCP_ERR("Can't do %s in interrupt context!!\n", __FUNCTION__);
+        SCP_ERR("Can't do %s in interrupt context!!\n", __func__);
         return -1;
     }
     
@@ -817,6 +833,8 @@ int SCP_sensorHub_req_send(SCP_SENSOR_HUB_DATA_P data, uint *len, unsigned int w
         wait_event_interruptible(SCP_sensorHub_req_wq, (atomic_read(&(obj_data->wait_rsp)) == 0));
         del_timer_sync(&obj_data->timer);
         err = userData->rsp.errCode;
+		if (t6-t1 > 3000000LL)
+			SCP_ERR("%llu, %llu, %llu, %llu, %llu, %llu\n", t1, t2, t3, t4, t5, t6);
         mutex_unlock(&SCP_sensorHub_req_mutex);
     }
 
@@ -888,6 +906,8 @@ static void SCP_sensorHub_IPI_handler(int id, void *data, unsigned int len)
     bool do_registed_handler = false;
     static int first_init_done = 0;
 
+	t1 = SCP_sensorHub_GetCurNS();
+
     if (SCP_TRC_FUN == atomic_read(&(obj_data->trace)))
         SCP_FUN();
 
@@ -945,6 +965,8 @@ static void SCP_sensorHub_IPI_handler(int id, void *data, unsigned int len)
                 return;
         }
 
+		t2 = SCP_sensorHub_GetCurNS();
+
         if (ID_SENSOR_MAX_HANDLE < rsp->rsp.sensorType)
         {
             SCP_ERR("SCP_sensorHub_IPI_handler invalid sensor type %d\n", rsp->rsp.sensorType);
@@ -957,6 +979,8 @@ static void SCP_sensorHub_IPI_handler(int id, void *data, unsigned int len)
                 sensor_handler[rsp->rsp.sensorType](data, len);
             }
         }
+
+		t3 = SCP_sensorHub_GetCurNS();
 
         if(atomic_read(&(obj_data->wait_rsp)) == 1 && true == wake_up_req)
         {
@@ -973,8 +997,11 @@ static void SCP_sensorHub_IPI_handler(int id, void *data, unsigned int len)
                 memcpy(userData, rsp, len);
                 *userDataLen = len;
             }
+			t4 = SCP_sensorHub_GetCurNS();
             atomic_set(&(obj_data->wait_rsp), 0);
+			t5 = SCP_sensorHub_GetCurNS();
             wake_up(&SCP_sensorHub_req_wq);
+			t6 = SCP_sensorHub_GetCurNS();
         }
     }
 }
@@ -1220,10 +1247,12 @@ static int SCP_sensorHub_probe(/*struct platform_device *pdev*/)
 	obj->timer.function	= SCP_sensorHub_req_send_timeout;
 	obj->timer.data		= (unsigned long)obj;
 
+#ifdef CONFIG_CUSTOM_KERNEL_STEP_COUNTER
     init_timer(&obj->notify_timer);
     obj->notify_timer.expires	= HZ/5; //200 ms
     obj->notify_timer.function	= notify_ap_timeout;
     obj->notify_timer.data	= (unsigned long)obj;
+#endif /*#ifdef CONFIG_CUSTOM_KERNEL_STEP_COUNTER*/
 
     md32_ipi_registration(IPI_SENSOR, SCP_sensorHub_IPI_handler, "SCP_sensorHub");
 		
@@ -1574,11 +1603,13 @@ static int SCP_sensorHub_notify_handler(void* data, uint len)
                     {
                         schedule_work(&(obj_data->sd_work));
                     }
+#ifdef CONFIG_CUSTOM_KERNEL_STEP_COUNTER
                     else if (ID_SIGNIFICANT_MOTION == rsp->notify_rsp.sensorType)
                     {
                         wake_lock(&sig_lock);
                         schedule_work(&(obj_data->sig_work));
                     }
+#endif /*#ifdef CONFIG_CUSTOM_KERNEL_STEP_COUNTER*/
                     else if (ID_IN_POCKET == rsp->notify_rsp.sensorType)
                     {
                         schedule_work(&(obj_data->inpk_work));

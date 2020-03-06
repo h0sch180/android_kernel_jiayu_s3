@@ -535,9 +535,9 @@ static unsigned int lcm_compare_id(void)
 	printf("%s, LK ssd2075 id1 = 0x%08x\n", __func__, id1);
 	printf("%s, LK ssd2075 id = 0x%08x\n", __func__, id);
    #else
-	printk("%s, Kernel ssd2075 id0 = 0x%08x\n", __func__, id0);
-	printk("%s, Kernel ssd2075 id1 = 0x%08x\n", __func__, id1);
-	printk("%s, Kernel ssd2075 id = 0x%08x\n", __func__, id);
+	pr_debug("%s, Kernel ssd2075 id0 = 0x%08x\n", __func__, id0);
+	pr_debug("%s, Kernel ssd2075 id1 = 0x%08x\n", __func__, id1);
+	pr_debug("%s, Kernel ssd2075 id = 0x%08x\n", __func__, id);
    #endif
 
   return (LCM_ID_SSD2075 == id)?1:0;

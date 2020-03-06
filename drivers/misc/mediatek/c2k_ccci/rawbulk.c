@@ -48,6 +48,8 @@
 #include <linux/usb/composite.h>
 #include <mach/viatel_rawbulk.h>
 
+
+#define C2K_TTY_USB_SKIP
 #ifdef C2K_USB_UT
 #include <linux/random.h>
 #define UT_CMD 3
@@ -712,28 +714,6 @@ void rawbulk_unregister_tty(struct rawbulk_function *fn) {
 EXPORT_SYMBOL_GPL(rawbulk_unregister_tty);
 
 /******************************************************************************/
-
-/* Call this after all request has detached! */
-void rawbulk_tty_free_request(struct rawbulk_function *fn) {
-    struct usb_request_wrapper *req;
-    C2K_NOTE("%s\n", __func__);
-
-    while ((req = get_req(&fn->rx_free, &fn->rx_lock))) {
-        //kfree(req->buffer);
-        free_page((unsigned long) req->buffer);
-        usb_ep_free_request(fn->bulk_out, req->request);
-        kfree(req);
-    }
-
-    while ((req = get_req(&fn->tx_free, &fn->tx_lock))) {
-        //kfree(req->buffer);
-        free_page((unsigned long) req->buffer);
-        usb_ep_free_request(fn->bulk_in, req->request);
-        kfree(req);
-    }
-}
-EXPORT_SYMBOL_GPL(rawbulk_tty_free_request);
-
 #define print_request_data(req) { \
 	if (req->status < 0) { \
 		printk(KERN_INFO "%s: request failed %d\n", __func__, req->status); \
@@ -755,6 +735,36 @@ EXPORT_SYMBOL_GPL(rawbulk_tty_free_request);
 		printk("\n"); \
 	} \
 }
+
+
+#ifdef C2K_TTY_USB_SKIP
+
+void rawbulk_tty_free_request(struct rawbulk_function *fn) {return;}
+int rawbulk_tty_alloc_request(struct rawbulk_function *fn) {return 0;}
+int rawbulk_tty_stop_io(struct rawbulk_function *fn) {return 0;}
+int rawbulk_tty_start_io(struct rawbulk_function *fn) {return 0;}
+
+#else
+/* Call this after all request has detached! */
+void rawbulk_tty_free_request(struct rawbulk_function *fn) {
+    struct usb_request_wrapper *req;
+    C2K_NOTE("%s\n", __func__);
+
+    while ((req = get_req(&fn->rx_free, &fn->rx_lock))) {
+        //kfree(req->buffer);
+        free_page((unsigned long) req->buffer);
+        usb_ep_free_request(fn->bulk_out, req->request);
+        kfree(req);
+    }
+
+    while ((req = get_req(&fn->tx_free, &fn->tx_lock))) {
+        //kfree(req->buffer);
+        free_page((unsigned long) req->buffer);
+        usb_ep_free_request(fn->bulk_in, req->request);
+        kfree(req);
+    }
+}
+EXPORT_SYMBOL_GPL(rawbulk_tty_free_request);
 
 static void rawbulk_tty_rx_complete(struct usb_ep *ep, struct usb_request *req);
 static void rawbulk_tty_tx_complete(struct usb_ep *ep, struct usb_request *req);
@@ -905,6 +915,7 @@ int rawbulk_tty_start_io(struct rawbulk_function *fn) {
     return 0;
 }
 EXPORT_SYMBOL_GPL(rawbulk_tty_start_io);
+#endif
 
 /* Complete the data send stage */
 static void rawbulk_tty_tx_complete(struct usb_ep *ep, struct usb_request *req) {
@@ -1501,6 +1512,7 @@ static int __init init(void) {
     }
 #endif /* SUPPORT_LEGACY_CONTROL */
 
+#ifndef C2K_TTY_USB_SKIP
     rc = rawbulk_tty_init();
     if (rc < 0) {
         printk(KERN_ERR "failed to init rawbulk tty driver.\n");
@@ -1520,6 +1532,7 @@ static int __init init(void) {
         if (!fn->tty_push_wq)
 	        return -ENOMEM;
     }
+#endif
    
     return 0;
 }

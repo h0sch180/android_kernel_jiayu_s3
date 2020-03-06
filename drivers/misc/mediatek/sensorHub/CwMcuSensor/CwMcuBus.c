@@ -396,13 +396,47 @@ static struct i2c_driver CWMCU_i2c_driver = {
 unsigned char* cwmcu_spi_src_buffer_all = NULL;
 static struct mt_chip_conf spi_conf;
 
+void spi_io_enable(int enable)
+{
+#if 1
+    if (enable){        
+        mt_set_gpio_mode(GPIO_SPI_CS_PIN, GPIO_SPI_CS_PIN_M_SPI_CS);
+        mt_set_gpio_mode(GPIO_SPI_SCK_PIN, GPIO_SPI_SCK_PIN_M_SPI_SCK);
+        mt_set_gpio_mode(GPIO_SPI_MISO_PIN, GPIO_SPI_MISO_PIN_M_SPI_MISO);    
+        mt_set_gpio_mode(GPIO_SPI_MOSI_PIN, GPIO_SPI_MOSI_PIN_M_SPI_MOSI);
+    }
+    else{
+        //set dir pull to save power
+        mt_set_gpio_mode(GPIO_SPI_CS_PIN, GPIO_SPI_CS_PIN_M_GPIO);
+        mt_set_gpio_dir(GPIO_SPI_CS_PIN, GPIO_DIR_IN);
+        mt_set_gpio_pull_enable(GPIO_SPI_CS_PIN, GPIO_PULL_DISABLE);
+            
+        mt_set_gpio_mode(GPIO_SPI_SCK_PIN, GPIO_SPI_SCK_PIN_M_GPIO);
+        mt_set_gpio_dir(GPIO_SPI_SCK_PIN, GPIO_DIR_IN);
+        mt_set_gpio_pull_enable(GPIO_SPI_SCK_PIN, GPIO_PULL_DISABLE);
+        
+        mt_set_gpio_mode(GPIO_SPI_MISO_PIN, GPIO_SPI_MISO_PIN_M_GPIO);
+        mt_set_gpio_dir(GPIO_SPI_MISO_PIN, GPIO_DIR_IN);
+        mt_set_gpio_pull_enable(GPIO_SPI_MISO_PIN, GPIO_PULL_DISABLE);
+        
+        mt_set_gpio_mode(GPIO_SPI_MOSI_PIN, GPIO_SPI_MOSI_PIN_M_GPIO);
+        mt_set_gpio_dir(GPIO_SPI_MOSI_PIN, GPIO_DIR_IN);
+        mt_set_gpio_pull_enable(GPIO_SPI_MOSI_PIN, GPIO_PULL_DISABLE);
+    }    
+
+#endif
+}
+
 static int spi_xfer(unsigned char *txbuf,unsigned char *rxbuf, int len)
 {
+	int ret;
     struct spi_transfer transfer_1[2];  
 	int const pkt_count = len / CWMCU_SPI_INTERFACE_MAX_PKT_LENGTH_PER_TIMES;
 	int const remainder = len % CWMCU_SPI_INTERFACE_MAX_PKT_LENGTH_PER_TIMES;
 	struct spi_message msg;
 	spi_message_init(&msg);
+
+	spi_io_enable(1);
 
 	//CW_INFO(" len=%d, txbuf=0x%x, rxbuf=0x%x", len, txbuf, rxbuf);
 	if(len>CWMCU_SPI_INTERFACE_MAX_PKT_LENGTH_PER_TIMES){	
@@ -425,9 +459,13 @@ static int spi_xfer(unsigned char *txbuf,unsigned char *rxbuf, int len)
 		spi_message_add_tail(&transfer_1[0], &msg);
 	}
 	if(spi_sync(sensor->spi, &msg))
-		return -1;	
+		ret =  -1;	
 	else
-		return 0;
+		ret = 0;
+
+	spi_io_enable(0);
+
+	return ret;
 }
 
 static int spi_write_bytes_serial(unsigned char *buffer, int len)
@@ -585,36 +623,6 @@ int spi_rw_bytes_serial(u8 *wbuf, u8 *rbuf, u8 len)
     return ret;
 }
 
-void spi_io_enable(int enable)
-{
-#if 1
-    if (enable){        
-        mt_set_gpio_mode(GPIO_SPI_CS_PIN, GPIO_SPI_CS_PIN_M_SPI_CS);
-        mt_set_gpio_mode(GPIO_SPI_SCK_PIN, GPIO_SPI_SCK_PIN_M_SPI_SCK);
-        mt_set_gpio_mode(GPIO_SPI_MISO_PIN, GPIO_SPI_MISO_PIN_M_SPI_MISO);    
-        mt_set_gpio_mode(GPIO_SPI_MOSI_PIN, GPIO_SPI_MOSI_PIN_M_SPI_MOSI);
-    }
-    else{
-        //set dir pull to save power
-        mt_set_gpio_mode(GPIO_SPI_CS_PIN, GPIO_SPI_CS_PIN_M_GPIO);
-        mt_set_gpio_dir(GPIO_SPI_CS_PIN, GPIO_DIR_IN);
-        mt_set_gpio_pull_enable(GPIO_SPI_CS_PIN, GPIO_PULL_DISABLE);
-            
-        mt_set_gpio_mode(GPIO_SPI_SCK_PIN, GPIO_SPI_SCK_PIN_M_GPIO);
-        mt_set_gpio_dir(GPIO_SPI_SCK_PIN, GPIO_DIR_IN);
-        mt_set_gpio_pull_enable(GPIO_SPI_SCK_PIN, GPIO_PULL_DISABLE);
-        
-        mt_set_gpio_mode(GPIO_SPI_MISO_PIN, GPIO_SPI_MISO_PIN_M_GPIO);
-        mt_set_gpio_dir(GPIO_SPI_MISO_PIN, GPIO_DIR_IN);
-        mt_set_gpio_pull_enable(GPIO_SPI_MISO_PIN, GPIO_PULL_DISABLE);
-        
-        mt_set_gpio_mode(GPIO_SPI_MOSI_PIN, GPIO_SPI_MOSI_PIN_M_GPIO);
-        mt_set_gpio_dir(GPIO_SPI_MOSI_PIN, GPIO_DIR_IN);
-        mt_set_gpio_pull_enable(GPIO_SPI_MOSI_PIN, GPIO_PULL_DISABLE);
-    }    
-
-#endif
-}
 void spi_init(void *dev)
 {
 	struct mt_chip_conf* spi_par;
@@ -656,6 +664,7 @@ void spi_init(void *dev)
 		CW_ERROR("spi_setup fail");
 	}    
 
+	spi_io_enable(0);
     //TODO
     //SPI DMA SETTING
 }
@@ -667,6 +676,8 @@ int CWMCU_spi_probe(struct spi_device *spi)
     CWMCU_probe(spi);
     
     pm_runtime_enable(&spi->dev);
+
+	return 0;
 }
 
 int CWMCU_spi_remove(struct spi_device *spi)
@@ -679,13 +690,11 @@ int CWMCU_spi_remove(struct spi_device *spi)
 int CWMCU_spi_suspend(struct spi_device *spi, pm_message_t mesg)
 {
     CWMCU_suspend(&spi->dev); 
-    spi_io_enable(0);
     return 0;
 }
 
 int CWMCU_spi_resume(struct spi_device *spi)
 {
-    spi_io_enable(1);
     CWMCU_resume(&spi->dev);
 }
 

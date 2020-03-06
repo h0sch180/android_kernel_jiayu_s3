@@ -263,7 +263,7 @@ void last_kmsg_store_to_emmc(void)
 #endif
 #endif
 
-//#ifdef CONFIG_PSTORE
+/* #ifdef CONFIG_PSTORE */
 #if 0
 extern	void pstore_bconsole_write(struct console *con, const char *s, unsigned c);
 void sram_log_save(const char *msg, int count)
@@ -463,7 +463,7 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 	buffer->off_console = buffer->off_linux + ALIGN(sizeof(struct last_reboot_reason), 64);
 	buffer->sz_console = buffer->sz_buffer - buffer->off_console;
 	memset((void*)buffer + buffer->off_linux, 0, buffer_size - buffer->off_linux);
-//#ifndef CONFIG_PSTORE
+	/* #ifndef CONFIG_PSTORE */
 #if 1
 	register_console(&ram_console);
 #endif

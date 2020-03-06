@@ -433,6 +433,21 @@ config TOUCHSCREEN_MTK_HD
 	bool "GT9XX for lenovo hd aio driver config"
 	depends on TOUCHSCREEN_MTK
 
+config LENOVO_READ_FW_ID
+	bool "Read touchpanel module infomation"
+	depends on TOUCHSCREEN_MTK
+
+config LENOVO_GESTURE_WAKEUP
+	bool "lenovo wake up gesture feature"
+	depends on TOUCHSCREEN_MTK
+
+config LENOVO_CTP_FEATURE
+	bool "lenovo ctp feature(gesture,glove,versioninfo,etc.)"
+	depends on TOUCHSCREEN_MTK && !LENOVO_GESTURE_WAKEUP
+
+config LENOVO_CTP_APPSELECT
+	bool "lenovo feature. replace key_menu with appselect"
+	depends on TOUCHSCREEN_MTK
 config TOUCHSCREEN_MTK_GT9XX_AIO
 	bool "GT9XX for lenovo aio driver"
 	depends on TOUCHSCREEN_MTK
@@ -1015,11 +1030,29 @@ config TOUCHSCREEN_SYNAPTICS_S3528
 	depends on I2C
 	help
 	  This enables support for Synaptics S3528 over I2C based touchscreens.
-	  
+
 config TOUCHSCREEN_SYNAPTICS
 	tristate "Synaptics touchscreen"
 	depends on I2C
 	help
 	  This enables support for Synaptics over I2C based touchscreens.
-	  
+
+config TOUCHSCREEN_LENOVO_S3528
+	tristate "lenovo feature Synaptics S3528 touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics S3528 (with lenovo feature) over I2C based touchscreens.
+
+config TOUCHSCREEN_S3528
+	tristate "Synaptics S3528 touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics S3528 over I2C based touchscreens.
+
+config TOUCHSCREEN_SYNAPTICS_C
+	tristate "Synaptics touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics over I2C based touchscreens.
+
 endif

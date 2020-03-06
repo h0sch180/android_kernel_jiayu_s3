@@ -44,7 +44,6 @@ obj-y += mt_hotplug_strategy_main.o mt_hotplug_strategy_core.o mt_hotplug_strate
 obj-y += innercache.o
 #obj-y += mt_l2c.o
 #obj-y += eint.o
-obj-y += mt_freqhopping.o
 #obj-$(CONFIG_MT65XX_TRACER) += pmu_v7.o mon_interface.o mt_mon.o mt_emi_bm.o
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq
 obj-y += camera_isp.o
@@ -102,6 +101,9 @@ obj-$(CONFIG_HIBERNATION)	+= cpu_hibernate.o swsusp.o
 # Module project related part
 obj-y += $(ARCH_MTK_PROJECT)/
 
+# hooks
+obj-y += mt_hooks.o
+
 else
 # For arm64
 obj-y += irq_write_protect.o
@@ -117,7 +119,6 @@ obj-y += camera_isp.o
 obj-y += camera_fdvt.o
 obj-y += mt_sleep.o
 obj-y += mt_idle.o
-obj-y += mt_freqhopping.o
 obj-y += mt_clkbuf_ctl.o
 obj-y += mt_golden_setting.o
 obj-y += mt_cpufreq.o mt_cpu_ss.o
@@ -131,6 +132,7 @@ obj-$(CONFIG_MTK_PSCI)	+= mt_psci.o
 obj-y += mt_hotplug_strategy_main.o mt_hotplug_strategy_core.o mt_hotplug_strategy_procfs.o mt_hotplug_strategy_cpu.o mt_hotplug_strategy_api.o mt_hotplug_strategy_algo.o
 obj-y += mt_ptp2.o
 obj-y += mt_ptp.o
+obj-y += mt_hooks_64.o
 
 MT_CPUIDLE:=y
 ifneq ($(MT_CPUIDLE),y)

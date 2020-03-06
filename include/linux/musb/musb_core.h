@@ -534,6 +534,11 @@ extern irqreturn_t musb_interrupt(struct musb *);
 extern irqreturn_t dma_controller_irq(int irq, void *private_data);
 
 extern void musb_hnp_stop(struct musb *musb);
+//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+extern void lenovo_reset_ncp1854_retry_count(void); 
+#endif
+//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
 
 static inline void musb_platform_set_vbus(struct musb *musb, int is_on)
 {

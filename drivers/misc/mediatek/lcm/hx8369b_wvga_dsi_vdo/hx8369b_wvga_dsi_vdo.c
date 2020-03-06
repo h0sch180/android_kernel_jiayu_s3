@@ -270,7 +270,7 @@ static void lcm_init(void)
     #ifdef BUILD_UBOOT
         printf("%s, id1 = 0x%08x\n", __func__, id); 
     #else
-        printk("%s, id1 = 0x%08x\n", __func__, id);   
+        pr_debug("%s, id1 = 0x%08x\n", __func__, id);   
     #endif */
 }
 
@@ -373,7 +373,7 @@ static unsigned int lcm_compare_id()
         #ifdef BUILD_UBOOT
            printf("%s, id1 = 0x%08x\n", __func__, id); 
         #else
-           printk("%s, id1 = 0x%08x\n", __func__, id);   
+           pr_debug("%s, id1 = 0x%08x\n", __func__, id);   
         #endif
 		
         return (0x69 == id)?1:0;

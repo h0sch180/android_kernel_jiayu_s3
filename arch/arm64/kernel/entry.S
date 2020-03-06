@@ -140,6 +140,16 @@
 	msr	spsr_el1, x22
 	.if	\el == 0
 	msr	sp_el0, x23
+#ifdef CONFIG_ARM64_ERRATUM_845719
+	tbz 	x22, #4, 1f
+#ifdef CONFIG_PID_IN_CONTEXTIDR
+	mrs	x29, contextidr_el1
+	msr	contextidr_el1, x29
+#else
+	msr	contextidr_el1, xzr
+#endif
+1:
+#endif
 	.endif
 	pop	x10, x11
 	pop	x12, x13
@@ -187,8 +197,16 @@
 	ldr	lr, [sp], #S_FRAME_SIZE - S_LR	// load LR and restore SP
 	eret					// return to kernel
 	// could not run here
-
-1:	add	sp, sp, #S_X29-S_X15
+1:
+#ifdef CONFIG_ARM64_ERRATUM_845719
+#ifdef CONFIG_PID_IN_CONTEXTIDR
+	mrs     x29, contextidr_el1
+	msr     contextidr_el1, x29
+#else
+	msr     contextidr_el1, xzr
+#endif
+#endif
+	add	sp, sp, #S_X29-S_X15
 	ldr	lr, [sp], #S_FRAME_SIZE - S_LR	// load LR and restore SP
 	eret					// return to kernel
 	.endm
@@ -462,7 +480,7 @@ el0_sync:
 	cmp	x24, #ESR_EL1_EC_FP_EXC64	// FP/ASIMD exception
 	b.eq	el0_fpsimd_exc
 	cmp	x24, #ESR_EL1_EC_SYS64		// configurable trap
-	b.eq	el0_undef
+	b.eq	el0_sys
 	cmp	x24, #ESR_EL1_EC_SP_ALIGN	// stack alignment exception
 	b.eq	el0_sp_pc
 	cmp	x24, #ESR_EL1_EC_PC_ALIGN	// pc alignment exception
@@ -588,6 +606,15 @@ el0_undef:
 	 */
 	mov	x0, sp
 	b	do_undefinstr
+el0_sys:
+	/*
+	 * System instructions, for trapped cache maintenance instructions
+	 */
+	enable_dbg
+	enable_irq
+	mov	x0, x25
+	mov	x1, sp
+	b	do_sysinstr
 el0_dbg:
 	/*
 	 * Debug exception handling

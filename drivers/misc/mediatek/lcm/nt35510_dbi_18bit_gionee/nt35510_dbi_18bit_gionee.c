@@ -24,11 +24,11 @@
 #include <linux/sysctl.h>
 #include <linux/bitmap.h>
 #include <linux/signal.h>
-#include <linux/printk.h>
-#define LCM_PRINT printk
+#include <linux/pr_debug.h>
+#define LCM_PRINT pr_debug
 #endif
 
-#define LCM_PRINT_FUNC()  LCM_PRINT("LCM35510" "`%s:%d [%s] " "\n", __FILE__, __LINE__, __FUNCTION__)
+#define LCM_PRINT_FUNC()  LCM_PRINT("LCM35510" "`%s:%d [%s] " "\n", __FILE__, __LINE__, __func__)
 
 // ---------------------------------------------------------------------------
 //  Local Variables

@@ -201,7 +201,7 @@ int mt_devapc_check_emi_violation(void)
     if ((readl(IOMEM(DEVAPC0_D0_VIO_STA_4)) & ABORT_EMI) == 0) {
         return -1;
     } else {
-	pr_info("EMI violation.\n");
+		pr_debug("EMI violation.\n");
         return 0;
     }
 }
@@ -213,7 +213,7 @@ int mt_devapc_emi_initial(void)
     mt_reg_sync_writel(readl(IOMEM(DEVAPC0_PD_APC_CON)) & (0xFFFFFFFF ^ (1 << 2)), DEVAPC0_PD_APC_CON);
     mt_reg_sync_writel(ABORT_EMI, DEVAPC0_D0_VIO_STA_4);
     mt_reg_sync_writel(readl(IOMEM(DEVAPC0_D0_VIO_MASK_4)) & (0xFFFFFFFF ^ (ABORT_EMI)), DEVAPC0_D0_VIO_MASK_4);
-    pr_info("EMI_DAPC Init done \n");
+    pr_debug("EMI_DAPC Init done \n");
     return 0;
 }
 
@@ -473,14 +473,14 @@ static irqreturn_t devapc_violation_irq(int irq, void *dev_id)
     r_w_violation = dbg0 & VIO_DBG_RW;
 
     if (1 == r_w_violation) {
-        pr_info("Process:%s PID:%i Vio Addr:0x%x , Master ID:0x%x , Dom ID:0x%x, W\n",
+        pr_debug("Process:%s PID:%i Vio Addr:0x%x , Master ID:0x%x , Dom ID:0x%x, W\n",
         current->comm,current->pid, dbg1, master_id, domain_id);
     } else {
-        pr_info("Process:%s PID:%i Vio Addr:0x%x , Master ID:0x%x , Dom ID:0x%x, r\n",
+        pr_debug("Process:%s PID:%i Vio Addr:0x%x , Master ID:0x%x , Dom ID:0x%x, r\n",
         current->comm,current->pid, dbg1, master_id, domain_id);
     }
 
-    pr_info("0:0x%x, 1:0x%x, 2:0x%x, 3:0x%x, 4:0x%x\n",
+    pr_debug("0:0x%x, 1:0x%x, 2:0x%x, 3:0x%x, 4:0x%x\n",
     readl(DEVAPC0_D0_VIO_STA_0 ), readl(DEVAPC0_D0_VIO_STA_1 ), readl(DEVAPC0_D0_VIO_STA_2 ),
     readl(DEVAPC0_D0_VIO_STA_3 ), readl(DEVAPC0_D0_VIO_STA_4 ));
 
@@ -493,8 +493,8 @@ static irqreturn_t devapc_violation_irq(int irq, void *dev_id)
     dbg1 = readl(DEVAPC0_VIO_DBG1);
 
     if ((dbg0 != 0) || (dbg1 != 0)) {
-        pr_info("[DEVAPC] Multi-violation!\n");
-        pr_info("[DEVAPC] DBG0 = %x, DBG1 = %x\n", dbg0, dbg1);
+        pr_debug("[DEVAPC] Multi-violation!\n");
+        pr_debug("[DEVAPC] DBG0 = %x, DBG1 = %x\n", dbg0, dbg1);
     }
 
     return IRQ_HANDLED;
@@ -504,7 +504,7 @@ static int devapc_probe(struct platform_device *dev)
 {
     int ret;
 
-    pr_info("[DEVAPC] module probe. \n");
+    pr_debug("[DEVAPC] module probe. \n");
     /*IO remap*/
     devapc_ioremap();
     /*
@@ -538,7 +538,7 @@ static int devapc_suspend(struct platform_device *dev, pm_message_t state)
 
 static int devapc_resume(struct platform_device *dev)
 {
-    pr_info("[DEVAPC] module resume. \n");
+    pr_debug("[DEVAPC] module resume. \n");
     start_devapc();
 
     return 0;
@@ -569,7 +569,7 @@ static int __init devapc_init(void)
 
     /*OPEN DAPC CLOCK*/
     enable_clock(MT_CG_INFRA_DEVICE_APC,"DEVAPC");
-    pr_info("[DEVAPC] module init. \n");
+    pr_debug("[DEVAPC] module init. \n");
 
     ret = platform_device_register(&devapc_device);
     if (ret) {
@@ -601,7 +601,7 @@ static int __init devapc_init(void)
  */
 static void __exit devapc_exit(void)
 {
-    pr_info("[DEVAPC] DEVAPC module exit\n");
+    pr_debug("[DEVAPC] DEVAPC module exit\n");
 #ifdef CONFIG_MTK_HIBERNATION
     unregister_swsusp_restore_noirq_func(ID_M_DEVAPC);
 #endif

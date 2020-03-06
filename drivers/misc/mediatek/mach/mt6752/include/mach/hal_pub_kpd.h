@@ -27,8 +27,8 @@ void kpd_pwrkey_handler_hal(unsigned long data);
 void mt_eint_register(void);
 
 #ifdef CONFIG_MTK_SMARTBOOK_SUPPORT
-void sb_kpd_enable(void);
-void sb_kpd_disable(void);
+void sb_kpd_enable(struct sb_handler *h);
+void sb_kpd_disable(struct sb_handler *h);
 #else
 void sb_kpd_enable(void);
 void sb_kpd_disable(void);

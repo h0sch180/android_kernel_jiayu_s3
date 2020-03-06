@@ -1,6 +1,7 @@
 #
 # Makefile for the linux kernel.
 #
+subdir-ccflags-y += -Idrivers/misc/mediatek/mtprof/
 
 CPPFLAGS_vmlinux.lds	:= -DTEXT_OFFSET=$(TEXT_OFFSET)
 AFLAGS_head.o		:= -DTEXT_OFFSET=$(TEXT_OFFSET)
@@ -15,7 +16,7 @@ arm64-obj-y		:= cputable.o debug-monitors.o entry.o irq.o fpsimd.o	\
 			   sys.o stacktrace.o time.o traps.o io.o vdso.o	\
 			   hyp-stub.o psci.o opcodes.o cpu_ops.o insn.o return_address.o
 
-arm64-obj-$(CONFIG_COMPAT)		+= sys32.o kuser32.o signal32.o	\
+arm64-obj-$(CONFIG_COMPAT)		+= sys32.o kuser32.o signal32.o  	\
 					   sys_compat.o
 arm64-obj-$(CONFIG_FUNCTION_TRACER)	+= ftrace.o entry-ftrace.o
 arm64-obj-$(CONFIG_MODULES)		+= arm64ksyms.o module.o

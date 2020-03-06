@@ -871,6 +871,7 @@ static void ep_prof_work(struct work_struct *data)
 
 static void musb_restore_context(struct musb *musb);
 static void musb_save_context(struct musb *musb);
+extern void usb20_pll_settings(bool host, bool forceOn);
 
 /*-------------------------------------------------------------------------*/
 /*
@@ -896,6 +897,10 @@ void musb_start(struct musb *musb)
 
 		/* disable IP reset and power down, disable U2/U3 ip power down */
 		_ex_mu3d_hal_ssusb_en();
+		/* USB PLL Force settings */
+#ifdef CONFIG_PROJECT_PHY
+		usb20_pll_settings(false, false);
+#endif
 
 		/* reset U3D all dev module. */
 		mu3d_hal_rst_dev();
@@ -2053,7 +2058,7 @@ static void musb_irq_work(struct work_struct *data)
 	struct musb *musb = container_of(data, struct musb, irq_work);
 	static int old_state;
 
-	os_printk(K_INFO, "%s [%d]=[%d]\n", __func__, musb->xceiv->state, old_state);
+	os_printk(K_DEBUG, "%s [%d]=[%d]\n", __func__, musb->xceiv->state, old_state);
 
 	if (musb->xceiv->state != old_state) {
 		old_state = musb->xceiv->state;

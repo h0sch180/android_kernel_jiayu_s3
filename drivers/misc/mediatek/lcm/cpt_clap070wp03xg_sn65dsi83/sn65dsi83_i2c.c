@@ -131,8 +131,8 @@ static int sn65dsi83_driver_probe(struct i2c_client *client, const struct i2c_de
 {             
     int err=0; 
 
-    //battery_xlog_printk(BAT_LOG_CRTI,"[sn65dsi83_driver_probe] \n");
-	printk("[sn65dsi83_driver_probe] \n");	
+    //battery_xlog_pr_debug(BAT_LOG_CRTI,"[sn65dsi83_driver_probe] \n");
+	pr_debug("[sn65dsi83_driver_probe] \n");	
     if (!(new_client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
         err = -ENOMEM;
         goto exit;
@@ -161,20 +161,20 @@ static int __init sn65dsi83_init(void)
 {    
    // int ret=0;  //fixed for build warning
     
-    //battery_xlog_printk(BAT_LOG_CRTI,"[sn65dsi83_init] init start\n");
-    printk("[sn65dsi83_init] init start\n");
+    //battery_xlog_pr_debug(BAT_LOG_CRTI,"[sn65dsi83_init] init start\n");
+    pr_debug("[sn65dsi83_init] init start\n");
     
     i2c_register_board_info(SN65DSI83_BUSNUM, &i2c_sn65dsi83, 1);
 
     if(i2c_add_driver(&sn65dsi83_driver)!=0)
     {
-        //battery_xlog_printk(BAT_LOG_CRTI,"[sn65dsi83_init] failed to register sn65dsi83 i2c driver.\n");
-        printk("[sn65dsi83_init] failed to register sn65dsi83 i2c driver.\n");
+        //battery_xlog_pr_debug(BAT_LOG_CRTI,"[sn65dsi83_init] failed to register sn65dsi83 i2c driver.\n");
+        pr_debug("[sn65dsi83_init] failed to register sn65dsi83 i2c driver.\n");
     }
     else
     {
-        //battery_xlog_printk(BAT_LOG_CRTI,"[sn65dsi83_init] Success to register sn65dsi83 i2c driver.\n");
-        printk("[sn65dsi83_init] Success to register sn65dsi83 i2c driver.\n");
+        //battery_xlog_pr_debug(BAT_LOG_CRTI,"[sn65dsi83_init] Success to register sn65dsi83 i2c driver.\n");
+        pr_debug("[sn65dsi83_init] Success to register sn65dsi83 i2c driver.\n");
     }
 
     return 0;        

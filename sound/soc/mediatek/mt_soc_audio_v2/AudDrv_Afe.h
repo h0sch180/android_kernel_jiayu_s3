@@ -21,7 +21,7 @@
  *
  * Project:
  * --------
- *   Audio Driver Afe Register setting
+ *   MT6583  Audio Driver Afe Register setting
  *
  * Description:
  * ------------
@@ -514,6 +514,7 @@ typedef struct
 #define AFE_MEMIF_MON4 (AFE_BASE + 0x00E0)
 
 
+//6582 Add
 #define AFE_ADDA_DL_SRC2_CON0   (AFE_BASE+0x00108)
 #define AFE_ADDA_DL_SRC2_CON1   (AFE_BASE+0x0010C)
 #define AFE_ADDA_UL_SRC_CON0    (AFE_BASE+0x00114)
@@ -707,6 +708,7 @@ typedef struct
 #define PCM_INTF_CON2   (AFE_BASE + 0x538)
 #define PCM2_INTF_CON   (AFE_BASE + 0x53C)
 
+//6582 Add
 #define AFE_ASRC_CON13  (AFE_BASE+0x00550)
 #define AFE_ASRC_CON14  (AFE_BASE+0x00554)
 #define AFE_ASRC_CON15  (AFE_BASE+0x00558)
@@ -717,6 +719,7 @@ typedef struct
 #define AFE_ASRC_CON20  (AFE_BASE+0x0056C)
 #define AFE_ASRC_CON21  (AFE_BASE+0x00570)
 
+// K2 add
 #define AUDIO_CLK_AUDDIV_0 (AFE_BASE+0x005A0)
 #define AUDIO_CLK_AUDDIV_1 (AFE_BASE+0x005A4)
 #define AUDIO_CLK_AUDDIV_2 (AFE_BASE+0x005A8)
@@ -768,6 +771,7 @@ typedef struct
 #define AFE_ASRC3_CON13         (AFE_BASE+0x0774)
 #define AFE_ASRC3_CON14         (AFE_BASE+0x0778)
 
+// K2 add
 #define AFE_ADDA4_TOP_CON0          (AFE_BASE+0x0780)
 #define AFE_ADDA4_UL_SRC_CON0       (AFE_BASE+0x0784)
 #define AFE_ADDA4_UL_SRC_CON1       (AFE_BASE+0x0788)

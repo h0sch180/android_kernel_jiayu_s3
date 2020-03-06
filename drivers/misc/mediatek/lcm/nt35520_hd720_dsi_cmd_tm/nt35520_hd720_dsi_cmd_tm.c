@@ -17,7 +17,7 @@
 #ifdef BUILD_LK
 #define LCD_DEBUG(fmt)  dprintf(CRITICAL,fmt)
 #else
-#define LCD_DEBUG(fmt)  printk(fmt)
+#define LCD_DEBUG(fmt)  pr_debug(fmt)
 #endif
 static unsigned char lcd_id_pins_value = 0xFF;
 const static unsigned char LCD_MODULE_ID = 0x00;
@@ -534,7 +534,7 @@ static unsigned int lcm_set_pwm_level_tm(unsigned int level )
     #ifdef BUILD_LK
         dprintf(CRITICAL,"uboot:tm_nt35520_lcm_set_pwm mapped_level = %d,level=%d\n",mapped_level,level);
     #else
-        printk("kernel:tm_nt35520_lcm_set_pwm mapped_level = %d,level=%d\n",mapped_level,level);
+        pr_debug("kernel:tm_nt35520_lcm_set_pwm mapped_level = %d,level=%d\n",mapped_level,level);
     #endif
     return mapped_level;
 }

@@ -902,17 +902,17 @@ static void reset_ctrl_regs(void *unused)
 #endif
 }
 
-static int __cpuinit hw_breakpoint_reset_notify(struct notifier_block *self,
+static int hw_breakpoint_reset_notify(struct notifier_block *self,
 						unsigned long action,
 						void *hcpu)
 {
 	int cpu = (long)hcpu;
-	if ((action & ~CPU_TASKS_FROZEN) == CPU_ONLINE)
+	if (action == CPU_ONLINE)
 		smp_call_function_single(cpu, reset_ctrl_regs, NULL, 1);
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __cpuinitdata hw_breakpoint_reset_nb = {
+static struct notifier_block hw_breakpoint_reset_nb = {
 	.notifier_call = hw_breakpoint_reset_notify,
 };
 

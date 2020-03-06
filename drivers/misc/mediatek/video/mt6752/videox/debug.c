@@ -32,6 +32,18 @@
 /* --------------------------------------------------------------------------- */
 /* External variable declarations */
 /* --------------------------------------------------------------------------- */
+//lenovo jixu add begin
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE
+extern int primary_display_setcabc(unsigned int mode);
+extern int primary_display_setinverse(unsigned int mode);
+#endif
+//lenovo jixu add end
+//lenovo wangyq13 add begin 20150402
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT
+extern int primary_display_setsre(unsigned int mode);
+#endif
+//lenovo wangyq13 add end 20150402
+
 struct MTKFB_MMP_Events_t MTKFB_MMP_Events;
 unsigned int g_mobilelog = 0;
 
@@ -625,7 +637,46 @@ static void process_dbg_opt(const char *opt)
 	} else if (0 == strncmp(opt, "suspend", 4)) {
 		primary_display_suspend();
 		return;
-	} else if (0 == strncmp(opt, "ata", 3)) {
+	}
+#ifdef CONFIG_LENOVO_CUSTOM_LCM_FEATURE//lenovo jixu add begin
+    else if (0 == strncmp(opt, "cabc:", 5))
+    {
+        if (0 == strncmp(opt + 5, "ui", 2)) {
+		primary_display_setcabc(1);
+        }else if (0 == strncmp(opt + 5, "mov", 3)) {
+		primary_display_setcabc(3);
+        }else if (0 == strncmp(opt + 5, "still", 5)) {
+		primary_display_setcabc(2);
+        }else if (0 == strncmp(opt + 5, "off", 3)) {
+		primary_display_setcabc(0);
+        }else {
+            return;
+        }
+    }
+    else if (0 == strncmp(opt, "inverse:", 8))
+    {
+	printk("[JX]inverse\n");
+        if (0 == strncmp(opt + 8, "on", 2)) {
+		primary_display_setinverse(1);
+        }else if (0 == strncmp(opt + 8, "off", 3)) {
+		primary_display_setinverse(0);
+        }else {
+	printk("[JX] not compare inverse\n");
+            return;
+        }
+    }
+#endif//lenovo jixu modify end
+#ifdef CONFIG_LENOVO_SUPER_BACKLIGHT //lenovo wangyq13 add for sre 20150402
+    else if (0 == strncmp(opt, "sre:", 4))
+    	{
+    	    if (0 == strncmp(opt + 4, "0", 1)) {
+			primary_display_setsre(0);
+    	    	}
+	    else
+			primary_display_setsre(1);
+    	}
+#endif
+	else if (0 == strncmp(opt, "ata", 3)) {
 		mtkfb_fm_auto_test();
 		return;
 	} else if (0 == strncmp(opt, "resume", 4)) {
@@ -635,7 +686,6 @@ static void process_dbg_opt(const char *opt)
 	} else if (0 == strncmp(opt, "dalclean", 8)) {
 		DAL_Clean();
 	} else if (0 == strncmp(opt, "lfr_setting:", 12)) {
-		/*char *p = (char *)opt + 12;*/
 		unsigned int enable;
 		/*kstrtouint(p , 12 , &enable);*/
 		unsigned int mode;
@@ -1208,6 +1258,7 @@ static ssize_t debug_read(struct file *file, char __user *ubuf, size_t count, lo
 	n += dprec_logger_get_buf(DPREC_LOGGER_DEBUG, debug_buffer + n, debug_bufmax - n);
 
 	debug_buffer[n++] = 0;
+
 out:
 	return simple_read_from_buffer(ubuf, count, ppos, debug_buffer, n);
 }

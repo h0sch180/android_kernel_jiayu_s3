@@ -10,8 +10,6 @@
 
 #define MTK_EXT_DISP_OVERLAY_SUPPORT
 
-#define I2S_UART_SHARE
-
 /* /#define EXTD_DBG_USE_INNER_BUF */
 
 #define HW_OVERLAY_COUNT  4

@@ -76,7 +76,7 @@ static void lcm_init_power(void)
 	upmu_set_rg_vgp1_en(0x1);
 		
 #else
-	printk("[Kernel/LCM] lcm_init_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR, GPIO_OUT_ONE);
 	MDELAY(20);
 	
@@ -95,7 +95,7 @@ static void lcm_suspend_power(void)
 	upmu_set_rg_vgp1_en(0);	
 			
 #else
-	printk("[Kernel/LCM] lcm_suspend_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR, GPIO_OUT_ZERO);
 	MDELAY(20);
 	
@@ -115,7 +115,7 @@ static void lcm_resume_power(void)
 	upmu_set_rg_vgp1_en(0x1);
 				
 #else
-	printk("[Kernel/LCM] lcm_resume_power() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume_power() enter\n");
 	lcm_set_gpio_output(GPIO_LCD_PWR, GPIO_OUT_ONE);
 	MDELAY(20);
 	
@@ -200,7 +200,7 @@ static void lcm_init(void)
 	SET_RESET_PIN(1);
 	MDELAY(20);
 #else
-	printk("[Kernel/LCM] lcm_init() enter\n");
+	pr_debug("[Kernel/LCM] lcm_init() enter\n");
 #endif
 }
 
@@ -216,7 +216,7 @@ void lcm_suspend(void)
 	SET_RESET_PIN(0);
 	MDELAY(10);
 #else
-	printk("[Kernel/LCM] lcm_suspend() enter\n");
+	pr_debug("[Kernel/LCM] lcm_suspend() enter\n");
 	SET_RESET_PIN(1);
 	MDELAY(10);
 
@@ -240,7 +240,7 @@ void lcm_resume(void)
 	MDELAY(20);
 	
 #else
-	printk("[Kernel/LCM] lcm_resume() enter\n");
+	pr_debug("[Kernel/LCM] lcm_resume() enter\n");
 	SET_RESET_PIN(1);
 	MDELAY(20);
 

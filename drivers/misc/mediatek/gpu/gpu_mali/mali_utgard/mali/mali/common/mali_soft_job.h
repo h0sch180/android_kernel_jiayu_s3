@@ -1,11 +1,11 @@
 /*
- * This confidential and proprietary software may be used only as
- * authorised by a licensing agreement from ARM Limited
- * (C) COPYRIGHT 2013-2015 ARM Limited
- * ALL RIGHTS RESERVED
- * The entire notice above must be reproduced on all authorised
- * copies and copies may only be made to the extent permitted
- * by a licensing agreement from ARM Limited.
+ * Copyright (C) 2013 ARM Limited. All rights reserved.
+ * 
+ * This program is free software and is provided to you under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+ * 
+ * A copy of the licence is included with the program, and can also be obtained from Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #ifndef __MALI_SOFT_JOB_H__
@@ -26,18 +26,17 @@ struct mali_soft_job_system;
  * Soft jobs of type MALI_SOFT_JOB_TYPE_USER_SIGNALED will only complete after activation if either
  * they are signaled by user-space (@ref mali_soft_job_system_signaled_job) or if they are timed out
  * by the Timeline system.
- * Soft jobs of type MALI_SOFT_JOB_TYPE_SELF_SIGNALED will release job resource automatically
- * in kernel when the job is activated.
  */
 typedef enum mali_soft_job_type {
-	MALI_SOFT_JOB_TYPE_SELF_SIGNALED,
 	MALI_SOFT_JOB_TYPE_USER_SIGNALED,
 } mali_soft_job_type;
 
 /**
  * Soft job state.
  *
- * mali_soft_job_system_start_job a job will first be allocated.The job's state set to MALI_SOFT_JOB_STATE_ALLOCATED.
+ * All soft jobs in a soft job system will initially be in state MALI_SOFT_JOB_STATE_FREE.  On @ref
+ * mali_soft_job_system_start_job a job will first be allocated.  A job in state
+ * MALI_SOFT_JOB_STATE_FREE will be picked and the state changed to MALI_SOFT_JOB_STATE_ALLOCATED.
  * Once the job is added to the timeline system, the state changes to MALI_SOFT_JOB_STATE_STARTED.
  *
  * For soft jobs of type MALI_SOFT_JOB_TYPE_USER_SIGNALED the state is changed to
@@ -48,8 +47,11 @@ typedef enum mali_soft_job_type {
  * state is changed to MALI_SOFT_JOB_STATE_TIMED_OUT.  This can only happen to soft jobs in state
  * MALI_SOFT_JOB_STATE_STARTED.
  *
+ * When a soft job's reference count reaches zero, it will be freed and the state returns to
+ * MALI_SOFT_JOB_STATE_FREE.
  */
 typedef enum mali_soft_job_state {
+	MALI_SOFT_JOB_STATE_FREE,
 	MALI_SOFT_JOB_STATE_ALLOCATED,
 	MALI_SOFT_JOB_STATE_STARTED,
 	MALI_SOFT_JOB_STATE_SIGNALED,
@@ -58,6 +60,9 @@ typedef enum mali_soft_job_state {
 
 #define MALI_SOFT_JOB_INVALID_ID ((u32) -1)
 
+/* Maximum number of soft jobs per soft system. */
+#define MALI_MAX_NUM_SOFT_JOBS 20
+
 /**
  * Soft job struct.
  *
@@ -65,7 +70,7 @@ typedef enum mali_soft_job_state {
  */
 typedef struct mali_soft_job {
 	mali_soft_job_type            type;                   /**< Soft job type.  Must be one of MALI_SOFT_JOB_TYPE_*. */
-	u64                           user_job;               /**< Identifier for soft job in user space. */
+	u32                           user_job;               /**< Identifier for soft job in user space. */
 	_mali_osk_atomic_t            refcount;               /**< Soft jobs are reference counted to prevent premature deletion. */
 	struct mali_timeline_tracker  tracker;                /**< Timeline tracker for soft job. */
 	mali_bool                     activated;              /**< MALI_TRUE if the job has been activated, MALI_FALSE if not. */
@@ -85,11 +90,13 @@ typedef struct mali_soft_job {
  */
 typedef struct mali_soft_job_system {
 	struct mali_session_data *session;                    /**< The session this soft job system belongs to. */
+
+	struct mali_soft_job jobs[MALI_MAX_NUM_SOFT_JOBS];    /**< Array of all soft jobs in this system. */
+	_MALI_OSK_LIST_HEAD(jobs_free);                       /**< List of all free soft jobs. */
 	_MALI_OSK_LIST_HEAD(jobs_used);                       /**< List of all allocated soft jobs. */
 
 	_mali_osk_spinlock_irq_t *lock;                       /**< Lock used to protect soft job system and its soft jobs. */
 	u32 lock_owner;                                       /**< Contains tid of thread that locked the system or 0, if not locked. */
-	u32 last_job_id;                                      /**< Recored the last job id protected by lock. */
 } mali_soft_job_system;
 
 /**
@@ -118,7 +125,7 @@ void mali_soft_job_system_destroy(struct mali_soft_job_system *system);
  * @param user_job Identifier for soft job in user space.
  * @return New soft job if successful, NULL if not.
  */
-struct mali_soft_job *mali_soft_job_create(struct mali_soft_job_system *system, mali_soft_job_type type, u64 user_job);
+struct mali_soft_job *mali_soft_job_create(struct mali_soft_job_system *system, mali_soft_job_type type, u32 user_job);
 
 /**
  * Destroy soft job.
@@ -165,9 +172,8 @@ _mali_osk_errcode_t mali_soft_job_system_signal_job(struct mali_soft_job_system 
  * Used by the Timeline system to activate a soft job.
  *
  * @param job The soft job that is being activated.
- * @return A scheduling bitmask.
  */
-mali_scheduler_mask mali_soft_job_system_activate_job(struct mali_soft_job *job);
+void mali_soft_job_system_activate_job(struct mali_soft_job *job);
 
 /**
  * Used by the Timeline system to timeout a soft job.

@@ -550,6 +550,13 @@ void usb_phy_recover(void){
     USBPHY_SET8(0x05, 0x05);
     USBPHY_SET8(0x05, 0x50);
     #endif
+//lenovo sw, yexh1, increase the OTG usb drive current
+	USBPHY_SET8(0x05, 0x77);
+//lenovo sw, yexh1, end
+
+//lenovo sw, yexh1, tuning USB OTG host disconnection threshold to max, and it will also improve the stability of chaging to iPhone
+	USBPHY_SET8(0x18, 0xF6);  
+//lenovo sw, yexh1 end
     hs_slew_rate_cal();
 
     printk("usb recovery success\n");

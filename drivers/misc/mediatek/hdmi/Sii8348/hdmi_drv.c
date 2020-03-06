@@ -364,11 +364,6 @@ static int hdmi_drv_init(void)
 	
 	txInitFlag = 0;
 	chip_inited = true;
-#ifdef CONFIG_MTK_LEGACY     
-        cust_hdmi_dpi_gpio_on(0);
-#else
-        dpi_gpio_ctrl(0);
-#endif
     MHL_DBG("hdmi_drv_init -\n" );
     return 0;
 }

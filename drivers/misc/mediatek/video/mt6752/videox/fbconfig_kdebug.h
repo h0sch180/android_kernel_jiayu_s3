@@ -146,6 +146,14 @@ typedef struct LCM_REG_READ {
 	char *check_buffer;
 } LCM_REG_READ;
 
+/*
+typedef struct _property {
+        unsigned int dual_port : 1;
+        unsigned int overall_layer_num : 5;
+        unsigned int reserved : 26;
+} misc_property;
+*/
+
 typedef struct {
 	void (*set_cmd_mode) (void);
 	int (*set_mipi_clk) (unsigned int clk);
@@ -158,6 +166,7 @@ typedef struct {
 	int (*set_get_misc) (const char *name, void *parameter);
 
 } FBCONFIG_DISP_IF;
+
 void Panel_Master_DDIC_config(void);
 extern int m4u_query_mva_info(unsigned int mva, unsigned int size,
 				unsigned int *real_mva, unsigned int *real_size);

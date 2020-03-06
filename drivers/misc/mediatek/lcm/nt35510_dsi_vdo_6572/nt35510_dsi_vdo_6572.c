@@ -425,7 +425,7 @@ static void lcm_setbacklight(unsigned int level)
 #elif defined(BUILD_UBOOT)
     printf("%s, %d\n", __func__, level);
 #else
-    printk("lcm_setbacklight = %d\n", level);
+    pr_debug("lcm_setbacklight = %d\n", level);
 #endif
   
     if(level > 255) 
@@ -508,7 +508,7 @@ static unsigned int lcm_ata_check(unsigned char *buffer)
 	unsigned int data_array[3];
 	unsigned char read_buf[4];
 
-	printk("ATA check size = 0x%x,0x%x,0x%x,0x%x\n",x0_MSB,x0_LSB,x1_MSB,x1_LSB);
+	pr_debug("ATA check size = 0x%x,0x%x,0x%x,0x%x\n",x0_MSB,x0_LSB,x1_MSB,x1_LSB);
 	data_array[0]= 0x0005390A;//HS packet
 	data_array[1]= (x1_MSB<<24)|(x0_LSB<<16)|(x0_MSB<<8)|0x2a;
 	data_array[2]= (x1_LSB);

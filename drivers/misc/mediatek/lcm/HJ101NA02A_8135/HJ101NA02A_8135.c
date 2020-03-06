@@ -138,7 +138,7 @@ MDELAY(20);
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_init() enter\n");
+    pr_debug("[LCM] lcm_init() enter\n");
     mt_set_gpio_mode(GPIO_LCD_RST_EN, GPIO_MODE_00);
     mt_set_gpio_dir(GPIO_LCD_RST_EN, GPIO_DIR_OUT);
     mt_set_gpio_out(GPIO_LCD_RST_EN, GPIO_OUT_ONE);
@@ -171,7 +171,7 @@ MDELAY(20);
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_suspend() enter\n");
+    pr_debug("[LCM] lcm_suspend() enter\n");
     mt_set_gpio_mode(GPIO_LCD_RST_EN, GPIO_MODE_00);
     mt_set_gpio_dir(GPIO_LCD_RST_EN, GPIO_DIR_OUT);
     mt_set_gpio_out(GPIO_LCD_RST_EN, GPIO_OUT_ZERO);
@@ -208,7 +208,7 @@ MDELAY(20);
 #elif (defined BUILD_UBOOT)
     // do nothing in uboot
 #else
-    printk("[LCM] lcm_resume() enter\n");
+    pr_debug("[LCM] lcm_resume() enter\n");
     mt_set_gpio_mode(GPIO_LCD_RST_EN, GPIO_MODE_00);
     mt_set_gpio_dir(GPIO_LCD_RST_EN, GPIO_DIR_OUT);
     mt_set_gpio_out(GPIO_LCD_RST_EN, GPIO_OUT_ONE);

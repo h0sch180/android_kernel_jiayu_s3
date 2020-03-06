@@ -21,13 +21,13 @@
 #define SLTAG "[StorageLogger]"
 #define SLog_MSG(fmt, args...) \
 do {    \
-		printk(KERN_INFO SLTAG""fmt" <- %s(): L<%d>  PID<%s><%d>\n", \
+		pr_debug(SLTAG""fmt" <- %s(): L<%d>  PID<%s><%d>\n", \
 		##args , __func__, __LINE__, current->comm, current->pid); \
 } while (0);
 
 #define STrace_MSG(fmt, args...) \
 do {    \
-		printk(KERN_INFO SLTAG""fmt" in PID<%s><%d>\n", \
+		pr_debug(SLTAG""fmt" in PID<%s><%d>\n", \
 		##args, current->comm, current->pid); \
 } while (0);
 

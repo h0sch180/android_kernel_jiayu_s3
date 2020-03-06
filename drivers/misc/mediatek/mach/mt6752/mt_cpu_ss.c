@@ -41,7 +41,7 @@ static bool mt_cpu_ss_period_mode = false;
 enum hrtimer_restart mt_cpu_ss_timer_func(struct hrtimer *timer)
 {
 	if (mt_cpu_ss_debug_mode)
-		printk("[%s]: enter timer function\n", __func__);
+		pr_debug("[%s]: enter timer function\n", __func__);
 
 	mt_cpu_ss_timer_flag = 1;
 	wake_up_interruptible(&mt_cpu_ss_timer_waiter);
@@ -68,7 +68,7 @@ int mt_cpu_ss_thread_handler(void *unused)
 		}
 
 		if (mt_cpu_ss_debug_mode)
-			printk("[%s]: TOP_CKMUXSEL = 0x%x\n", __func__, DRV_Reg32(TOP_CKMUXSEL));
+			pr_debug("[%s]: TOP_CKMUXSEL = 0x%x\n", __func__, DRV_Reg32(TOP_CKMUXSEL));
 
 		hrtimer_start(&mt_cpu_ss_timer, ktime, HRTIMER_MODE_REL);
 
@@ -123,21 +123,21 @@ static ssize_t cpu_ss_debug_mode_proc_write(struct file *file, const char __user
 		return -EINVAL;
 
 	if (count >= sizeof(mode)) {
-                printk(KERN_ERR "[%s]: bad argument!! input length is over buffer size\n", __func__);
+		pr_err("[%s]: bad argument!! input length is over buffer size\n", __func__);
                 return -EINVAL;
 	}
 
 	if (sscanf(buf, "%19s", mode) == 1) {
                 if (!strcmp(mode, "enable")) {
-                        printk(KERN_DEBUG "[%s]: %s cpu speed switch debug mode\n", mode, __func__);
+			pr_debug("[%s]: %s cpu speed switch debug mode\n", mode, __func__);
                         mt_cpu_ss_debug_mode = true;
                 } else if (!strcmp(mode, "disable")) {
-                        printk(KERN_DEBUG "[%s]: %s cpu speed switch debug mode\n", mode, __func__);
+			pr_debug("[%s]: %s cpu speed switch debug mode\n", mode, __func__);
                         mt_cpu_ss_debug_mode = false;
                 } else
-                        printk(KERN_ERR "[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
+			pr_err("[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
 	} else
-		printk(KERN_ERR "[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
+		pr_err("[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
 
 	free_page((unsigned long)buf);
 
@@ -163,22 +163,22 @@ static ssize_t cpu_ss_period_mode_proc_write(struct file *file, const char __use
 		return -EINVAL;
 
 	if (count >= sizeof(mode)) {
-                printk(KERN_ERR "[%s]: bad argument!! input length is over buffer size\n", __func__);
+		pr_err("[%s]: bad argument!! input length is over buffer size\n", __func__);
                 return -EINVAL;
 	}
-        
+
 	if (sscanf(buf, "%19s", mode) == 1) {
                 if (!strcmp(mode, "enable")) {
-                        printk(KERN_DEBUG "[%s]: %s cpu speed switch period mode\n", mode, __func__);
+			pr_debug("[%s]: %s cpu speed switch period mode\n", mode, __func__);
                         mt_cpu_ss_period_mode = true;
 
                         mt_cpu_ss_thread = kthread_run(mt_cpu_ss_thread_handler, 0, "cpu speed switch");
                         if (IS_ERR(mt_cpu_ss_thread))
-                                printk("[%s]: failed to create cpu speed switch thread\n", __func__);
+				pr_debug("[%s]: failed to create cpu speed switch thread\n", __func__);
 
                         hrtimer_start(&mt_cpu_ss_timer, ktime, HRTIMER_MODE_REL);
                 } else if (!strcmp(mode, "disable")) {
-                        printk(KERN_DEBUG "[%s]: %s cpu speed switch period mode\n", mode, __func__);
+			pr_debug("[%s]: %s cpu speed switch period mode\n", mode, __func__);
                         mt_cpu_ss_period_mode = false;
 
                         kthread_stop(mt_cpu_ss_thread);
@@ -187,9 +187,9 @@ static ssize_t cpu_ss_period_mode_proc_write(struct file *file, const char __use
 
                         hrtimer_cancel(&mt_cpu_ss_timer);
                 } else
-                        printk(KERN_ERR "[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
+			pr_err("[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
 	} else
-		printk(KERN_ERR "[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
+		pr_err("[%s]: bad argument!! should be \"enable\" or \"disable\"\n", __func__);
 
 	free_page((unsigned long)buf);
 
@@ -214,11 +214,11 @@ static ssize_t cpu_ss_period_proc_write(struct file *file, const char __user *bu
 		return -EINVAL;
 
 	if (sscanf(buf, "%d %d", &s, &ns) == 2) {
-		printk(KERN_DEBUG "[%s]: set cpu speed switch period = %d (s), %d (ns)\n", __func__, s, ns);
+		pr_debug("[%s]: set cpu speed switch period = %d (s), %d (ns)\n", __func__, s, ns);
 		mt_cpu_ss_period_s = s;
 		mt_cpu_ss_period_ns = ns;
 	} else
-		printk(KERN_ERR "[%s]: bad argument!! should be \"[s]\" or \"[ns]\"\n", __func__);
+		pr_err("[%s]: bad argument!! should be \"[s]\" or \"[ns]\"\n", __func__);
 
 	return count;
 }
@@ -262,14 +262,14 @@ static ssize_t cpu_ss_mode_proc_write(struct file *file, const char __user *buff
 
 	if (sscanf(buf, "%d", &mode) == 1) {
 		if (mode) {
-			printk(KERN_DEBUG "[%s]: config cpu speed switch mode = ARMPLL\n", __func__);
+			pr_debug("[%s]: config cpu speed switch mode = ARMPLL\n", __func__);
 			mt_cpufreq_clock_switch(0, TOP_CKMUXSEL_ARMPLL);
 		} else {
-			printk(KERN_DEBUG "[%s]: config cpu speed switch mode = CLKSQ\n", __func__);
+			pr_debug("[%s]: config cpu speed switch mode = CLKSQ\n", __func__);
 			mt_cpufreq_clock_switch(0, TOP_CKMUXSEL_CLKSQ);
 		}
 	} else
-		printk(KERN_ERR "[%s]: bad argument!! should be \"1\" or \"0\"\n", __func__);
+		pr_err("[%s]: bad argument!! should be \"1\" or \"0\"\n", __func__);
 
 	return count;
 }
@@ -326,13 +326,13 @@ static int _create_procfs(void)
 	dir = proc_mkdir("cpu_ss", NULL);
 
 	if (!dir) {
-		printk(KERN_ERR "fail to create /proc/cpu_ss @ %s()\n", __func__);
+		pr_err("fail to create /proc/cpu_ss @ %s()\n", __func__);
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(entries); i++) {
 		if (!proc_create(entries[i].name, S_IRUGO | S_IWUSR | S_IWGRP, dir, entries[i].fops))
-			printk(KERN_ERR "%s(), create /proc/cpu_ss/%s failed\n", __func__, entries[i].name);
+			pr_err("%s(), create /proc/cpu_ss/%s failed\n", __func__, entries[i].name);
 	}
 
 	return 0;

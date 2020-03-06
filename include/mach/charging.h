@@ -87,8 +87,13 @@ typedef enum {
 	CHARGING_CMD_GET_CSDAC_FALL_FLAG,
 	CHARGING_CMD_SET_TA_CURRENT_PATTERN,
 	CHARGING_CMD_SET_ERROR_STATE,
+#if defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
 	CHARGING_CMD_DISO_INIT,
 	CHARGING_CMD_GET_DISO_STATE,
+#endif 
+/*[Lavender][bozhi_lin] enable charging maintenance 20150522 begin*/
+	CHARGING_CMD_SET_TE,
+/*[Lavender][bozhi_lin] 20150522 end*/
 	CHARGING_CMD_NUMBER
 } CHARGING_CTRL_CMD;
 
@@ -484,4 +489,11 @@ extern kal_bool chargin_hw_init_done;
 /* External function */
 /* ============================================================ */
 extern kal_int32 chr_control_interface(CHARGING_CTRL_CMD cmd, void *data);
+extern kal_uint32 upmu_get_reg_value(kal_uint32 reg);
+extern bool mt_usb_is_device(void);
+extern void Charger_Detect_Init(void);
+extern void Charger_Detect_Release(void);
+extern void mt_power_off(void);
+
+extern bool get_usb_current_unlimited(void);
 #endif				/* #ifndef _CHARGING_H */

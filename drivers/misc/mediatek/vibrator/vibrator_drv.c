@@ -138,7 +138,8 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 		printk("[vibrator]vibrator_enable: shutdown_flag = %d\n", shutdown_flag);
 		vibe_state = 0;
 	} else {
-#if 1
+/*lenovo-sw lixh10 add for LENOVO_VIBRATOR_HAPTIC_FEEDBACK*/
+#if 0
 		printk("[vibrator]vibrator_enable: vibrator cust timer: %d\n", hw->vib_timer);
 #ifdef CUST_VIBR_LIMIT
 		if (value > hw->vib_limit && value < hw->vib_timer)
@@ -147,6 +148,7 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 #endif
 			value = hw->vib_timer;
 #endif
+		printk("[vibrator]ahe vibrator_enable: timer: %d\n", value);
 
 		value = (value > 15000 ? 15000 : value);
 		vibe_state = 1;

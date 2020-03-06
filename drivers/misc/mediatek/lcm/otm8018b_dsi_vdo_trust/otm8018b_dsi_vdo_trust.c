@@ -396,8 +396,8 @@ static unsigned int lcm_compare_id(void)
         printf("OTM8018B uboot %s \n", __func__);
            printf("%s id = 0x%08x \n", __func__, id);
     #else
-        printk("OTM8018B kernel %s \n", __func__);
-        printk("%s id = 0x%08x \n", __func__, id);
+        pr_debug("OTM8018B kernel %s \n", __func__);
+        pr_debug("%s id = 0x%08x \n", __func__, id);
     #endif
        #endif
 
@@ -447,7 +447,7 @@ static unsigned int lcm_esd_check(void)
     #ifdef BUILD_LK
         //printf("lcm_esd_check()\n");
     #else
-        //printk("lcm_esd_check()\n");
+        //pr_debug("lcm_esd_check()\n");
     #endif
  #ifndef BUILD_LK
     char  buffer[3];
@@ -468,7 +468,7 @@ static unsigned int lcm_esd_check(void)
         //#ifdef BUILD_LK
         //printf("%s %d\n FALSE", __func__, __LINE__);
         //#else
-        //printk("%s %d\n FALSE", __func__, __LINE__);
+        //pr_debug("%s %d\n FALSE", __func__, __LINE__);
         //#endif
         return FALSE;
     }
@@ -477,7 +477,7 @@ static unsigned int lcm_esd_check(void)
         //#ifdef BUILD_LK
         //printf("%s %d\n FALSE", __func__, __LINE__);
         //#else
-        //printk("%s %d\n FALSE", __func__, __LINE__);
+        //pr_debug("%s %d\n FALSE", __func__, __LINE__);
         //#endif
         return TRUE;
     }
@@ -491,7 +491,7 @@ static unsigned int lcm_esd_recover(void)
     #ifdef BUILD_LK
         printf("lcm_esd_recover()\n");
     #else
-        printk("lcm_esd_recover()\n");
+        pr_debug("lcm_esd_recover()\n");
     #endif
 
     lcm_init();

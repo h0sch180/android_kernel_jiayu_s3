@@ -1,11 +1,11 @@
 /*
- * This confidential and proprietary software may be used only as
- * authorised by a licensing agreement from ARM Limited
- * (C) COPYRIGHT 2013, 2015 ARM Limited
- * ALL RIGHTS RESERVED
- * The entire notice above must be reproduced on all authorised
- * copies and copies may only be made to the extent permitted
- * by a licensing agreement from ARM Limited.
+ * Copyright (C) 2013 ARM Limited. All rights reserved.
+ * 
+ * This program is free software and is provided to you under the terms of the GNU General Public License version 2
+ * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
+ * 
+ * A copy of the licence is included with the program, and can also be obtained from Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #include "mali_spinlock_reentrant.h"
@@ -49,7 +49,7 @@ void mali_spinlock_reentrant_wait(struct mali_spinlock_reentrant *spinlock, u32 
 	MALI_DEBUG_ASSERT_POINTER(spinlock->lock);
 	MALI_DEBUG_ASSERT(0 != tid);
 
-	MALI_DEBUG_PRINT(5, ("%s ^\n", __FUNCTION__));
+	MALI_DEBUG_PRINT(5, ("%s ^\n", __func__));
 
 	if (tid != spinlock->owner) {
 		_mali_osk_spinlock_irq_lock(spinlock->lock);
@@ -57,7 +57,7 @@ void mali_spinlock_reentrant_wait(struct mali_spinlock_reentrant *spinlock, u32 
 		spinlock->owner = tid;
 	}
 
-	MALI_DEBUG_PRINT(5, ("%s v\n", __FUNCTION__));
+	MALI_DEBUG_PRINT(5, ("%s v\n", __func__));
 
 	++spinlock->counter;
 }
@@ -71,7 +71,7 @@ void mali_spinlock_reentrant_signal(struct mali_spinlock_reentrant *spinlock, u3
 	--spinlock->counter;
 	if (0 == spinlock->counter) {
 		spinlock->owner = 0;
-		MALI_DEBUG_PRINT(5, ("%s release last\n", __FUNCTION__));
+		MALI_DEBUG_PRINT(5, ("%s release last\n", __func__));
 		_mali_osk_spinlock_irq_unlock(spinlock->lock);
 	}
 }

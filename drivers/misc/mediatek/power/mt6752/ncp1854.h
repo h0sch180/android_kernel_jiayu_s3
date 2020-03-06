@@ -307,5 +307,13 @@ extern void ncp1854_dump_register(void);
 
 extern void ncp1854_read_register(int i);
 
+//Begin, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+#ifdef CONFIG_LENOVO_NCP1854_OTG_SUPPORT
+extern void lenovo_ncp1854_for_overload_init(void);
+
+extern kal_uint32 lenovo_ncp1854_is_overload_int(void);
+#endif
+//End, lenovo-sw mahj2 add for modify ncp1854 otg bug at 20141121
+
 #endif // _NCP1854_SW_H_
 

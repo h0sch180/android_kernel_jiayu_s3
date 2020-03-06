@@ -1,7 +1,6 @@
 #include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/xlog.h>
 #include <linux/types.h>
 #include <linux/kobject.h>
 #include <linux/proc_fs.h>
@@ -21,14 +20,14 @@ extern int exec_ccci_kern_func_by_md_id(int md_id, unsigned int id, char *buf, u
 #define cl_type_lower               "cl-amutt-l"
 
 #define mtk_cooler_amutt_dprintk_always(fmt, args...) \
-  do { xlog_printk(ANDROID_LOG_INFO, "thermal/cooler/amutt", fmt, ##args); } while(0)
+	do { pr_debug("thermal/cooler/amutt" fmt, ##args); } while (0)
 
 #define mtk_cooler_amutt_dprintk(fmt, args...) \
-  do { \
-    if (1 == cl_amutt_klog_on) { \
-      xlog_printk(ANDROID_LOG_INFO, "thermal/cooler/amutt", fmt, ##args); \
-    } \
-  } while(0)
+	do { \
+		if (1 == cl_amutt_klog_on) { \
+			pr_debug("thermal/cooler/amutt" fmt, ##args); \
+		} \
+	} while (0)
 
 static int cl_amutt_klog_on = 0;
 

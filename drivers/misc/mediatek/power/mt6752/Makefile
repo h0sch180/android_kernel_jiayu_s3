@@ -8,15 +8,12 @@ endif
 
 obj-$(CONFIG_MTK_SMART_BATTERY) += battery_meter_hal.o 
 
-# Vanzo:songlixin on: Tue, 02 Jun 2015 16:53:49 +0800
-#ifeq ($(CONFIG_MTK_BQ24261_SUPPORT),y)
-ifeq ($(MTK_FAN5405_SUPPORT),yes)
-     obj-$(CONFIG_MTK_SMART_BATTERY) += fan5405.o charging_hw_fan5405.o
-else 
-    ifeq ($(CONFIG_MTK_BQ24261_SUPPORT),y)
-# End of Vanzo:songlixin
-     obj-$(CONFIG_MTK_SMART_BATTERY) += bq24261.o charging_hw_bq24261.o
+ifeq ($(CONFIG_MTK_BQ24296_SUPPORT),y)
+     obj-$(CONFIG_MTK_SMART_BATTERY) += bq24296.o charging_hw_bq24296.o 
 else
+  ifeq ($(CONFIG_MTK_BQ24261_SUPPORT),y)
+     obj-$(CONFIG_MTK_SMART_BATTERY) += bq24261.o charging_hw_bq24261.o
+  else
      ifeq ($(CONFIG_MTK_SWCHR_SUPPORT),y)
           obj-$(CONFIG_MTK_SMART_BATTERY) += charging_hw_mt_sw_charger.o                
      else
@@ -29,17 +26,20 @@ else
                     ifeq ($(CONFIG_MTK_BQ24196_SUPPORT),y)
                         obj-$(CONFIG_MTK_SMART_BATTERY) += bq24196.o charging_hw_bq24196.o
                     else
-                        ifeq ($(CONFIG_MTK_BQ24158_SUPPORT),y)
-                            obj-$(CONFIG_MTK_SMART_BATTERY) += bq24158.o charging_hw_bq24158.o
-                        else
+                         ifeq ($(CONFIG_MTK_BQ24157_SUPPORT),y)
+    		             obj-$(CONFIG_MTK_SMART_BATTERY) += bq24157.o charging_hw_bq24157.o 
+                         else
                             obj-$(CONFIG_MTK_SMART_BATTERY) += charging_hw_pmic.o
-                        endif
+                         endif
                     endif
                endif
           endif
       endif
+  endif
 endif
 
-# Vanzo:songlixin on: Tue, 02 Jun 2015 17:23:51 +0800
+#Begin lenovo-sw chailu1 add for 3rd FG max17058
+ifeq ($(CONFIG_BATTERY_MAX17058_SUPPORT),y)
+     obj-$(CONFIG_BATTERY_MAX17058_SUPPORT)     += max17058_battery.o
 endif
-# End of Vanzo:songlixin
+#End lenovo-sw chailu1 add for 3rd FG max17058

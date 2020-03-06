@@ -719,7 +719,7 @@ static unsigned int lcm_check_status(void)
 #ifdef BUILD_LK
 		printf("Check LCM Status: 0x%08x\n", buffer[0]);
 #else
-		printk("Check LCM Status: 0x%08x\n", buffer[0]);
+		pr_debug("Check LCM Status: 0x%08x\n", buffer[0]);
 #endif
 		if(buffer[0] != 0x9C)
 			init_lcm_registers();
@@ -732,7 +732,7 @@ static unsigned int lcm_check_status(void)
 #ifdef BUILD_LK
 	printf("Check LCM Status: 0x%08x\n", buffer[0]);
 #else
-	printk("Check LCM Status: 0x%08x\n", buffer[0]);
+	pr_debug("Check LCM Status: 0x%08x\n", buffer[0]);
 #endif
 #endif
 	return 0;
@@ -933,7 +933,7 @@ static unsigned int lcm_check_status(void)
 #ifdef BUILD_LK
 	printf("Check LCM Status: 0x%08x\n", buffer[0]);
 #else
-	printk("Check LCM Status: 0x%08x\n", buffer[0]);
+	pr_debug("Check LCM Status: 0x%08x\n", buffer[0]);
 #endif
 	return 0;
 }

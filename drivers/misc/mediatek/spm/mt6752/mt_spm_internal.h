@@ -8,8 +8,11 @@
 #include <linux/aee.h>
 
 #include <mach/mt_spm.h>
-#include <mach/mt_lpae.h>
 #include <mach/mt_gpio.h>
+#ifdef CONFIG_MTK_LM_MODE
+#include <mach/mt_lpae.h>
+#include <mach/memory.h>
+#endif
 
 /**************************************
  * Config and Parameter
@@ -299,12 +302,12 @@ extern struct spm_lp_scen *spm_check_talking_get_lpscen(struct spm_lp_scen *lpsc
 
 #define spm_emerg(fmt, args...)		pr_emerg("[SPM] " fmt, ##args)
 #define spm_alert(fmt, args...)		pr_alert("[SPM] " fmt, ##args)
-#define spm_crit(fmt, args...)		pr_crit("[SPM] " fmt, ##args)
+#define spm_crit(fmt, args...)		pr_err("[SPM] " fmt, ##args)
 #define spm_err(fmt, args...)		pr_err("[SPM] " fmt, ##args)
 #define spm_warn(fmt, args...)		pr_warn("[SPM] " fmt, ##args)
-#define spm_notice(fmt, args...)	pr_notice("[SPM] " fmt, ##args)
-#define spm_info(fmt, args...)		pr_info("[SPM] " fmt, ##args)
-#define spm_debug(fmt, args...)		pr_info("[SPM] " fmt, ##args)	/* pr_debug show nothing */
+#define spm_notice(fmt, args...)	pr_debug("[SPM] " fmt, ##args)
+#define spm_info(fmt, args...)		pr_debug("[SPM] " fmt, ##args)
+#define spm_debug(fmt, args...)		pr_debug("[SPM] " fmt, ##args)	/* pr_debug show nothing */
 
 /* just use in suspend flow for important log due to console suspend */
 #define spm_crit2(fmt, args...)		\
@@ -323,7 +326,10 @@ do {							\
 static inline u32 base_va_to_pa(const u32 *base)
 {
 	phys_addr_t pa = virt_to_phys(base);
-	MAPPING_DRAM_ACCESS_ADDR(pa);	/* for 4GB mode */
+#ifdef CONFIG_MTK_LM_MODE
+	if (enable_4G())
+		MAPPING_DRAM_ACCESS_ADDR(pa);	/* for 4GB mode */
+#endif
 	return (u32)pa;
 }
 

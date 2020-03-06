@@ -49,7 +49,6 @@
 /*----------------------------------------------------------------------------*/
 //#define I2C_DRIVERID_LSM6DS0 345
 /*----------------------------------------------------------------------------*/
-#define DEBUG 1
 /*----------------------------------------------------------------------------*/
 #define CONFIG_LSM6DS0_ACC_LOWPASS   /*apply low pass filter on output*/       
 /*----------------------------------------------------------------------------*/
@@ -167,8 +166,8 @@ static GSENSOR_VECTOR3D gsensor_gain, gsensor_offset;
 
 /*----------------------------------------------------------------------------*/
 #define GSE_TAG                  "[Gsensor] "
-#define GSE_FUN(f)               printk(KERN_INFO GSE_TAG"%s\n", __FUNCTION__)
-#define GSE_ERR(fmt, args...)    printk(KERN_ERR GSE_TAG"%s %d : "fmt, __FUNCTION__, __LINE__, ##args)
+#define GSE_FUN(f)               printk(KERN_INFO GSE_TAG"%s\n", __func__)
+#define GSE_ERR(fmt, args...)    printk(KERN_ERR GSE_TAG"%s %d : "fmt, __func__, __LINE__, ##args)
 #define GSE_LOG(fmt, args...)    printk(KERN_INFO GSE_TAG fmt, ##args)
 /*----------------------------------------------------------------------------*/
 static struct data_resolution LSM6DS0_ACC_data_resolution[] = {
@@ -1004,7 +1003,7 @@ static ssize_t store_trace_value(struct device_driver *ddri, const char *buf, si
 	}	
 	else
 	{
-		GSE_ERR("invalid content: '%s', length = %d\n", buf, count);
+		GSE_ERR("invalid content: '%s', length = %ld\n", buf, count);
 	}
 	
 	return count;    

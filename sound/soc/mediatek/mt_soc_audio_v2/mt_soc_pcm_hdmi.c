@@ -443,7 +443,7 @@ static int Audio_hdmi_SideGen_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_
         SetTDMLrckInverse(false);
         SetTDMBckInverse(false);
 
-		#if 0
+		#if 0 // K2 removed
         Afe_Set_Reg(AFE_TDM_CON2, 0, 0x0000000f); // tmp    0: Channel starts from O30/O31.
         Afe_Set_Reg(AFE_TDM_CON2, 1 << 4, 0x000000f0); // tmp    1: Channel starts from O32/O33.
         Afe_Set_Reg(AFE_TDM_CON2, 2 << 8, 0x00000f00); // tmp    2: Channel starts from O34/O35.
@@ -521,7 +521,7 @@ static int mtk_pcm_hdmi_stop(struct snd_pcm_substream *substream)
     SetMemoryPathEnable(Soc_Aud_Digital_Block_MEM_HDMI, false);
 
 #ifdef _DEBUG_TDM_KERNEL_
-    #if 0
+    #if 0 // K2 removed
     Afe_Set_Reg(AFE_TDM_CON2, 0, 0x00010000); // disable TDM to I2S path
     #endif
     Afe_Set_Reg(AFE_I2S_CON, 0, 0x00000001); // I2S disable
@@ -552,7 +552,7 @@ static snd_pcm_uframes_t mtk_pcm_hdmi_pointer(struct snd_pcm_substream *substrea
 
     if (pMemControl->interruptTrigger == 1)
     {
-    	#if 0
+    	#if 0 // K2 removed
         HW_Cur_ReadIdx = Afe_Get_Reg(AFE_HDMI_CUR);
 		#endif
         if (HW_Cur_ReadIdx == 0)
@@ -590,7 +590,7 @@ static void SetHDMIBuffer(struct snd_pcm_substream *substream,
     pblock->uResetFlag      = true;
     PRINTK_AUD_HDMI("%s dma_bytes = %d dma_area = %p dma_addr = 0x%x\n", __func__, pblock->u4BufferSize, pblock->pucVirtBufAddr, pblock->pucPhysBufAddr);
 
-	#if 0
+	#if 0 // K2 removed
     Afe_Set_Reg(AFE_HDMI_BASE , pblock->pucPhysBufAddr , 0xffffffff);
     Afe_Set_Reg(AFE_HDMI_END  , pblock->pucPhysBufAddr + (pblock->u4BufferSize - 1), 0xffffffff);
 
@@ -624,12 +624,14 @@ static int mtk_pcm_hdmi_hw_params(struct snd_pcm_substream *substream,
         runtime->dma_bytes = HDMI_dma_buf->bytes;
         runtime->dma_area = HDMI_dma_buf->area;
         runtime->dma_addr = HDMI_dma_buf->addr;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_HDMI,true);
         runtime->buffer_size = HDMI_dma_buf->bytes;
 #else
         runtime->dma_area = (unsigned char *)Get_Afe_SramBase_Pointer();
         runtime->dma_addr = AFE_INTERNAL_SRAM_PHY_BASE;
         runtime->dma_bytes = params_buffer_bytes(hw_params);
         runtime->buffer_size = runtime->dma_bytes;
+        SetHighAddr(Soc_Aud_Digital_Block_MEM_HDMI,false);
 #endif
 
     }
@@ -871,7 +873,7 @@ static int mtk_pcm_hdmi_start(struct snd_pcm_substream *substream)
 
     SetMemifSubStream(Soc_Aud_Digital_Block_MEM_HDMI, substream);
 
-    #if 0
+    #if 0 // K2 removed
     Afe_Set_Reg(AFE_TDM_CON2, 0, 0x0000000f); // tmp    0: Channel starts from O30/O31.
     Afe_Set_Reg(AFE_TDM_CON2, 1 << 4, 0x000000f0); // tmp    1: Channel starts from O32/O33.
     Afe_Set_Reg(AFE_TDM_CON2, 2 << 8, 0x00000f00); // tmp    2: Channel starts from O34/O35.
@@ -904,7 +906,7 @@ static int mtk_pcm_hdmi_start(struct snd_pcm_substream *substream)
     Afe_Set_Reg(AUDIO_TOP_CON1, 1,  0x00000002 ); // I2S_SOFT_Reset
     Afe_Set_Reg(AUDIO_TOP_CON1, 0,  0x00000002 ); // I2S_SOFT_Reset
 
-    #if 0
+    #if 0 // K2 removed
     Afe_Set_Reg(AFE_TDM_CON2, 0, 0x00060000); //  select loopback sdata0
     Afe_Set_Reg(AFE_TDM_CON2, 1, 0x00010000); // enable TDM to I2S path
     #endif

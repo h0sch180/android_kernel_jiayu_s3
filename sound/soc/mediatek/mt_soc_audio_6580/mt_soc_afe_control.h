@@ -32,9 +32,6 @@
  * Chipeng Chang
  *
  *------------------------------------------------------------------------------
- * $Revision: #1 $
- * $Modtime:$
- * $Log:$
  *
  *
  *******************************************************************************/
@@ -52,15 +49,16 @@
 #ifndef _AUDIO_AFE_CONTROL_H
 #define _AUDIO_AFE_CONTROL_H
 
+#include "AudDrv_Type_Def.h"
+#include "AudDrv_Common.h"
 #include "mt_soc_digital_type.h"
 #include "AudDrv_Def.h"
 #include <sound/memalloc.h>
+#include "mt_soc_pcm_common.h"
+
 
 #define GIC_PRIVATE_SIGNALS          (32)
-//#define AUDDRV_DL1_MAX_BUFFER_LENGTH (0x6000)
 #define AUDDRV_DL1_MAX_BUFFER_LENGTH (0x4000)
-//#define MT6752_AFE_MCU_IRQ_LINE (GIC_PRIVATE_SIGNALS + 142)
-//#define MT6582_AFE_MCU_IRQ_LINE (GIC_PRIVATE_SIGNALS + 104)
 #define MT6580_AFE_MCU_IRQ_LINE (GIC_PRIVATE_SIGNALS + 80)
 
 
@@ -77,9 +75,9 @@ bool SetChannels(uint32 Memory_Interface, uint32 channel);
 
 bool SetIrqMcuCounter(uint32 Irqmode, uint32 Counter);
 bool SetIrqEnable(uint32 Irqmode, bool bEnable);
-bool SetIrqMcuSampleRate(uint32  Irqmode, uint32 SampleRate);
+bool SetIrqMcuSampleRate(uint32 Irqmode, uint32 SampleRate);
 
-bool SetConnection(uint32 ConnectionState, uint32 Input , uint32 Output);
+bool SetConnection(uint32 ConnectionState, uint32 Input, uint32 Output);
 bool SetMemoryPathEnable(uint32 Aud_block, bool bEnable);
 bool GetMemoryPathEnable(uint32 Aud_block);
 bool SetI2SDacEnable(bool bEnable);
@@ -102,10 +100,10 @@ bool Set2ndI2SAdcEnable(bool bEnable);
 bool SetI2SDacOut(uint32 SampleRate, bool Lowgitter, bool I2SWLen);
 bool SetHwDigitalGainMode(uint32 GainType, uint32 SampleRate, uint32 SamplePerStep);
 bool SetHwDigitalGainEnable(int GainType, bool Enable);
-bool SetHwDigitalGain(uint32 Gain , int GainType);
+bool SetHwDigitalGain(uint32 Gain, int GainType);
 
 bool SetMemDuplicateWrite(uint32 InterfaceType, int dupwrite);
-bool EnableSideGenHw(uint32 connection , bool direction  , bool  Enable);
+bool EnableSideGenHw(uint32 connection, bool direction, bool Enable);
 bool SetSideGenSampleRate(uint32 SampleRate);
 bool CleanPreDistortion(void);
 bool EnableSideToneFilter(bool stf_on);
@@ -120,8 +118,8 @@ bool SetI2SASRCConfig(bool bIsUseASRC, unsigned int dToSampleRate);
 bool SetI2SASRCEnable(bool bEnable);
 
 bool checkUplinkMEMIfStatus(void);
-bool  SetMemIfFetchFormatPerSample(uint32 InterfaceType, uint32 eFetchFormat);
-bool SetoutputConnectionFormat(uint32 ConnectionFormat, uint32  Output);
+bool SetMemIfFetchFormatPerSample(uint32 InterfaceType, uint32 eFetchFormat);
+bool SetoutputConnectionFormat(uint32 ConnectionFormat, uint32 Output);
 
 bool SetHDMIApLL(uint32 ApllSource);
 uint32 GetHDMIApLLSource(void);
@@ -129,7 +127,7 @@ bool SetHDMIMCLK(void);
 bool SetHDMIBCLK(void);
 bool SetHDMIdatalength(uint32 length);
 bool SetHDMIsamplerate(uint32 samplerate);
-bool SetHDMIConnection(uint32 ConnectionState, uint32 Input , uint32 Output);
+bool SetHDMIConnection(uint32 ConnectionState, uint32 Input, uint32 Output);
 bool SetHDMIChannels(uint32 Channels);
 bool SetHDMIEnable(bool bEnable);
 
@@ -137,7 +135,7 @@ bool SetTDMLrckWidth(uint32 cycles);
 bool SetTDMbckcycle(uint32 cycles);
 bool SetTDMChannelsSdata(uint32 channels);
 
-//Soc_Aud_I2S_WLEN_WLEN_16BITS or Soc_Aud_I2S_WLEN_WLEN_32BITS
+/* Soc_Aud_I2S_WLEN_WLEN_16BITS or Soc_Aud_I2S_WLEN_WLEN_32BITS */
 
 bool SetTDMDatalength(uint32 length);
 bool SetTDMI2Smode(uint32 mode);
@@ -148,20 +146,21 @@ bool SetTDMEnable(bool enable);
 uint32 SampleRateTransform(uint32 SampleRate);
 uint32 SGENSampleRateTransform(uint32 SampleRate);
 
-// APLL , low jitter mode setting
+/* APLL , low jitter mode setting */
 uint32 SetCLkMclk(uint32 I2snum, uint32 SampleRate);
 void EnableI2SDivPower(uint32 Diveder_name, bool bEnable);
 void EnableApll1(bool bEnable);
 void EnableApll2(bool bEnable);
-void  SetCLkBclk(uint32 MckDiv, uint32 SampleRate, uint32 Channels , uint32 Wlength);
+void SetCLkBclk(uint32 MckDiv, uint32 SampleRate, uint32 Channels, uint32 Wlength);
 
-int AudDrv_Allocate_mem_Buffer(struct device *pDev, Soc_Aud_Digital_Block MemBlock, uint32 Buffer_length);
-AFE_MEM_CONTROL_T  *Get_Mem_ControlT(Soc_Aud_Digital_Block MemBlock);
+int AudDrv_Allocate_mem_Buffer(struct device *pDev,
+			       Soc_Aud_Digital_Block MemBlock, uint32 Buffer_length);
+AFE_MEM_CONTROL_T *Get_Mem_ControlT(Soc_Aud_Digital_Block MemBlock);
 bool SetMemifSubStream(Soc_Aud_Digital_Block MemBlock, struct snd_pcm_substream *substream);
 bool RemoveMemifSubStream(Soc_Aud_Digital_Block MemBlock, struct snd_pcm_substream *substream);
 bool ClearMemBlock(Soc_Aud_Digital_Block MemBlock);
 
-// interrupt handler
+/* interrupt handler */
 
 void Auddrv_Dl1_Spinlock_lock(void);
 void Auddrv_Dl1_Spinlock_unlock(void);
@@ -174,9 +173,11 @@ void Auddrv_DAI_Interrupt_Handler(void);
 void Auddrv_HDMI_Interrupt_Handler(void);
 void Auddrv_UL2_Interrupt_Handler(void);
 void Clear_Mem_CopySize(Soc_Aud_Digital_Block MemBlock);
-kal_uint32 Get_Mem_CopySizeByStream(Soc_Aud_Digital_Block MemBlock, struct snd_pcm_substream *substream);
+kal_uint32 Get_Mem_CopySizeByStream(Soc_Aud_Digital_Block MemBlock,
+				    struct snd_pcm_substream *substream);
 kal_uint32 Get_Mem_MaxCopySize(Soc_Aud_Digital_Block MemBlock);
-void Set_Mem_CopySizeByStream(Soc_Aud_Digital_Block MemBlock, struct snd_pcm_substream *substream, uint32 size);
+void Set_Mem_CopySizeByStream(Soc_Aud_Digital_Block MemBlock,
+			      struct snd_pcm_substream *substream, uint32 size);
 
 struct snd_dma_buffer *Get_Mem_Buffer(Soc_Aud_Digital_Block MemBlock);
 int AudDrv_Allocate_DL1_Buffer(struct device *pDev, kal_uint32 Afe_Buf_Length);
@@ -188,7 +189,7 @@ bool Restore_Audio_Register(void);
 void AfeControlMutexLock(void);
 void AfeControlMutexUnLock(void);
 
-// Sram management  function
+/* Sram management  function */
 void AfeControlSramLock(void);
 void AfeControlSramUnLock(void);
 size_t GetCaptureSramSize(void);
@@ -200,12 +201,15 @@ unsigned int GetPLaybackSramPartial(void);
 unsigned int GetPLaybackDramSize(void);
 size_t GetCaptureDramSize(void);
 
-//offsetTrimming
+/* offsetTrimming */
 void OpenAfeDigitaldl1(bool bEnable);
 void SetExternalModemStatus(const bool bEnable);
 
-// set VOW status for AFE GPIO control
+/* set VOW status for AFE GPIO control */
 void SetVOWStatus(bool bEnable);
+bool ConditionEnterSuspend(void);
+void SetFMEnableFlag(bool bEnable);
+void SetOffloadEnableFlag(bool bEnable);
 
 unsigned int Align64ByteSize(unsigned int insize);
 

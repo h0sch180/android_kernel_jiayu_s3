@@ -473,6 +473,10 @@ struct input_keymap_entry {
 
 #define KEY_MICMUTE		248	/* Mute / unmute the microphone */
 
+/*lenovo-sw, wengjun1 add 20141006 for gesture begin*/
+#define KEY_SLIDE               266
+/*lenovo-sw, wengjun1 add 20141006 for gesture  end*/
+
 /* Code 255 is reserved for special needs of AT keyboard driver */
 
 #define BTN_MISC		0x100
@@ -835,6 +839,9 @@ struct input_keymap_entry {
 #define ABS_MISC		0x28
 
 #define ABS_MT_SLOT		0x2f	/* MT slot being modified */
+//lenovo liuyw2
+#define ABS_MT_POSITION_X_W    0x2c
+#define ABS_MT_POSITION_Y_W    0x2d
 #define ABS_MT_TOUCH_MAJOR	0x30	/* Major axis of touching ellipse */
 #define ABS_MT_TOUCH_MINOR	0x31	/* Minor axis (omit if circular) */
 #define ABS_MT_WIDTH_MAJOR	0x32	/* Major axis of approaching ellipse */

@@ -1370,7 +1370,7 @@ static void TurnOnDacPower(void)
     ClsqEnable(true);
     Topck_Enable(true);
     udelay(250);
-    NvregEnable(true); 
+    NvregEnable(true); //K2 moved to 0x0CEE
     if (GetAdcStatus() == false)
     {
 #if 0 //Sammodi todo
@@ -1399,7 +1399,7 @@ static void TurnOnDacPower(void)
     TopCtlChangeTrigger();
     Ana_Set_Reg(ABB_AFE_CON0, 0x0001, 0x0001); //DL turn on enable
 #if 0 //Sammodi todo
-    Ana_Set_Reg(AFE_DL_SRC2_CON0_H , GetDLNewIFFrequency(mBlockSampleRate[AUDIO_ANALOG_DEVICE_OUT_DAC]) << 12 | 0x300 , 0xffff); 
+    Ana_Set_Reg(AFE_DL_SRC2_CON0_H , GetDLNewIFFrequency(mBlockSampleRate[AUDIO_ANALOG_DEVICE_OUT_DAC]) << 12 | 0x300 , 0xffff); //K2
 
     Ana_Set_Reg(AFE_DL_SRC2_CON0_L , 0x0001 , 0xffff); //turn on dl
 #endif
@@ -3030,26 +3030,26 @@ static int Audio_ADC2_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_val
 static int Audio_ADC3_Get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC3_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC4_Get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC4_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
@@ -3136,26 +3136,26 @@ static int Audio_ADC2_Sel_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem
 static int Audio_ADC3_Sel_Get(struct snd_kcontrol *kcontrol,
                               struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC3_Sel_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC4_Sel_Get(struct snd_kcontrol *kcontrol,
                               struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_ADC4_Sel_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
@@ -3339,26 +3339,26 @@ static int Audio_PGA2_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_val
 static int Audio_PGA3_Get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_PGA3_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_PGA4_Get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_PGA4_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
@@ -3414,13 +3414,13 @@ static int Audio_MicSource2_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_el
 static int Audio_MicSource3_Get(struct snd_kcontrol *kcontrol,
                                 struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_MicSource3_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
@@ -3428,13 +3428,13 @@ static int Audio_MicSource3_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_el
 static int Audio_MicSource4_Get(struct snd_kcontrol *kcontrol,
                                 struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
 static int Audio_MicSource4_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // removed
+    //K2 removed
     return 0;
 }
 
@@ -3797,14 +3797,14 @@ static int SineTable_DAC_HP_Get(struct snd_kcontrol *kcontrol,
 
 static int SineTable_DAC_HP_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // TODO?
+    //K2 TODO?
     printk("%s()\n", __func__);
     return 0;
 }
 
 static void ADC_LOOP_DAC_Func(int command)
 {
-    // TODO?
+    //K2 TODO?
 }
 
 static bool DAC_LOOP_DAC_HS_flag = false;
@@ -3869,7 +3869,7 @@ static int Voice_Call_DAC_DAC_HS_Get(struct snd_kcontrol *kcontrol,
 
 static int Voice_Call_DAC_DAC_HS_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-    // TODO
+    //K2 TODO
     printk("%s()\n", __func__);
     return 0;
 }

@@ -31,7 +31,7 @@
 #ifdef BUILD_LK
 #define LCM_PRINT printf
 #else
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 #endif
 
 static unsigned int lcm_esd_test = FALSE;      ///only for ESD test
@@ -317,7 +317,7 @@ static void lcm_setbacklight(unsigned int level)
 #if defined(BUILD_LK)
     printf("%s, %d\n", __func__, level);
 #else
-    printk("lcm_setbacklight = %d\n", level);
+    pr_debug("lcm_setbacklight = %d\n", level);
 #endif
   
     if(level > 255) 

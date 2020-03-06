@@ -29,6 +29,7 @@
 #include <mach/mt6311.h>
 
 #include <cust_pmic.h>
+#include <mach/charging.h>
 
 #if defined(CONFIG_MTK_FPGA)
 #else
@@ -98,7 +99,7 @@ kal_uint32 mt6311_read_byte(kal_uint8 cmd, kal_uint8 *returnData)
     ret = i2c_master_send(new_client, &cmd_buf[0], (1<<8 | 1));
     if (ret < 0)
     {
-        pr_notice("[mt6311_read_byte] ret=%d\n", ret);
+		battery_log(BAT_LOG_CRTI, "[mt6311_read_byte] ret=%d\n", ret);
 
         new_client->ext_flag=0;
         mutex_unlock(&mt6311_i2c_access);
@@ -130,7 +131,7 @@ kal_uint32 mt6311_write_byte(kal_uint8 cmd, kal_uint8 writeData)
     ret = i2c_master_send(new_client, write_data, 2);
     if (ret < 0)
     {
-        pr_notice("[mt6311_write_byte] ret=%d\n", ret);
+		battery_log(BAT_LOG_CRTI, "[mt6311_write_byte] ret=%d\n", ret);
 
         new_client->ext_flag=0;
         mutex_unlock(&mt6311_i2c_access);
@@ -150,23 +151,23 @@ kal_uint32 mt6311_write_byte(kal_uint8 cmd, kal_uint8 writeData)
 kal_uint32 mt6311_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 MASK, kal_uint8 SHIFT)
 {
 #if 0
-    pr_notice("[mt6311_read_interface] HW no mt6311\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_read_interface] HW no mt6311\n");
     *val = 0;
     return 1;
 #else
     kal_uint8 mt6311_reg = 0;
     kal_uint32 ret = 0;
 
-    //pr_notice("--------------------------------------------------\n");
+    /*battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n"));*/
 
     ret = mt6311_read_byte(RegNum, &mt6311_reg);
 
-    //pr_notice("[mt6311_read_interface] Reg[%x]=0x%x\n", RegNum, mt6311_reg);
+    /*battery_log(BAT_LOG_CRTI, "[mt6311_read_interface] Reg[%x]=0x%x\n", RegNum, mt6311_reg));*/
 
     mt6311_reg &= (MASK << SHIFT);
     *val = (mt6311_reg >> SHIFT);
 
-    //pr_notice("[mt6311_read_interface] val=0x%x\n", *val);
+    /*battery_log(BAT_LOG_CRTI, "[mt6311_read_interface] val=0x%x\n", *val));*/
 
     return ret;
 #endif
@@ -175,26 +176,26 @@ kal_uint32 mt6311_read_interface (kal_uint8 RegNum, kal_uint8 *val, kal_uint8 MA
 kal_uint32 mt6311_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8 MASK, kal_uint8 SHIFT)
 {
 #if 0
-    pr_notice("[mt6311_config_interface] HW no mt6311\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_config_interface] HW no mt6311\n");
     return 1;
 #else
     kal_uint8 mt6311_reg = 0;
     kal_uint32 ret = 0;
 
-    //pr_notice("--------------------------------------------------\n");
+    /*battery_log(BAT_LOG_CRTI, "--------------------------------------------------\n"));*/
 
     ret = mt6311_read_byte(RegNum, &mt6311_reg);
-    //pr_notice("[mt6311_config_interface] Reg[%x]=0x%x\n", RegNum, mt6311_reg);
+    /*battery_log(BAT_LOG_CRTI, "[mt6311_config_interface] Reg[%x]=0x%x\n", RegNum, mt6311_reg));*/
 
     mt6311_reg &= ~(MASK << SHIFT);
     mt6311_reg |= (val << SHIFT);
 
     ret = mt6311_write_byte(RegNum, mt6311_reg);
-    //pr_notice("[mt6311_config_interface] write Reg[%x]=0x%x\n", RegNum, mt6311_reg);
+    /*battery_log(BAT_LOG_CRTI, "[mt6311_config_interface] write Reg[%x]=0x%x\n", RegNum, mt6311_reg));*/
 
     // Check
     //ret = mt6311_read_byte(RegNum, &mt6311_reg);
-    //pr_notice("[mt6311_config_interface] Check Reg[%x]=0x%x\n", RegNum, mt6311_reg);
+    /*battery_log(BAT_LOG_CRTI, "[mt6311_config_interface] Check Reg[%x]=0x%x\n", RegNum, mt6311_reg));*/
 
     return ret;
 #endif
@@ -6646,7 +6647,7 @@ void mt6311_dump_register(void)
     kal_uint8 i_max=0x2;//0xD5
 
     for (i=0x0;i<=i_max;i++) {
-        pr_notice("[0x%x]=0x%x ", i, mt6311_get_reg_value(i));
+		battery_log(BAT_LOG_CRTI, "[0x%x]=0x%x ", i, mt6311_get_reg_value(i));
     }
     #endif
 }
@@ -6668,7 +6669,7 @@ kal_uint32 update_mt6311_chip_id(void)
 
     g_mt6311_cid=id;
 
-    pr_notice("[update_mt6311_chip_id] id_l=0x%x, id_r=0x%x, id=0x%x\n", id_l, id_r, id);
+	battery_log(BAT_LOG_CRTI, "[update_mt6311_chip_id] id_l=0x%x, id_r=0x%x, id=0x%x\n", id_l, id_r, id);
 
     return id;
 }
@@ -6678,7 +6679,7 @@ kal_uint32 mt6311_get_chip_id(void)
     if(g_mt6311_cid==0)
         update_mt6311_chip_id();
 
-    pr_notice("[mt6311_get_chip_id] g_mt6311_cid=0x%x\n", g_mt6311_cid);
+	battery_log(BAT_LOG_CRTI, "[mt6311_get_chip_id] g_mt6311_cid=0x%x\n", g_mt6311_cid);
 
     return g_mt6311_cid;
 }
@@ -6687,7 +6688,7 @@ void mt6311_hw_init(void)
 {
     U32 ret = 0;
 
-    pr_notice("[mt6311_hw_init] 20140513, CC Lee\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_hw_init] 20140513, CC Lee\n");
 
     //put init setting from DE/SA
     //ret=mt6311_config_interface(0x04,0x11,0xFF,0);// set pin to interrupt, DVT only
@@ -6695,8 +6696,8 @@ void mt6311_hw_init(void)
     //--------------------------------------------------------
     if(mt6311_get_chip_id()>=PMIC6311_E1_CID_CODE)
     {
-        pr_notice( "[mt6311_hw_init] 6311 PMIC Chip = 0x%x\n",mt6311_get_chip_id());
-        pr_notice( "[mt6311_hw_init] 2014-11-3\n");
+		battery_log(BAT_LOG_CRTI,  "[mt6311_hw_init] 6311 PMIC Chip = 0x%x\n", mt6311_get_chip_id());
+		battery_log(BAT_LOG_CRTI,  "[mt6311_hw_init] 2014-11-3\n");
 
         //put init setting from DE/SA
         ret = mt6311_config_interface(0x18,0x1,0x1,2); // [2:2]: I2C_CONFIG; 1103
@@ -6717,21 +6718,21 @@ void mt6311_hw_init(void)
         ret = mt6311_config_interface(0x1F,0x0,0x1,2); // [2:2]: VBIASN_PG_H2L_EN; Ricky
 
         #if 1
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x04, mt6311_get_reg_value(0x04));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x15, mt6311_get_reg_value(0x15));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x1F, mt6311_get_reg_value(0x1F));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x6A, mt6311_get_reg_value(0x6A));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x8B, mt6311_get_reg_value(0x8B));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x8C, mt6311_get_reg_value(0x8C));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x94, mt6311_get_reg_value(0x94));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x93, mt6311_get_reg_value(0x93));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0xCF, mt6311_get_reg_value(0xCF));
-        pr_notice( "[mt6311] [0x%x]=0x%x\n", 0x88, mt6311_get_reg_value(0x88));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x04, mt6311_get_reg_value(0x04));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x15, mt6311_get_reg_value(0x15));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x1F, mt6311_get_reg_value(0x1F));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x6A, mt6311_get_reg_value(0x6A));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x8B, mt6311_get_reg_value(0x8B));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x8C, mt6311_get_reg_value(0x8C));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x94, mt6311_get_reg_value(0x94));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x93, mt6311_get_reg_value(0x93));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0xCF, mt6311_get_reg_value(0xCF));
+		battery_log(BAT_LOG_CRTI,  "[mt6311] [0x%x]=0x%x\n", 0x88, mt6311_get_reg_value(0x88));
         #endif
     }
     else
     {
-        pr_notice( "[mt6311_hw_init] Unknown PMIC Chip (0x%x)\n",mt6311_get_chip_id());
+		battery_log(BAT_LOG_CRTI,  "[mt6311_hw_init] Unknown PMIC Chip (0x%x)\n", mt6311_get_chip_id());
     }
     //--------------------------------------------------------
 }
@@ -6750,7 +6751,7 @@ void mt6311_hw_component_detect(void)
     {
         g_mt6311_hw_exist=0;
     }
-    pr_notice("[mt6311_hw_component_detect] exist=%d\n", g_mt6311_hw_exist);
+	battery_log(BAT_LOG_CRTI, "[mt6311_hw_component_detect] exist=%d\n", g_mt6311_hw_exist);
 }
 
 int is_mt6311_sw_ready(void)
@@ -6804,7 +6805,7 @@ struct wake_lock pmicThread_lock_mt6311;
 
 void wake_up_pmic_mt6311(void)
 {
-    pr_notice( "[wake_up_pmic_mt6311]\n");
+	battery_log(BAT_LOG_CRTI,  "[wake_up_pmic_mt6311]\n");
     wake_up_process(pmic_6311_thread_handle);
     wake_lock(&pmicThread_lock_mt6311);
 }
@@ -6812,14 +6813,14 @@ EXPORT_SYMBOL(wake_up_pmic_mt6311);
 
 void mt_pmic_eint_irq_mt6311(void)
 {
-    pr_notice( "[mt_pmic_eint_irq_mt6311] receive interrupt\n");
+	battery_log(BAT_LOG_CRTI,  "[mt_pmic_eint_irq_mt6311] receive interrupt\n");
     wake_up_pmic_mt6311();
     return ;
 }
 
 void mt6311_int_test(void)
 {
-    pr_notice("[mt6311_int_test] start\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_int_test] start\n");
 
     mt6311_config_interface(0x20,0x0F,0xFF,0); // pg dis
     mt6311_set_rg_auxadc_ck_pdn(0);
@@ -6851,7 +6852,7 @@ void mt6311_int_test(void)
     mt6311_set_auxadc_lbat_en_max(1);
     mt6311_set_auxadc_lbat_en_min(0);
 
-    pr_notice("[mt6311_int_test] done, wait for interrupt..\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_int_test] done, wait for interrupt..\n");
 }
 
 void cust_pmic_interrupt_en_setting_mt6311(void)
@@ -6869,14 +6870,14 @@ void cust_pmic_interrupt_en_setting_mt6311(void)
 void mt6311_lbat_min_int_handler(void)
 {
     //kal_uint32 ret=0;
-    pr_notice( "[mt6311_lbat_min_int_handler]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_lbat_min_int_handler]....\n");
     //ret=mt6311_config_interface(MT6311_TOP_INT_MON,0x1,0x1,0);
 }
 
 void mt6311_lbat_max_int_handler(void)
 {
     //kal_uint32 ret=0;
-    pr_notice( "[mt6311_lbat_max_int_handler]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_lbat_max_int_handler]....\n");
 
     #if 0
     mt6311_set_auxadc_lbat_irq_en_max(0);
@@ -6895,24 +6896,24 @@ kal_uint32 thr_h_int_status=0;
 void mt6311_clr_thr_l_int_status(void)
 {
 	thr_l_int_status=0;
-    pr_notice( "[mt6311_clr_thr_l_int_status]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_clr_thr_l_int_status]....\n");
 }
 
 void mt6311_clr_thr_h_int_status(void)
 {
 	thr_h_int_status=0;
-    pr_notice( "[mt6311_clr_thr_h_int_status]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_clr_thr_h_int_status]....\n");
 }
 kal_uint32 mt6311_get_thr_l_int_status(void)
 {
-    pr_notice( "[mt6311_get_thr_l_int_status]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_get_thr_l_int_status]....\n");
 
 	return thr_l_int_status;
 }
 
 kal_uint32 mt6311_get_thr_h_int_status(void)
 {
-    pr_notice( "[mt6311_get_thr_h_int_status]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_get_thr_h_int_status]....\n");
 
 	return thr_h_int_status;
 }
@@ -6921,7 +6922,7 @@ void mt6311_thr_l_int_handler(void)
 {
     //kal_uint32 ret=0;
     thr_l_int_status =1;
-    pr_notice( "[mt6311_thr_l_int_handler]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_thr_l_int_handler]....\n");
     //return thr_l_int_status;
 
     //ret=mt6311_config_interface(MT6311_TOP_INT_MON,0x1,0x1,2);
@@ -6931,14 +6932,14 @@ void mt6311_thr_h_int_handler(void)
 {
     //kal_uint32 ret=0;
     thr_h_int_status =1;
-    pr_notice( "[mt6311_thr_h_int_handler]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_thr_h_int_handler]....\n");
     //ret=mt6311_config_interface(MT6311_TOP_INT_MON,0x1,0x1,3);
 }
 
 void mt6311_buck_oc_int_handler(void)
 {
     //kal_uint32 ret=0;
-    pr_notice( "[mt6311_buck_oc_int_handler]....\n");
+	battery_log(BAT_LOG_CRTI,  "[mt6311_buck_oc_int_handler]....\n");
     //ret=mt6311_config_interface(MT6311_TOP_INT_MON,0x1,0x1,4);
 }
 
@@ -6949,7 +6950,7 @@ static void mt6311_int_handler(void)
 
     //--------------------------------------------------------------------------------
     ret=mt6311_read_interface(MT6311_TOP_INT_MON,(&mt6311_int_status_val_0),0xFF,0x0);
-    pr_notice( "[MT6311_INT] mt6311_int_status_val_0=0x%x\n", mt6311_int_status_val_0);
+	battery_log(BAT_LOG_CRTI,  "[MT6311_INT] mt6311_int_status_val_0=0x%x\n", mt6311_int_status_val_0);
 
     if( (((mt6311_int_status_val_0)&(0x01))>>0) == 1 )  { mt6311_lbat_min_int_handler();  }
     if( (((mt6311_int_status_val_0)&(0x02))>>1) == 1 )  { mt6311_lbat_max_int_handler();  }
@@ -6967,7 +6968,7 @@ static int pmic_thread_kthread_mt6311(void *x)
     sched_setscheduler(current, SCHED_FIFO, &param);
     set_current_state(TASK_INTERRUPTIBLE);
 
-    pr_notice( "[MT6311_INT] enter\n");
+	battery_log(BAT_LOG_CRTI,  "[MT6311_INT] enter\n");
 
     /* Run on a process content */
     while (1) {
@@ -6979,7 +6980,7 @@ static int pmic_thread_kthread_mt6311(void *x)
 
         ret=mt6311_read_interface(MT6311_TOP_INT_MON,(&mt6311_int_status_val_0),0xFF,0x0);
 
-        pr_notice( "[MT6311_INT] after ,mt6311_int_status_val_0=0x%x\n", mt6311_int_status_val_0);
+		battery_log(BAT_LOG_CRTI,  "[MT6311_INT] after ,mt6311_int_status_val_0=0x%x\n", mt6311_int_status_val_0);
 
         mdelay(1);
 
@@ -7018,12 +7019,12 @@ void mt6311_eint_setting(void)
 	mt_gpio_set_debounce(g_eint_pmic_mt6311_num, g_cust_eint_mt_pmic_mt6311_debounce_cn);
 
 	ret=request_irq(g_mt6311_irq, mt6311_eint_handler, g_cust_eint_mt_pmic_mt6311_type, "mt6311-eint", NULL);
-	pr_notice( "[CUST_EINT] request_irq=%d\n", ret);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] request_irq=%d\n", ret);
 
-    pr_notice( "[CUST_EINT] CUST_EINT_MT_PMIC_MT6311_NUM=%d\n", g_eint_pmic_mt6311_num);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_CN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_cn);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_TYPE=%d\n",          g_cust_eint_mt_pmic_mt6311_type);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_EN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_en);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_MT_PMIC_MT6311_NUM=%d\n", g_eint_pmic_mt6311_num);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_CN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_cn);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_TYPE=%d\n",          g_cust_eint_mt_pmic_mt6311_type);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_EN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_en);
 #else
     mt_eint_set_hw_debounce(g_eint_pmic_mt6311_num,g_cust_eint_mt_pmic_mt6311_debounce_cn);
 
@@ -7031,10 +7032,10 @@ void mt6311_eint_setting(void)
 
     mt_eint_unmask(g_eint_pmic_mt6311_num);
 
-    pr_notice( "[CUST_EINT] CUST_EINT_MT_PMIC_MT6311_NUM=%d\n", g_eint_pmic_mt6311_num);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_CN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_cn);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_TYPE=%d\n",          g_cust_eint_mt_pmic_mt6311_type);
-    pr_notice( "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_EN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_en);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_MT_PMIC_MT6311_NUM=%d\n", g_eint_pmic_mt6311_num);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_CN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_cn);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_TYPE=%d\n",          g_cust_eint_mt_pmic_mt6311_type);
+	battery_log(BAT_LOG_CRTI,  "[CUST_EINT] CUST_EINT_PMIC_DEBOUNCE_EN=%d\n",   g_cust_eint_mt_pmic_mt6311_debounce_en);
 #endif
 
     //for all interrupt events, turn on interrupt module clock
@@ -7050,23 +7051,23 @@ void mt6311_eint_init(void)
 {
     //---------------------
 #if defined(CONFIG_MTK_FPGA)
-    pr_notice( "[MT6311_EINT] disable when CONFIG_MTK_FPGA\n");
+	battery_log(BAT_LOG_CRTI,  "[MT6311_EINT] disable when CONFIG_MTK_FPGA\n");
 #else
     //PMIC Interrupt Service
     pmic_6311_thread_handle = kthread_create(pmic_thread_kthread_mt6311, (void *) NULL, "pmic_6311_thread");
     if (IS_ERR(pmic_6311_thread_handle))
     {
         pmic_6311_thread_handle = NULL;
-        pr_notice( "[MT6311_EINT] creation fails\n");
+		battery_log(BAT_LOG_CRTI,  "[MT6311_EINT] creation fails\n");
     }
     else
     {
         wake_up_process(pmic_6311_thread_handle);
-        pr_notice( "[MT6311_EINT] kthread_create Done\n");
+		battery_log(BAT_LOG_CRTI,  "[MT6311_EINT] kthread_create Done\n");
     }
 
     //mt6311_eint_setting();
-    pr_notice( "[MT6311_EINT] TBD\n");
+	battery_log(BAT_LOG_CRTI,  "[MT6311_EINT] TBD\n");
 #endif
 
 }
@@ -7079,7 +7080,7 @@ void mt6311_eint_init(void)
 void cpu_low_power_setting(void)
 {
     #ifdef PMIC_VDVFS_CUST_ENABLE
-        pr_notice("[cpu_low_power_setting] define PMIC_VDVFS_CUST_ENABLE\n");
+		battery_log(BAT_LOG_CRTI, "[cpu_low_power_setting] define PMIC_VDVFS_CUST_ENABLE\n");
     #else
         //turn off mt6325 VPROC
         pmic_config_interface(0x04B4,0x0,0x1,0); // [0:0]: VDVFS11_EN
@@ -7090,7 +7091,7 @@ void cpu_low_power_setting(void)
         pmic_config_interface(0x04EC,0x0,0x1,11); // [11:11]: VDVFS12_VSLEEP_SEL
         pmic_config_interface(0x04EC,0x1,0x1,10); // [10:10]: VDVFS12_R2R_PDN
         pmic_config_interface(0x04EC,0x0,0x1,8); // [8:8]: VDVFS12_VSLEEP_EN
-        pr_notice("[cpu_low_power_setting] [0x%x]=0x%x,[0x%x]=0x%x,[0x%x]=0x%x,[0x%x]=0x%x\n",
+		battery_log(BAT_LOG_CRTI, "[cpu_low_power_setting] [0x%x]=0x%x,[0x%x]=0x%x,[0x%x]=0x%x,[0x%x]=0x%x\n",
             0x04B4, upmu_get_reg_value(0x04B4),
             0x04C6, upmu_get_reg_value(0x04C6),
             0x04DA, upmu_get_reg_value(0x04DA),
@@ -7103,7 +7104,7 @@ static int mt6311_driver_probe(struct i2c_client *client, const struct i2c_devic
 {
     int err=0;
 
-    pr_notice("[mt6311_driver_probe] \n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_driver_probe]\n");
 
     if (!(new_client = kmalloc(sizeof(struct i2c_client), GFP_KERNEL))) {
         err = -ENOMEM;
@@ -7128,7 +7129,7 @@ static int mt6311_driver_probe(struct i2c_client *client, const struct i2c_devic
     }
     g_mt6311_driver_ready=1;
 
-    pr_notice("[mt6311_driver_probe] g_mt6311_hw_exist=%d, g_mt6311_driver_ready=%d\n",
+	battery_log(BAT_LOG_CRTI, "[mt6311_driver_probe] g_mt6311_hw_exist=%d, g_mt6311_driver_ready=%d\n",
         g_mt6311_hw_exist, g_mt6311_driver_ready);
 
     if(g_mt6311_hw_exist==0)
@@ -7136,7 +7137,7 @@ static int mt6311_driver_probe(struct i2c_client *client, const struct i2c_devic
         //re-init battery oc protect point for platform without extbuck
         battery_oc_protect_reinit();
 
-        pr_notice("[mt6311_driver_probe] return err\n");
+		battery_log(BAT_LOG_CRTI, "[mt6311_driver_probe] return err\n");
         return err;
     }
 
@@ -7160,7 +7161,7 @@ exit:
 kal_uint8 g_reg_value_mt6311=0;
 static ssize_t show_mt6311_access(struct device *dev,struct device_attribute *attr, char *buf)
 {
-    pr_notice("[show_mt6311_access] 0x%x\n", g_reg_value_mt6311);
+	battery_log(BAT_LOG_CRTI, "[show_mt6311_access] 0x%x\n", g_reg_value_mt6311);
     return sprintf(buf, "%u\n", g_reg_value_mt6311);
 }
 static ssize_t store_mt6311_access(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
@@ -7170,17 +7171,17 @@ static ssize_t store_mt6311_access(struct device *dev,struct device_attribute *a
     unsigned int reg_value = 0;
     unsigned int reg_address = 0;
 
-    pr_notice("[store_mt6311_access] \n");
+	battery_log(BAT_LOG_CRTI, "[store_mt6311_access]\n");
 
     if(buf != NULL && size != 0)
     {
-        pr_notice("[store_mt6311_access] buf is %s and size is %zu \n",buf,size);
+		battery_log(BAT_LOG_CRTI, "[store_mt6311_access] buf is %s and size is %zu\n", buf, size);
         reg_address = simple_strtoul(buf,&pvalue,16);
 
         if(size > 4)
         {
             reg_value = simple_strtoul((pvalue+1),NULL,16);
-            pr_notice("[store_mt6311_access] write mt6311 reg 0x%x with value 0x%x !\n",reg_address,reg_value);
+			battery_log(BAT_LOG_CRTI, "[store_mt6311_access] write mt6311 reg 0x%x with value 0x%x !\n", reg_address, reg_value);
 
             ret=mt6311_config_interface(reg_address, reg_value, 0xFF, 0x0);
         }
@@ -7188,8 +7189,8 @@ static ssize_t store_mt6311_access(struct device *dev,struct device_attribute *a
         {
             ret=mt6311_read_interface(reg_address, &g_reg_value_mt6311, 0xFF, 0x0);
 
-            pr_notice("[store_mt6311_access] read mt6311 reg 0x%x with value 0x%x !\n",reg_address,g_reg_value_mt6311);
-            pr_notice("[store_mt6311_access] Please use \"cat mt6311_access\" to get value\r\n");
+			battery_log(BAT_LOG_CRTI, "[store_mt6311_access] read mt6311 reg 0x%x with value 0x%x !\n", reg_address, g_reg_value_mt6311);
+			battery_log(BAT_LOG_CRTI, "[store_mt6311_access] Please use \"cat mt6311_access\" to get value\r\n");
         }
     }
     return size;
@@ -7202,7 +7203,7 @@ static DEVICE_ATTR(mt6311_access, 0664, show_mt6311_access, store_mt6311_access)
 int g_mt6311_vosel_pin=0;
 static ssize_t show_mt6311_vosel_pin(struct device *dev,struct device_attribute *attr, char *buf)
 {
-    pr_notice("[show_mt6311_vosel_pin] g_mt6311_vosel_pin=%d\n", g_mt6311_vosel_pin);
+	battery_log(BAT_LOG_CRTI, "[show_mt6311_vosel_pin] g_mt6311_vosel_pin=%d\n", g_mt6311_vosel_pin);
     return sprintf(buf, "%u\n", g_mt6311_vosel_pin);
 }
 static ssize_t store_mt6311_vosel_pin(struct device *dev,struct device_attribute *attr, const char *buf, size_t size)
@@ -7210,12 +7211,12 @@ static ssize_t store_mt6311_vosel_pin(struct device *dev,struct device_attribute
     int val=0;
     char *pvalue = NULL;
 
-    pr_notice( "[store_mt6311_vosel_pin] \n");
+	battery_log(BAT_LOG_CRTI,  "[store_mt6311_vosel_pin]\n");
 
     val = simple_strtoul(buf,&pvalue,16);
     g_mt6311_vosel_pin = val;
 
-    pr_notice( "[store_mt6311_vosel_pin] g_mt6311_vosel_pin(%d)\n", g_mt6311_vosel_pin);
+	battery_log(BAT_LOG_CRTI,  "[store_mt6311_vosel_pin] g_mt6311_vosel_pin(%d)\n", g_mt6311_vosel_pin);
 
     return size;
 }
@@ -7228,7 +7229,7 @@ static int mt6311_user_space_probe(struct platform_device *dev)
 {
     int ret_device_file = 0;
 
-    pr_notice("******** mt6311_user_space_probe!! ********\n" );
+	battery_log(BAT_LOG_CRTI, "******** mt6311_user_space_probe!! ********\n");
 
     ret_device_file = device_create_file(&(dev->dev), &dev_attr_mt6311_access);
     ret_device_file = device_create_file(&(dev->dev), &dev_attr_mt6311_vosel_pin);
@@ -7255,7 +7256,7 @@ static int __init mt6311_init(void)
 {
 #ifdef mt6311_AUTO_DETECT_DISABLE
 
-    pr_notice("[mt6311_init] mt6311_AUTO_DETECT_DISABLE\n");
+	battery_log(BAT_LOG_CRTI, "[mt6311_init] mt6311_AUTO_DETECT_DISABLE\n");
     g_mt6311_hw_exist=0;
     g_mt6311_driver_ready=1;
 
@@ -7267,37 +7268,37 @@ static int __init mt6311_init(void)
 
     #ifdef I2C_EXT_BUCK_CHANNEL // auto detect
     {
-        pr_notice("[mt6311_init] init start. ch=%d!!\n", mt6311_BUSNUM);
+		battery_log(BAT_LOG_CRTI, "[mt6311_init] init start. ch=%d!!\n", mt6311_BUSNUM);
 
         i2c_register_board_info(mt6311_BUSNUM, &i2c_mt6311, 1);
 
         if(i2c_add_driver(&mt6311_driver)!=0)
         {
-            pr_notice("[mt6311_init] failed to register mt6311 i2c driver.\n");
+			battery_log(BAT_LOG_CRTI, "[mt6311_init] failed to register mt6311 i2c driver.\n");
         }
         else
         {
-            pr_notice("[mt6311_init] Success to register mt6311 i2c driver.\n");
+			battery_log(BAT_LOG_CRTI, "[mt6311_init] Success to register mt6311 i2c driver.\n");
         }
 
         // mt6311 user space access interface
         ret = platform_device_register(&mt6311_user_space_device);
         if (ret) {
-            pr_notice("****[mt6311_init] Unable to device register(%d)\n", ret);
+			battery_log(BAT_LOG_CRTI, "****[mt6311_init] Unable to device register(%d)\n", ret);
             return ret;
         }
         ret = platform_driver_register(&mt6311_user_space_driver);
         if (ret) {
-            pr_notice("****[mt6311_init] Unable to register driver (%d)\n", ret);
+			battery_log(BAT_LOG_CRTI, "****[mt6311_init] Unable to register driver (%d)\n", ret);
             return ret;
         }
     }
     #else
     {
-        pr_notice("[mt6311_init] DCT no define EXT BUCK\n");
+		battery_log(BAT_LOG_CRTI, "[mt6311_init] DCT no define EXT BUCK\n");
         g_mt6311_hw_exist=0;
         g_mt6311_driver_ready=1;
-        pr_notice("[mt6311_init] g_mt6311_hw_exist=%d, g_mt6311_driver_ready=%d\n",
+		battery_log(BAT_LOG_CRTI, "[mt6311_init] g_mt6311_hw_exist=%d, g_mt6311_driver_ready=%d\n",
             g_mt6311_hw_exist, g_mt6311_driver_ready);
     }
     #endif

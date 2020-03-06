@@ -74,12 +74,12 @@
 kal_uint32 		g_bcct_flag = 0;
 CHR_CURRENT_ENUM 	g_temp_CC_value = CHARGE_CURRENT_0_00_MA;
 kal_uint32 		g_usb_state = USB_UNCONFIGURED;
-kal_uint32 		charging_full_current = CHARGING_FULL_CURRENT;	/* mA */
-kal_uint32 		v_cc2topoff_threshold = V_CC2TOPOFF_THRES;
- CHR_CURRENT_ENUM	ulc_cv_charging_current = AC_CHARGER_CURRENT;	
- kal_bool 		ulc_cv_charging_current_flag = KAL_FALSE;
+kal_uint32 charging_full_current = CHARGING_FULL_CURRENT;	/* mA */
+kal_uint32 v_cc2topoff_threshold = V_CC2TOPOFF_THRES;
+CHR_CURRENT_ENUM ulc_cv_charging_current = AC_CHARGER_CURRENT;
+kal_bool ulc_cv_charging_current_flag = KAL_FALSE;
 static bool 		usb_unlimited=false;
-
+BATTERY_VOLTAGE_ENUM cv_voltage;
   /* ///////////////////////////////////////////////////////////////////////////////////////// */
   /* // JEITA */
   /* ///////////////////////////////////////////////////////////////////////////////////////// */
@@ -529,8 +529,6 @@ static void battery_pump_express_algorithm_start(void)
 
 static BATTERY_VOLTAGE_ENUM select_jeita_cv(void)
 {
-	BATTERY_VOLTAGE_ENUM cv_voltage;
-
 	if (g_temp_status == TEMP_ABOVE_POS_60) {
 		cv_voltage = JEITA_TEMP_ABOVE_POS_60_CV_VOLTAGE;
 	} else if (g_temp_status == TEMP_POS_45_TO_POS_60) {
@@ -557,7 +555,6 @@ static BATTERY_VOLTAGE_ENUM select_jeita_cv(void)
 PMU_STATUS do_jeita_state_machine(void)
 {
 	int previous_g_temp_status;
-	BATTERY_VOLTAGE_ENUM cv_voltage;
 
 	previous_g_temp_status = g_temp_status;
 	/* JEITA battery temp Standard */
@@ -817,25 +814,24 @@ void select_charging_curret(void)
 				g_temp_CC_value = CHARGE_CURRENT_1500_00_MA;
 #endif
 		} else if (BMT_status.charger_type == CHARGING_HOST) 
-		{
+		{	
 
 #if defined(CHARGING_HOST_SUPPORT)
-			if (g_usb_state == USB_SUSPEND) {
+			if (g_usb_state == USB_SUSPEND)
 				g_temp_CC_value = USB_CHARGER_CURRENT;
-			} else if (g_usb_state == USB_UNCONFIGURED) {
+			else if (g_usb_state == USB_UNCONFIGURED)
 				g_temp_CC_value = USB_CHARGER_CURRENT;
-			} else if (g_usb_state == USB_CONFIGURED) {
-			g_temp_CC_value = CHARGING_HOST_CHARGER_CURRENT;
-			} else {
+			else if (g_usb_state == USB_CONFIGURED)
+				g_temp_CC_value = CHARGING_HOST_CHARGER_CURRENT;
+			else
 				g_temp_CC_value = USB_CHARGER_CURRENT;
-			}
-			
+
 			battery_log(BAT_LOG_CRTI,
 						"[BATTERY] CHARGING_HOST CC mode charging : %d on %d state\r\n",
 						g_temp_CC_value, g_usb_state);
-#else	
+#else
 			g_temp_CC_value = CHARGING_HOST_CHARGER_CURRENT;
-#endif	
+#endif
 		} else if (BMT_status.charger_type == APPLE_2_1A_CHARGER) {
 			g_temp_CC_value = APPLE_2_1A_CHARGER_CURRENT;
 		} else if (BMT_status.charger_type == APPLE_1_0A_CHARGER) {
@@ -959,9 +955,6 @@ static void pchr_sw_cv_charing_current_check(void)
 
 static void pchr_turn_on_charging(void)
 {
-#if !defined(CONFIG_MTK_JEITA_STANDARD_SUPPORT)
-	BATTERY_VOLTAGE_ENUM cv_voltage;
-#endif
 	kal_uint32 charging_enable = KAL_TRUE;
 
 	battery_log(BAT_LOG_FULL, "[BATTERY] pchr_turn_on_charging()!\r\n");
@@ -1165,13 +1158,9 @@ PMU_STATUS BAT_BatteryFullAction(void)
 
 
 #if defined(CONFIG_MTK_JEITA_STANDARD_SUPPORT)
-	if (BMT_status.bat_vol < g_jeita_recharging_voltage)
+if (BMT_status.bat_vol < g_jeita_recharging_voltage)
 #else
-/* Vanzo:zhangxinyu on: Wed, 23 Apr 2014 19:28:31 +0800
-	if (BMT_status.bat_vol < RECHARGING_VOLTAGE)
- */
-    if((BMT_status.bat_vol < RECHARGING_VOLTAGE) || (BMT_status.SOC < 98))
-// End of Vanzo: zhangxinyu
+if (BMT_status.bat_vol < RECHARGING_VOLTAGE)
 #endif
 	{
 		battery_log(BAT_LOG_CRTI,

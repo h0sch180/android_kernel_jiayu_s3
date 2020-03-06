@@ -39,7 +39,7 @@
 #define FALSE 0
 #endif
 
-#define LCM_PRINT printk
+#define LCM_PRINT pr_debug
 
 /* --------------------------------------------------------------------------- */
 /* Local Variables */
@@ -288,9 +288,9 @@ static void init_lcm_registers(void)
 
 	send_ctrl_cmd(0x2C);
 	for (i = 0; i < FRAME_WIDTH * FRAME_HEIGHT; i++) {
-		send_data_cmd(0x00);
-		send_data_cmd(0x00);
-		send_data_cmd(0x00);
+		send_data_cmd(0xFF);
+		send_data_cmd(0xFF);
+		send_data_cmd(0xFF);
 	}
 
 	send_ctrl_cmd(0xB2);

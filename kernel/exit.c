@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
-
+#define DEBUG
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
@@ -53,15 +53,14 @@
 #include <linux/oom.h>
 #include <linux/writeback.h>
 #include <linux/shm.h>
-
+#ifdef CONFIG_MTPROF
+#include "mt_sched_mon.h"
+#include "mt_cputime.h"
+#endif
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
-
-#ifdef CONFIG_MT_PRIO_TRACER
-# include <linux/prio_tracer.h>
-#endif
 
 static void exit_mm(struct task_struct * tsk);
 
@@ -74,6 +73,7 @@ static void __unhash_process(struct task_struct *p, bool group_dead)
 		detach_pid(p, PIDTYPE_SID);
 
 		list_del_rcu(&p->tasks);
+		delete_from_adj_tree(p);
 		list_del_init(&p->sibling);
 		__this_cpu_dec(process_counts);
 	}
@@ -459,7 +459,6 @@ static void exit_mm(struct task_struct * tsk)
 {
 	struct mm_struct *mm = tsk->mm;
 	struct core_state *core_state;
-	int mm_released;
 
 	mm_release(tsk, mm);
 	if (!mm)
@@ -505,10 +504,7 @@ static void exit_mm(struct task_struct * tsk)
 	enter_lazy_tlb(mm, current);
 	task_unlock(tsk);
 	mm_update_next_owner(mm);
-
-	mm_released = mmput(mm);
-	if (mm_released)
-		set_tsk_thread_flag(tsk, TIF_MM_RELEASED);
+	mmput(mm);
 }
 
 /*
@@ -730,16 +726,14 @@ void do_exit(long code)
 	int group_dead;
 
 	profile_task_exit(tsk);
-#ifdef CONFIG_SCHEDSTATS
+#ifdef CONFIG_MTPROF
+#ifdef CONFIG_MTPROF_CPUTIME
 	/* mt shceduler profiling*/
-	printk(KERN_DEBUG "[%d:%s] exit\n", tsk->pid, tsk->comm);
 	end_mtproc_info(tsk);
 #endif
-
-#ifdef CONFIG_MT_PRIO_TRACER
-	delete_prio_tracer(tsk->pid);
+	/* mt throttle monitor */
+	end_mt_rt_mon_info(tsk);
 #endif
-
 	WARN_ON(blk_needs_flush_plug(tsk));
 
 	if (unlikely(in_interrupt()))

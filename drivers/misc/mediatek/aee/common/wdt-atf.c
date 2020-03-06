@@ -6,7 +6,6 @@
 #include <linux/list.h>
 #include <linux/init.h>
 #include <linux/smp.h>
-#include <linux/mt_sched_mon.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/hardirq.h>
@@ -27,6 +26,7 @@
 #endif
 #include "aee-common.h"
 #include <mach/mt_secure_api.h>
+#include "mt_sched_mon.h"
 
 
 #define THREAD_INFO(sp) ((struct thread_info *) \

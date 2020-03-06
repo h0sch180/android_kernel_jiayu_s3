@@ -5,7 +5,7 @@
 #include <linux/list.h>
 
 #if defined(CONFIG_MT_ENG_BUILD)  /* log is only enabled in eng load */
-#define RAWFS_DBG		 pr_warn
+#define RAWFS_DBG		 pr_debug
 #endif
 
 #define RAWFS_BLOCK_FILE

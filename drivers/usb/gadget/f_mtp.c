@@ -392,16 +392,18 @@ struct {
 #define USB_MTP_FUNCTIONS		6
 #endif
 
+//lenovo-sw yexh1 2014_12_17, the name of adb change to ffs in android L 
 #define USB_MTP			"mtp\n"
 #define USB_MTP_ACM		"mtp,acm\n"
-#define USB_MTP_ADB		"mtp,adb\n"
-#define USB_MTP_ADB_ACM	        "mtp,adb,acm\n"
+#define USB_MTP_ADB		"mtp,ffs\n"
+#define USB_MTP_ADB_ACM	        "mtp,ffs,acm\n"
 #define USB_MTP_UMS		"mtp,mass_storage\n"
-#define USB_MTP_UMS_ADB	        "mtp,mass_storage,adb\n"
+#define USB_MTP_UMS_ADB	        "mtp,mass_storage,ffs\n"
 #ifdef CONFIG_MTK_TC1_FEATURE
-#define USB_TC1_MTP_ADB	        "acm,gser,mtp,adb\n"
+#define USB_TC1_MTP_ADB	        "acm,gser,mtp,ffs\n"
 #define USB_TC1_MTP		"acm,gser,mtp\n"
 #endif
+//lenovo-sw yexh1 END
 
 static char * USB_MTP_FUNC[USB_MTP_FUNCTIONS] =
 {
@@ -1134,6 +1136,11 @@ static void send_file_work(struct work_struct *data)
 	offset = dev->xfer_file_offset;
 	count = dev->xfer_file_length;
 
+	if (count < 0) {
+		dev->xfer_result = -EINVAL;
+		return;
+	}
+
 	DBG(cdev, "send_file_work(%lld %lld)\n", offset, count);
 
 	if (dev->xfer_send_header) {
@@ -1308,6 +1315,11 @@ static void receive_file_work(struct work_struct *data)
 	filp = dev->xfer_file;
 	offset = dev->xfer_file_offset;
 	count = dev->xfer_file_length;
+
+	if (count < 0) {
+		dev->xfer_result = -EINVAL;
+		return;
+	}
 
 	DBG(cdev, "receive_file_work(%lld)\n", count);
 
@@ -1859,7 +1871,6 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 #endif
                                 && w_value == 0) {
 			struct mtp_device_status *status = cdev->req->buf;
-
 			status->wLength =
 				__constant_cpu_to_le16(sizeof(*status));
 
@@ -1929,7 +1940,6 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
 		int rc;
-
 		cdev->req->zero = value < w_length;
 		cdev->req->length = value;
 		rc = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
@@ -1990,6 +2000,7 @@ static int ptp_ctrlrequest(struct usb_composite_dev *cdev,
 #endif
                                 && w_value == 0) {
 			struct mtp_device_status *status = cdev->req->buf;
+
 			status->wLength =
 				__constant_cpu_to_le16(sizeof(*status));
 
@@ -2059,6 +2070,7 @@ static int ptp_ctrlrequest(struct usb_composite_dev *cdev,
 	/* respond with data transfer or status phase? */
 	if (value >= 0) {
 		int rc;
+
 		cdev->req->zero = value < w_length;
 		cdev->req->length = value;
 		rc = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);

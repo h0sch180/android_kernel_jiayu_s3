@@ -35,6 +35,7 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 #include <linux/aee.h>
+#include <mach/mt_hooks.h>
 static const char *handler[]= {
 	"prefetch abort",
 	"data abort",
@@ -401,7 +402,7 @@ static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 {
 	struct undef_hook *hook;
 	unsigned long flags;
-	int (*fn)(struct pt_regs *regs, unsigned int instr) = NULL;
+	int (*fn)(struct pt_regs *regs, unsigned int instr) = arm_undefinstr_retry;
 
 	raw_spin_lock_irqsave(&undef_lock, flags);
 	list_for_each_entry(hook, &undef_hook, node)
@@ -412,9 +413,6 @@ static int call_undef_hook(struct pt_regs *regs, unsigned int instr)
 
 	return fn ? fn(regs, instr) : 1;
 }
-
-static DEFINE_PER_CPU(void *, __prev_undefinstr_pc) = 0;
-static DEFINE_PER_CPU(int, __prev_undefinstr_counter) = 0;
 
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
@@ -479,56 +477,6 @@ die_sig:
 		dump_instr(KERN_INFO, regs);
 	}
 #endif
-
-	/* Place the SIGILL ICache Invalidate after the Debugger Undefined-Instruction Solution. */
-	if (((processor_mode(regs) == USR_MODE) || (processor_mode(regs) == SVC_MODE)) && 
-			(instr != insn)) {
-		void **prev_undefinstr_pc = &get_cpu_var(__prev_undefinstr_pc);
-		int *prev_undefinstr_counter = &get_cpu_var(__prev_undefinstr_counter);
-                /* Only do it for User-Space Application. */
-		pr_alert("USR_MODE/SVC_MODE Undefined Instruction Address curr:%p pc=%p:%p, instr: 0x%x\n",
-			(void *)current, (void *)pc, (void *)*prev_undefinstr_pc, 
-			instr);
-		if ((*prev_undefinstr_pc != pc)) {
-			/* If the current process or program counter is changed......renew the counter. */
-			pr_alert("First Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc, (void *)*prev_undefinstr_pc);
-			*prev_undefinstr_pc = pc;
-			*prev_undefinstr_counter = 0;
-			put_cpu_var(__prev_undefinstr_pc);
-			put_cpu_var(__prev_undefinstr_counter);
-			__cpuc_flush_icache_all();
-			flush_cache_all();
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		else if(*prev_undefinstr_counter < 1) {
-			pr_alert("2nd Time Recovery curr:%p pc=%p:%p\n",
-				(void *)current, (void *)pc,
-				(void *)*prev_undefinstr_pc);
-			*prev_undefinstr_counter += 1;
-			put_cpu_var(__prev_undefinstr_pc);
-			put_cpu_var(__prev_undefinstr_counter);
-			__cpuc_flush_icache_all();
-			flush_cache_all();
-			if (!user_mode(regs)) {
-				thread->cpu_excp--;
-			}
-			return;
-		}
-		*prev_undefinstr_counter += 1;
-		if(*prev_undefinstr_counter >= 4) {
-			/* 2=first time SigILL,3=2nd time NE-SigILL,4=3rd time CoreDump-SigILL */
-			*prev_undefinstr_pc = 0;
-			*prev_undefinstr_counter = 0;
-		}
-		put_cpu_var(__prev_undefinstr_pc);
-		put_cpu_var(__prev_undefinstr_counter);
-		pr_alert("Go to ARM Notify Die curr:%p pc=%p:%p\n",
-			(void *)current, (void *)pc, (void *)*prev_undefinstr_pc);
-	}
 
 	info.si_signo = SIGILL;
 	info.si_errno = 0;

@@ -4,7 +4,7 @@
 #include "extd_log.h"
 #include "extd_factory.h"
 #include "extd_info.h"
-#include "external_display.h"
+#include "./mt6752/external_display.h"
 
 
 static HDMI_DRIVER *hdmi_tx_drv;
@@ -48,7 +48,11 @@ int hdmi_factory_mode_init(void)
 		EXTD_FACTORY_ERR("[hdmi]%s, hdmi_init fail, can not get hdmi driver handle\n", __func__);
 		return -1;
 	}
-	hdmi_tx_drv->register_callback(hdmi_factory_callback);
+
+	if (hdmi_tx_drv->register_callback != NULL)
+		hdmi_tx_drv->register_callback(hdmi_factory_callback);
+	else
+		EXTD_FACTORY_ERR("[hdmi]%s, hdmi_init fail, register_callback null\n", __func__);
 
 	pgc->hdmi_factory_inited = true;
 	return 0;
@@ -64,7 +68,7 @@ void hdmi_factory_dpi_parameters(int arg, int io_driving)
 	switch (arg) {
 	case HDMI_VIDEO_720x480p_60Hz:
 		{
-			clk_pol = HDMI_POLARITY_FALLING;
+			clk_pol = HDMI_POLARITY_RISING;
 			de_pol = HDMI_POLARITY_RISING;
 			hsync_pol = HDMI_POLARITY_RISING;
 			vsync_pol = HDMI_POLARITY_RISING;
@@ -89,7 +93,7 @@ void hdmi_factory_dpi_parameters(int arg, int io_driving)
 		}
 	case HDMI_VIDEO_1280x720p_60Hz:
 		{
-			clk_pol = HDMI_POLARITY_FALLING;
+			clk_pol = HDMI_POLARITY_RISING;
 			de_pol = HDMI_POLARITY_RISING;
 			hsync_pol = HDMI_POLARITY_FALLING;
 			vsync_pol = HDMI_POLARITY_FALLING;
@@ -115,7 +119,7 @@ void hdmi_factory_dpi_parameters(int arg, int io_driving)
 		}
 	case HDMI_VIDEO_1920x1080p_30Hz:
 		{
-			clk_pol = HDMI_POLARITY_FALLING;
+			clk_pol = HDMI_POLARITY_RISING;
 			de_pol = HDMI_POLARITY_RISING;
 			hsync_pol = HDMI_POLARITY_FALLING;
 			vsync_pol = HDMI_POLARITY_FALLING;
@@ -141,7 +145,7 @@ void hdmi_factory_dpi_parameters(int arg, int io_driving)
 		}
 	case HDMI_VIDEO_1920x1080p_60Hz:
 		{
-			clk_pol = HDMI_POLARITY_FALLING;
+			clk_pol = HDMI_POLARITY_RISING;
 			de_pol = HDMI_POLARITY_RISING;
 			hsync_pol = HDMI_POLARITY_FALLING;
 			vsync_pol = HDMI_POLARITY_FALLING;
